@@ -1,0 +1,7 @@
+{
+  "name": "Barber & Beauty Hub",
+  "description": "A comprehensive booking system for barbershops and beauty salons with multi-role management, customization, and integrated payments.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

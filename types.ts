@@ -51,6 +51,7 @@ export interface Shop {
   professionals: Professional[];
   products: Product[];
   subscriptionActive: boolean;
+  subscriptionAmount?: number;
   rating: number;
   asaasWalletId?: string;
   asaasAccountId?: string;

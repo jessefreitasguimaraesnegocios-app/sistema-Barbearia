@@ -1,6 +1,7 @@
--- Supabase Database Structure for Barber & Beauty Hub
+-- Cole este arquivo inteiro no SQL Editor do Supabase (Dashboard → SQL Editor → New query) e clique em Run.
 
--- 1. Shops Table
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE shops (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   owner_id UUID REFERENCES auth.users(id),
@@ -15,33 +16,26 @@ CREATE TABLE shops (
   subscription_active BOOLEAN DEFAULT TRUE,
   subscription_amount DECIMAL(10,2) DEFAULT 99.00,
   rating DECIMAL(3,2) DEFAULT 5.0,
-  
-  -- Asaas Integration Fields
-  asaas_account_id TEXT, -- The ID of the sub-account in Asaas
-  asaas_wallet_id TEXT,  -- The Wallet ID for splits
-  asaas_api_key TEXT,    -- The API Key for the sub-account (encrypted in production!)
-  
-  -- Registration Info
+  asaas_account_id TEXT,
+  asaas_wallet_id TEXT,
+  asaas_api_key TEXT,
   cnpj_cpf TEXT,
   email TEXT,
   phone TEXT,
   pix_key TEXT,
-  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Services Table
 CREATE TABLE services (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   shop_id UUID REFERENCES shops(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
   price DECIMAL(10,2) NOT NULL,
-  duration INTEGER NOT NULL, -- in minutes
+  duration INTEGER NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. Professionals Table
 CREATE TABLE professionals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   shop_id UUID REFERENCES shops(id) ON DELETE CASCADE,
@@ -51,7 +45,6 @@ CREATE TABLE professionals (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Appointments Table
 CREATE TABLE appointments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   client_id UUID REFERENCES auth.users(id),
@@ -62,14 +55,10 @@ CREATE TABLE appointments (
   time TIME NOT NULL,
   status TEXT DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID', 'COMPLETED', 'CANCELLED')),
   amount DECIMAL(10,2) NOT NULL,
-  asaas_payment_id TEXT, -- ID of the payment in Asaas
+  asaas_payment_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- RLS Policies (Example)
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public shops are viewable by everyone" ON shops FOR SELECT USING (true);
 CREATE POLICY "Users can update their own shop" ON shops FOR UPDATE USING (auth.uid() = owner_id);
-
--- Migration: se a tabela shops já existir, rode no Supabase SQL Editor:
--- ALTER TABLE shops ADD COLUMN IF NOT EXISTS subscription_amount DECIMAL(10,2) DEFAULT 99.00;

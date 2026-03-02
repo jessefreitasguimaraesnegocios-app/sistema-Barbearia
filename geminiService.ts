@@ -1,9 +1,23 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+let aiInstance: InstanceType<typeof GoogleGenAI> | null = null;
+
+function getAI(): InstanceType<typeof GoogleGenAI> | null {
+  if (aiInstance !== null) return aiInstance;
+  const key = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || "";
+  if (!key || typeof key !== "string" || key.length === 0) return null;
+  try {
+    aiInstance = new GoogleGenAI({ apiKey: key });
+    return aiInstance;
+  } catch {
+    return null;
+  }
+}
 
 export async function generateShopDescription(name: string, type: string): Promise<string> {
+  const ai = getAI();
+  if (!ai) return "Um espaço dedicado ao seu bem-estar e estilo.";
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -17,6 +31,8 @@ export async function generateShopDescription(name: string, type: string): Promi
 }
 
 export async function generateDailyBriefing(shopName: string, appointmentsCount: number, busyTime: string): Promise<string> {
+  const ai = getAI();
+  if (!ai) return "Prepare-se para mais um dia de sucesso e ótimos cortes!";
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",

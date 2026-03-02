@@ -42,6 +42,7 @@ const App: React.FC = () => {
         profileImage: s.profile_image,
         bannerImage: s.banner_image,
         subscriptionActive: s.subscription_active,
+        subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
         asaasAccountId: s.asaas_account_id,
         asaasApiKey: s.asaas_api_key,
         asaasWalletId: s.asaas_wallet_id,

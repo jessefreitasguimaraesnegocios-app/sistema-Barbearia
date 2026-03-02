@@ -45,7 +45,8 @@ export const MOCK_SHOPS: Shop[] = [
     products: [MOCK_PRODUCTS[0], MOCK_PRODUCTS[1]],
     subscriptionActive: true,
     rating: 4.9,
-    asaasWalletId: 'wallet_sh1_mock_id'
+    asaasWalletId: 'wallet_sh1_mock_id',
+    subscriptionAmount: 99
   },
   {
     id: 'sh2',
@@ -63,6 +64,7 @@ export const MOCK_SHOPS: Shop[] = [
     products: [MOCK_PRODUCTS[2], MOCK_PRODUCTS[3]],
     subscriptionActive: true,
     rating: 4.8,
-    asaasWalletId: 'wallet_sh2_mock_id'
+    asaasWalletId: 'wallet_sh2_mock_id',
+    subscriptionAmount: 99
   }
 ];

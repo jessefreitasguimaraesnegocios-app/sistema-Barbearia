@@ -4,10 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "vite",
     "build": "vite build",
     "lint": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "supabase:link": "supabase link --project-ref wevcqosziiwfbxbmjqln",
+    "supabase:db-push": "supabase db push",
+    "db:push": "node scripts/apply-migrations.js"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",

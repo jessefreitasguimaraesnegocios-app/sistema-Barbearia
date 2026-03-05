@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Shop } from '../types';
+import { supabase } from '../src/lib/supabase';
 
 // Máscara telefone BR: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
 function formatPhone(value: string): string {
@@ -31,9 +32,10 @@ const EMAIL_DOMAINS = ['@gmail.com', '@hotmail.com', '@outlook.com', '@yahoo.com
 interface AdminDashboardProps {
   shops: Shop[];
   setShops: (shops: Shop[]) => void;
+  onShopCreated?: () => void | Promise<void>;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShopCreated }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [emailSuggestionsOpen, setEmailSuggestionsOpen] = useState(false);
@@ -60,25 +62,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops }) => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/admin/shops/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+      const { data, error } = await supabase.functions.invoke('create-shop', {
+        body: {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone
+        }
       });
 
-      const data = await response.json();
-      if (data.success) {
-        setShops([...shops, data.shop]);
+      if (error) {
+        alert(error.message || 'Erro ao cadastrar barbearia.');
+        return;
+      }
+      if (data?.success) {
+        await onShopCreated?.();
         setShowAddModal(false);
         setFormData({ name: '', type: 'BARBER', cnpjCpf: '', email: '', phone: '', pixKey: '', postalCode: '01310100', address: 'Rua Exemplo', addressNumber: 'S/N', province: 'Centro', incomeValue: 5000, subscriptionAmount: 99 });
-        alert("Barbearia cadastrada e subconta Asaas criada com sucesso!");
+        alert('Barbearia cadastrada e cliente Asaas criado com sucesso!');
       } else {
-        const msg = data.details || data.error || "Erro ao cadastrar barbearia.";
-        alert(typeof msg === "string" ? msg : JSON.stringify(msg));
+        const msg = data?.details || data?.error || 'Erro ao cadastrar barbearia.';
+        alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
       }
     } catch (error) {
-      console.error("Error creating shop:", error);
-      alert("Erro de conexão ao cadastrar barbearia.");
+      console.error('Error creating shop:', error);
+      alert('Erro de conexão ao cadastrar barbearia.');
     } finally {
       setIsSubmitting(false);
     }

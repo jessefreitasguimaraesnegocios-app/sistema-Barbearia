@@ -183,7 +183,7 @@ const App: React.FC = () => {
         const customShop = shops.find(s => s.ownerId === currentUser.id);
         return customShop ? <ShopCustomization shop={customShop} onSave={updateShop} /> : null;
       case 'admin-dashboard':
-        return <AdminDashboard shops={shops} setShops={setShops} />;
+        return <AdminDashboard shops={shops} setShops={setShops} onShopCreated={fetchShops} />;
       default:
         return <div>View not found</div>;
     }

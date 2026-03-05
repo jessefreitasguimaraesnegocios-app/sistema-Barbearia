@@ -1,8 +1,8 @@
--- Supabase Database Structure for Barber & Beauty Hub
+-- Supabase Database Structure for Barber & Beauty Hub (idempotent)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Shops Table
-CREATE TABLE shops (
+CREATE TABLE IF NOT EXISTS shops (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   owner_id UUID REFERENCES auth.users(id),
   name TEXT NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE shops (
 );
 
 -- 2. Services Table
-CREATE TABLE services (
+CREATE TABLE IF NOT EXISTS services (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   shop_id UUID REFERENCES shops(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE services (
 );
 
 -- 3. Professionals Table
-CREATE TABLE professionals (
+CREATE TABLE IF NOT EXISTS professionals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   shop_id UUID REFERENCES shops(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE professionals (
 );
 
 -- 4. Appointments Table
-CREATE TABLE appointments (
+CREATE TABLE IF NOT EXISTS appointments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   client_id UUID REFERENCES auth.users(id),
   shop_id UUID REFERENCES shops(id),
@@ -65,7 +65,9 @@ CREATE TABLE appointments (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- RLS Policies
+-- RLS Policies (idempotent: drop if exists then create)
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public shops are viewable by everyone" ON shops;
 CREATE POLICY "Public shops are viewable by everyone" ON shops FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Users can update their own shop" ON shops;
 CREATE POLICY "Users can update their own shop" ON shops FOR UPDATE USING (auth.uid() = owner_id);

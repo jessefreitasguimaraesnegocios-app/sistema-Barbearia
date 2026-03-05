@@ -25,7 +25,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { name, email, phone } = await req.json();
+    const { name, email, phone, cpfCnpj: bodyCpf } = await req.json();
     if (!name || !email || !phone) {
       return new Response(
         JSON.stringify({
@@ -33,7 +33,7 @@ Deno.serve(async (req: Request) => {
           error: "name, email e phone são obrigatórios",
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ success: false, error: "ASAAS_API_KEY não configurada" }),
         {
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -58,6 +58,9 @@ Deno.serve(async (req: Request) => {
     const mobilePhone = String(phone)
       .replace(/\D/g, "")
       .slice(0, 11) || "11999999999";
+    const cpfCnpjDigits = bodyCpf != null
+      ? String(bodyCpf).replace(/\D/g, "").slice(0, 14)
+      : "";
     const asaasRes = await fetch(`${asaasBaseUrl}/customers`, {
       method: "POST",
       headers: {
@@ -68,21 +71,31 @@ Deno.serve(async (req: Request) => {
         name: String(name),
         email: String(email),
         mobilePhone,
-        cpfCnpj: "00000000000",
+        cpfCnpj: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : "00000000000",
       }),
     });
 
     if (!asaasRes.ok) {
-      const errData = await asaasRes.text();
-      console.error("Asaas customer error:", errData);
+      const errText = await asaasRes.text();
+      let errMessage = "Falha ao criar cliente Asaas";
+      let details = errText;
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson?.errors?.[0]?.description) {
+          errMessage = errJson.errors[0].description;
+        } else if (errJson?.error) {
+          errMessage = errJson.error;
+        }
+      } catch (_) {}
+      console.error("Asaas customer error:", errText);
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Falha ao criar cliente Asaas",
-          details: errData,
+          error: errMessage,
+          details,
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -97,7 +110,7 @@ Deno.serve(async (req: Request) => {
           error: "Asaas não retornou customer id",
         }),
         {
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -134,7 +147,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ success: false, error: insertError.message }),
         {
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -148,7 +161,7 @@ Deno.serve(async (req: Request) => {
           error: "Falha ao obter id da loja",
         }),
         {
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );

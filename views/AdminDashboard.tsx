@@ -66,7 +66,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         body: {
           name: formData.name,
           email: formData.email,
-          phone: formData.phone
+          phone: formData.phone,
+          cpfCnpj: formData.cnpjCpf || undefined
         }
       });
 

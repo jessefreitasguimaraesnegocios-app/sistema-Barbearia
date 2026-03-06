@@ -30,7 +30,22 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
 
-  const times = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
+  const allTimes = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const availableDates = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+  const availableTimes = !selectedDate
+    ? allTimes
+    : selectedDate < todayStr
+      ? []
+      : selectedDate > todayStr
+        ? allTimes
+        : allTimes.filter((t) => new Date(selectedDate + 'T' + t) > today);
 
   const handleBooking = async () => {
     if (!selectedService || !selectedPro || !selectedDate || !selectedTime || !selectedPaymentMethod) return;
@@ -53,7 +68,15 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
         })
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      if (!response.ok) {
+        let message = response.statusText || `Erro ${response.status}`;
+        if (isJson && text) try { message = JSON.parse(text).error || message; } catch (_) {}
+        throw new Error(message);
+      }
+      const data = isJson && text ? JSON.parse(text) : {};
       console.log("Asaas Split Payment Response:", data);
 
       // Simulação de sucesso após retorno do Asaas
@@ -125,7 +148,15 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
         })
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      if (!response.ok) {
+        let message = response.statusText || `Erro ${response.status}`;
+        if (isJson && text) try { message = JSON.parse(text).error || message; } catch (_) {}
+        throw new Error(message);
+      }
+      const data = isJson && text ? JSON.parse(text) : {};
       console.log("Asaas Split Order Response:", data);
 
       setTimeout(() => {
@@ -315,21 +346,21 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
                     
                     <div className="space-y-6">
                       <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-                        {['2023-11-20', '2023-11-21', '2023-11-22', '2023-11-23', '2023-11-24'].map(date => (
+                        {availableDates.map(date => (
                           <button 
                             key={date}
-                            onClick={() => setSelectedDate(date)}
+                            onClick={() => { setSelectedDate(date); setSelectedTime(''); }}
                             className={`flex-shrink-0 w-16 md:w-20 py-3 md:py-4 rounded-2xl border-2 transition-all flex flex-col items-center ${selectedDate === date ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-500'}`}
                           >
-                            <span className="text-[10px] md:text-xs font-medium uppercase">{new Date(date).toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
-                            <span className="text-lg md:text-xl font-bold">{new Date(date).getDate()}</span>
+                            <span className="text-[10px] md:text-xs font-medium uppercase">{new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
+                            <span className="text-lg md:text-xl font-bold">{new Date(date + 'T12:00:00').getDate()}</span>
                           </button>
                         ))}
                       </div>
 
                       {selectedDate && (
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                          {times.map(t => (
+                          {availableTimes.map(t => (
                             <button 
                               key={t}
                               onClick={() => setSelectedTime(t)}

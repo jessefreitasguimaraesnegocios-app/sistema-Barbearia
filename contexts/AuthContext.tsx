@@ -64,14 +64,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        setEmail(session.user.email ?? null);
-        const p = await fetchProfile(session.user.id);
-        setProfile(p);
-      } else {
-        setProfile(null);
-        setEmail(null);
+      try {
+        if (session?.user) {
+          setEmail(session.user.email ?? null);
+          const p = await fetchProfile(session.user.id);
+          setProfile(p);
+        } else {
+          setProfile(null);
+          setEmail(null);
+        }
+      } finally {
+        setLoading(false);
       }
+    }).catch(() => {
+      setProfile(null);
+      setEmail(null);
       setLoading(false);
     });
 

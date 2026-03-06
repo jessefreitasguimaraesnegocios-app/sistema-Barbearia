@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
-    "@supabase/supabase-js": "^2.97.0",
+    "@supabase/supabase-js": "^2.98.1-canary.1",
     "@types/express": "^5.0.6",
     "axios": "^1.13.5",
     "dotenv": "^17.3.1",

@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (session?.user) {
             setEmail(session.user.email ?? null);
             const p = await fetchProfile(session.user.id);
-            if (!cancelled) setProfile(p);
+            if (!cancelled) setProfile(p ?? { id: session.user.id, role: 'cliente', shop_id: null });
           } else {
             setProfile(null);
             setEmail(null);
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setEmail(session.user.email ?? null);
         const p = await fetchProfile(session.user.id);
-        setProfile(p);
+        setProfile(p ?? { id: session.user.id, role: 'cliente', shop_id: null });
       } else {
         setProfile(null);
         setEmail(null);
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao entrar.' };
       const p = await fetchProfile(data.user.id);
-      setProfile(p);
+      setProfile(p ?? { id: data.user.id, role: 'cliente', shop_id: null });
       setEmail(data.user.email ?? null);
       return { error: null };
     } catch (e) {
@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao criar conta.' };
       const p = await fetchProfile(data.user.id);
-      setProfile(p ?? null);
+      setProfile(p ?? { id: data.user.id, role: 'cliente', shop_id: null });
       setEmail(data.user.email ?? null);
       return { error: null };
     } catch (e) {

@@ -7,4 +7,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase credentials missing. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Lock customizado: executa a função sem usar Navigator LockManager, evitando o erro
+// "Acquiring an exclusive Navigator LockManager lock ... timed out waiting 10000ms"
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+  auth: {
+    lock: (_name, _acquireTimeout, fn) => fn(),
+    lockAcquireTimeout: 5000,
+  },
+});

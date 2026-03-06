@@ -24,13 +24,23 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: err } = await onSubmit(email, password);
-    setLoading(false);
-    if (err) {
-      setError(err);
-      return;
+    const timeoutMs = 15000;
+    const timeoutPromise = new Promise<{ error: string | null }>((_, reject) =>
+      setTimeout(() => reject(new Error('Tempo esgotado. Verifique sua conexão e tente novamente.')), timeoutMs)
+    );
+    try {
+      const result = await Promise.race([onSubmit(email, password), timeoutPromise]);
+      const err = result.error;
+      if (err) {
+        setError(err);
+        return;
+      }
+      onSuccess?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao conectar. Verifique sua rede.');
+    } finally {
+      setLoading(false);
     }
-    onSuccess?.();
   };
 
   return (

@@ -63,24 +63,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchProfile]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      try {
-        if (session?.user) {
-          setEmail(session.user.email ?? null);
-          const p = await fetchProfile(session.user.id);
-          setProfile(p);
-        } else {
-          setProfile(null);
-          setEmail(null);
+    let cancelled = false;
+    const safeSetLoading = (v: boolean) => { if (!cancelled) setLoading(v); };
+
+    const timeoutId = window.setTimeout(() => {
+      safeSetLoading(false);
+    }, 4000);
+
+    try {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
+        try {
+          if (session?.user) {
+            setEmail(session.user.email ?? null);
+            const p = await fetchProfile(session.user.id);
+            if (!cancelled) setProfile(p);
+          } else {
+            setProfile(null);
+            setEmail(null);
+          }
+        } finally {
+          safeSetLoading(false);
         }
-      } finally {
-        setLoading(false);
-      }
-    }).catch(() => {
-      setProfile(null);
-      setEmail(null);
-      setLoading(false);
-    });
+      }).catch(() => {
+        setProfile(null);
+        setEmail(null);
+        safeSetLoading(false);
+      });
+    } catch (_) {
+      safeSetLoading(false);
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
@@ -91,29 +102,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
         setEmail(null);
       }
-      setLoading(false);
+      safeSetLoading(false);
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const signIn = useCallback(async (emailInput: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password });
-    if (error) return { error: error.message };
-    if (!data.user) return { error: 'Erro ao entrar.' };
-    const p = await fetchProfile(data.user.id);
-    setProfile(p);
-    setEmail(data.user.email ?? null);
-    return { error: null };
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password });
+      if (error) return { error: error.message };
+      if (!data.user) return { error: 'Erro ao entrar.' };
+      const p = await fetchProfile(data.user.id);
+      setProfile(p);
+      setEmail(data.user.email ?? null);
+      return { error: null };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Erro ao conectar. Tente novamente.' };
+    }
   }, [fetchProfile]);
 
   const signUp = useCallback(async (emailInput: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email: emailInput, password });
-    if (error) return { error: error.message };
-    if (!data.user) return { error: 'Erro ao criar conta.' };
-    const p = await fetchProfile(data.user.id);
-    setProfile(p ?? null);
-    setEmail(data.user.email ?? null);
-    return { error: null };
+    try {
+      const { data, error } = await supabase.auth.signUp({ email: emailInput, password });
+      if (error) return { error: error.message };
+      if (!data.user) return { error: 'Erro ao criar conta.' };
+      const p = await fetchProfile(data.user.id);
+      setProfile(p ?? null);
+      setEmail(data.user.email ?? null);
+      return { error: null };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Erro ao conectar. Tente novamente.' };
+    }
   }, [fetchProfile]);
 
   const signOut = useCallback(async () => {

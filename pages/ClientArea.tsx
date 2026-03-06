@@ -93,9 +93,6 @@ export default function ClientArea() {
         <main className="max-w-7xl mx-auto p-4 md:p-8">
           {selectedShop ? (
             <>
-              <button type="button" onClick={() => setSelectedShop(null)} className="text-indigo-600 font-medium mb-4 flex items-center gap-2">
-                <i className="fas fa-arrow-left"></i> Voltar
-              </button>
               <ShopDetails
                 shop={selectedShop}
                 user={{ id: '', name: 'Visitante', email: '', role: 'CLIENT' }}

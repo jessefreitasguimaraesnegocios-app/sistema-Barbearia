@@ -2,6 +2,20 @@
 import React, { useState } from 'react';
 import { Shop, Service, Professional, Appointment, User, Product, Order } from '../types';
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const PAYMENT_API_URL = SUPABASE_URL
+  ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/create-payment`
+  : '/api/payments/create';
+
+function getPaymentHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (PAYMENT_API_URL.includes('supabase.co') && SUPABASE_ANON_KEY) {
+    headers['Authorization'] = `Bearer ${SUPABASE_ANON_KEY}`;
+  }
+  return headers;
+}
+
 interface ShopDetailsProps {
   shop: Shop;
   user: User;
@@ -55,9 +69,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
     try {
       const totalAmount = (selectedService.price + tipAmount);
       // Call backend to create Asaas Payment with Split
-      const response = await fetch('/api/payments/create', {
+      const response = await fetch(PAYMENT_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getPaymentHeaders(),
         body: JSON.stringify({
           amount: totalAmount,
           tip: tipAmount,
@@ -136,9 +150,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
     
     try {
       // Call backend to create Asaas Payment with Split for Products
-      const response = await fetch('/api/payments/create', {
+      const response = await fetch(PAYMENT_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getPaymentHeaders(),
         body: JSON.stringify({
           amount: cartTotal,
           shopWalletId: shop.asaasWalletId || 'default_wallet_id',

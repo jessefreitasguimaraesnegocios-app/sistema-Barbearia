@@ -53,6 +53,7 @@ export interface Shop {
   products: Product[];
   subscriptionActive: boolean;
   subscriptionAmount?: number;
+  splitPercent?: number;
   rating: number;
   asaasWalletId?: string;
   asaasAccountId?: string;

@@ -46,6 +46,7 @@ Deno.serve(async (req: Request) => {
       amount,
       tip = 0,
       shopWalletId,
+      splitPercent: bodySplitPercent,
       description = "",
       customerName,
       customerEmail,
@@ -53,12 +54,30 @@ Deno.serve(async (req: Request) => {
       customerPhone: bodyPhone,
     } = body || {};
 
-    if (!amount || amount <= 0 || !shopWalletId || !customerName || !customerEmail) {
+    if (!amount || amount <= 0 || !customerName || !customerEmail) {
       return new Response(
         JSON.stringify({
           success: false,
           error:
-            "Campos obrigatórios: amount, shopWalletId, customerName, customerEmail.",
+            "Campos obrigatórios: amount, customerName, customerEmail.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const effectiveWalletId =
+      shopWalletId && String(shopWalletId).trim() !== "" && String(shopWalletId) !== "default_wallet_id"
+        ? String(shopWalletId).trim()
+        : (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
+    if (!effectiveWalletId) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            "Nenhuma carteira configurada para a loja. Configure ASAAS_WALLET_ID nos Secrets do Supabase ou cadastre a loja com wallet (criação de subconta).",
         }),
         {
           status: 400,
@@ -144,7 +163,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // 2) Criar cobrança com split para a carteira da loja
-    const splitToShop = Math.min(100, Math.max(0, 95));
+    const rawSplit = bodySplitPercent != null ? Number(bodySplitPercent) : 95;
+    const splitToShop = Math.min(100, Math.max(0, rawSplit));
     const paymentPayload = {
       customer: customerId,
       billingType: "PIX",
@@ -153,7 +173,7 @@ Deno.serve(async (req: Request) => {
       description: String(description).slice(0, 500),
       split: [
         {
-          walletId: String(shopWalletId),
+          walletId: effectiveWalletId,
           percentualValue: splitToShop,
         },
       ],

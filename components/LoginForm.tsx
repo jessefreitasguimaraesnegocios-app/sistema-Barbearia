@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+
+const EMAIL_DOMAINS = ['@gmail.com', '@hotmail.com', '@outlook.com', '@yahoo.com.br', '@yahoo.com', '@icloud.com', '@live.com', '@uol.com.br', '@bol.com.br'];
 
 interface LoginFormProps {
   title: string;
@@ -19,6 +21,47 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [emailSuggestionsOpen, setEmailSuggestionsOpen] = useState(false);
+  const [emailSuggestionsFilter, setEmailSuggestionsFilter] = useState('');
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const emailListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!emailSuggestionsOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        emailListRef.current?.contains(e.target as Node) ||
+        emailInputRef.current?.contains(e.target as Node)
+      ) return;
+      setEmailSuggestionsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [emailSuggestionsOpen]);
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    const atIdx = value.indexOf('@');
+    if (atIdx >= 0) {
+      setEmailSuggestionsFilter(value.slice(atIdx).toLowerCase());
+      setEmailSuggestionsOpen(true);
+    } else {
+      setEmailSuggestionsOpen(false);
+    }
+  };
+
+  const handleEmailSuggestionSelect = (domain: string) => {
+    const current = email;
+    const atIdx = current.indexOf('@');
+    const beforeAt = atIdx >= 0 ? current.slice(0, atIdx) : current;
+    setEmail(beforeAt + domain);
+    setEmailSuggestionsOpen(false);
+    emailInputRef.current?.focus();
+  };
+
+  const filteredEmailDomains = EMAIL_DOMAINS.filter(d =>
+    d.toLowerCase().includes(emailSuggestionsFilter.toLowerCase())
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,16 +93,39 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         {subtitle && <p className="text-gray-500 mt-2 text-sm">{subtitle}</p>}
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
+        <div className="relative">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">E-mail</label>
           <input
+            ref={emailInputRef}
             type="email"
             required
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={e => handleEmailChange(e.target.value)}
+            onFocus={() => email.includes('@') && setEmailSuggestionsOpen(true)}
             className="w-full p-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
             placeholder="seu@email.com"
           />
+          {emailSuggestionsOpen && (
+            <div
+              ref={emailListRef}
+              className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"
+            >
+              {filteredEmailDomains.length ? (
+                filteredEmailDomains.map(domain => (
+                  <button
+                    key={domain}
+                    type="button"
+                    className="w-full text-left px-4 py-3 hover:bg-indigo-50 text-gray-800 text-sm"
+                    onClick={() => handleEmailSuggestionSelect(domain)}
+                  >
+                    {domain}
+                  </button>
+                ))
+              ) : (
+                <div className="px-4 py-3 text-gray-500 text-sm">Nenhum domínio encontrado</div>
+              )}
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Senha</label>

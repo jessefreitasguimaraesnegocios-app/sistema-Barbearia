@@ -189,6 +189,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     }
   };
 
+  const saveSplitPercent = async (shop: Shop, newPercent: number) => {
+    const v = Math.min(100, Math.max(0, newPercent));
+    const current = shop.splitPercent ?? 95;
+    if (Math.abs(v - current) < 0.01) return;
+    try {
+      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ splitPercent: v })
+      });
+      const data = await response.json();
+      if (data.success && data.shop) {
+        setShops(shops.map(s => s.id === shop.id ? data.shop : s));
+      } else {
+        alert(data.error || 'Erro ao atualizar % split.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao atualizar % split.');
+    }
+  };
+
+  const deleteShop = async (shop: Shop) => {
+    if (!window.confirm(`Excluir o estabelecimento "${shop.name}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      const response = await fetch(`/api/admin/shops/${shop.id}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (data.success) {
+        setShops(shops.filter(s => s.id !== shop.id));
+      } else {
+        alert(data.error || 'Erro ao excluir estabelecimento.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao excluir estabelecimento.');
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <header className="flex justify-between items-center">
@@ -231,6 +269,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                 <th className="px-8 py-4">Tipo</th>
                 <th className="px-8 py-4">Status Assinatura</th>
                 <th className="px-8 py-4">Mensalidade</th>
+                <th className="px-8 py-4">% Split</th>
                 <th className="px-8 py-4">Asaas ID</th>
                 <th className="px-8 py-4 text-right">Ações</th>
               </tr>
@@ -281,15 +320,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     </div>
                   </td>
                   <td className="px-8 py-6">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">%</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        className="w-16 p-2 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-indigo-600"
+                        value={shop.splitPercent ?? 95}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          if (!Number.isNaN(v) && v >= 0 && v <= 100) {
+                            setShops(shops.map(s => s.id === shop.id ? { ...s, splitPercent: v } : s));
+                          }
+                        }}
+                        onBlur={e => {
+                          const v = Number((e.target as HTMLInputElement).value);
+                          if (!Number.isNaN(v) && v >= 0 && v <= 100) saveSplitPercent(shop, v);
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
                     <span className="text-xs font-mono text-gray-400">{shop.asaasAccountId || 'N/A'}</span>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <button 
-                      onClick={() => toggleSubscription(shop)}
-                      className={`text-sm font-bold ${shop.subscriptionActive ? 'text-red-500' : 'text-green-600'} hover:underline`}
-                    >
-                      {shop.subscriptionActive ? 'Suspender' : 'Reativar'}
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      <button 
+                        onClick={() => toggleSubscription(shop)}
+                        className={`text-sm font-bold ${shop.subscriptionActive ? 'text-red-500' : 'text-green-600'} hover:underline`}
+                      >
+                        {shop.subscriptionActive ? 'Suspender' : 'Reativar'}
+                      </button>
+                      <button
+                        onClick={() => deleteShop(shop)}
+                        className="text-sm font-bold text-gray-500 hover:text-red-600 hover:underline"
+                      >
+                        Excluir
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

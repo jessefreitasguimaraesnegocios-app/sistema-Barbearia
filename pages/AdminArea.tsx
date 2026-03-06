@@ -24,6 +24,7 @@ export default function AdminArea() {
         bannerImage: s.banner_image,
         subscriptionActive: s.subscription_active,
         subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
+        splitPercent: s.split_percent != null ? Number(s.split_percent) : 95,
         asaasAccountId: s.asaas_account_id,
         asaasWalletId: s.asaas_wallet_id,
         services: [],

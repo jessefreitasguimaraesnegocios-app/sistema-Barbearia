@@ -129,6 +129,38 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    let asaasWalletId: string | null = null;
+    const cpfCnpjForAccount = cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : "00000000000";
+    try {
+      const accountRes = await fetch(`${asaasBaseUrl}/accounts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          access_token: asaasApiKey,
+        },
+        body: JSON.stringify({
+          name: String(name),
+          email: String(email),
+          cpfCnpj: cpfCnpjForAccount,
+          birthDate: "1990-01-01",
+          companyType: "MEI",
+          phone: String(phone),
+          mobilePhone: mobilePhone,
+          incomeValue: 5000,
+          address: "A definir",
+          addressNumber: "S/N",
+          province: "Centro",
+          postalCode: "01310100",
+        }),
+      });
+      if (accountRes.ok) {
+        const accountData = await accountRes.json();
+        asaasWalletId = accountData?.walletId ?? null;
+      }
+    } catch (subErr) {
+      console.error("Asaas subaccount creation failed (payment will use ASAAS_WALLET_ID):", subErr);
+    }
+
     // 2. Criar registro na tabela shops no Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -141,6 +173,7 @@ Deno.serve(async (req: Request) => {
         email: String(email),
         phone: String(phone),
         asaas_customer_id: asaasCustomerId,
+        asaas_wallet_id: asaasWalletId,
         type: (shopType === "SALON" ? "SALON" : "BARBER"),
         subscription_active: true,
         subscription_amount: 99,

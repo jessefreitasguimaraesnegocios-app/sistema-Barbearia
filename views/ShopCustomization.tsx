@@ -5,12 +5,13 @@ import { generateShopDescription } from '../geminiService';
 
 interface ShopCustomizationProps {
   shop: Shop;
-  onSave: (shop: Shop) => void;
+  onSave: (shop: Shop) => void | Promise<void>;
 }
 
 const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) => {
   const [formData, setFormData] = useState<Shop>(shop);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<'GENERAL' | 'INVENTORY' | 'SERVICES' | 'PROFESSIONALS'>('GENERAL');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -245,10 +246,11 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
               </div>
             </div>
             <button 
-              onClick={() => onSave(formData)}
-              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all"
+              onClick={async () => { setIsSaving(true); await onSave(formData); setIsSaving(false); }}
+              disabled={isSaving}
+              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
             >
-              Salvar Alterações
+              {isSaving ? 'Salvando...' : 'Salvar Alterações'}
             </button>
           </div>
         </div>

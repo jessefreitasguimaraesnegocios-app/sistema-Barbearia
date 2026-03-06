@@ -70,9 +70,35 @@ export default function PartnerArea() {
   }
 
   const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  const updateShop = (updated: Shop) => {
+
+  const updateShop = async (updated: Shop) => {
+    if (!myShop?.id) return;
+    const { error } = await supabase
+      .from('shops')
+      .update({
+        name: updated.name,
+        description: updated.description ?? null,
+        profile_image: updated.profileImage ?? null,
+        banner_image: updated.bannerImage ?? null,
+        primary_color: updated.primaryColor ?? null,
+        theme: updated.theme ?? 'MODERN',
+      })
+      .eq('id', myShop.id);
+
+    if (error) {
+      alert('Erro ao salvar: ' + error.message);
+      return;
+    }
     setMyShop(updated);
     setShops([updated]);
+    setNotifications(prev => [{
+      id: Math.random().toString(36).slice(2),
+      title: 'Alterações salvas',
+      message: 'As configurações da loja foram atualizadas com sucesso.',
+      type: 'SUCCESS',
+      timestamp: new Date(),
+      read: false,
+    }, ...prev]);
   };
 
   if (!myShop) {

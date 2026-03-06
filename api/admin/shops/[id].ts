@@ -6,9 +6,13 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function getShopIdFromPath(url: string): string | null {
-  const match = url?.match(/\/api\/admin\/shops\/([^/?]+)(?:\/|$)/);
-  return match ? match[1] : null;
+function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): string | null {
+  const fromQuery = req.query?.id;
+  if (fromQuery && typeof fromQuery === 'string' && fromQuery.trim()) return fromQuery.trim();
+  const rawUrl = req.url || '';
+  const pathname = rawUrl.startsWith('http') ? new URL(rawUrl).pathname : rawUrl.split('?')[0];
+  const match = pathname.match(/\/api\/admin\/shops\/([^/]+)/);
+  return match ? match[1].trim() : null;
 }
 
 export default async function handler(
@@ -26,13 +30,16 @@ export default async function handler(
     return res.status(405).json({ success: false, error: 'Método não permitido. Use DELETE.' });
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: 'Configuração do Supabase indisponível.' });
-  }
-
-  const shopId = req.query?.id ?? getShopIdFromPath(req.url || '');
+  const shopId = getShopIdFromRequest(req);
   if (!shopId) {
     return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: 'Configuração do Supabase indisponível. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Vercel.',
+    });
   }
 
   try {
@@ -45,10 +52,11 @@ export default async function handler(
 
     return res.status(200).json({ success: true, deleted: true });
   } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
     console.error('[api/admin/shops/[id]]', e);
     return res.status(500).json({
       success: false,
-      error: e instanceof Error ? e.message : 'Erro ao excluir loja.',
+      error: message || 'Erro ao excluir loja.',
     });
   }
 }

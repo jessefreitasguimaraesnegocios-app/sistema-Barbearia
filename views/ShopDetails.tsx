@@ -35,6 +35,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
   const [selectedTime, setSelectedTime] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
   const [tipAmount, setTipAmount] = useState<number>(0);
+  const [customerCpf, setCustomerCpf] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [paymentCustomerName, setPaymentCustomerName] = useState('');
+  const [paymentCustomerEmail, setPaymentCustomerEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   
@@ -63,6 +67,17 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
 
   const handleBooking = async () => {
     if (!selectedService || !selectedPro || !selectedDate || !selectedTime || !selectedPaymentMethod) return;
+    const cpfDigits = (customerCpf || '').replace(/\D/g, '');
+    if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
+      alert('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido para a cobrança.');
+      return;
+    }
+    const customerName = (paymentCustomerName || user.name || '').trim();
+    const customerEmail = (paymentCustomerEmail || user.email || '').trim();
+    if (!customerName || !customerEmail) {
+      alert('Preencha nome e e-mail para a cobrança.');
+      return;
+    }
     
     setIsProcessing(true);
     
@@ -77,8 +92,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
           tip: tipAmount,
           shopWalletId: shop.asaasWalletId || 'default_wallet_id',
           description: `Agendamento: ${selectedService.name} na ${shop.name}${tipAmount > 0 ? ' (inclui gorjeta)' : ''}`,
-          customerName: user.name,
-          customerEmail: user.email
+          customerName,
+          customerEmail,
+          customerCpfCnpj: cpfDigits,
+          customerPhone: customerPhone.trim() || undefined
         })
       });
 
@@ -146,6 +163,17 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
   };
 
   const handleOrderPayment = async () => {
+    const cpfDigits = (customerCpf || '').replace(/\D/g, '');
+    if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
+      alert('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido para a cobrança.');
+      return;
+    }
+    const customerName = (paymentCustomerName || user.name || '').trim();
+    const customerEmail = (paymentCustomerEmail || user.email || '').trim();
+    if (!customerName || !customerEmail) {
+      alert('Preencha nome e e-mail para a cobrança.');
+      return;
+    }
     setIsOrderProcessing(true);
     
     try {
@@ -157,8 +185,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
           amount: cartTotal,
           shopWalletId: shop.asaasWalletId || 'default_wallet_id',
           description: `Compra de Produtos na ${shop.name}`,
-          customerName: user.name,
-          customerEmail: user.email
+          customerName,
+          customerEmail,
+          customerCpfCnpj: cpfDigits,
+          customerPhone: customerPhone.trim() || undefined
         })
       });
 
@@ -478,6 +508,55 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
                         </div>
                       </div>
 
+                      {/* Dados para cobrança (Asaas exige CPF/CNPJ válido) */}
+                      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Dados para cobrança</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Nome completo *</label>
+                            <input
+                              type="text"
+                              placeholder="Nome do titular da cobrança"
+                              value={paymentCustomerName || user.name || ''}
+                              onChange={(e) => setPaymentCustomerName(e.target.value)}
+                              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">E-mail *</label>
+                            <input
+                              type="email"
+                              placeholder="e-mail@exemplo.com"
+                              value={paymentCustomerEmail || user.email || ''}
+                              onChange={(e) => setPaymentCustomerEmail(e.target.value)}
+                              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">CPF ou CNPJ *</label>
+                            <input
+                              type="text"
+                              placeholder="Somente números (11 ou 14 dígitos)"
+                              value={customerCpf}
+                              onChange={(e) => setCustomerCpf(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                              maxLength={14}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Telefone (opcional)</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: 11999999999"
+                              value={customerPhone}
+                              onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                              maxLength={11}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Lado Direito: Opções de Pagamento */}
                       <div className="space-y-4">
                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Forma de Pagamento</h4>
@@ -550,7 +629,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
                     </div>
 
                     <button 
-                      disabled={isProcessing || !selectedPaymentMethod}
+                      disabled={isProcessing || !selectedPaymentMethod || (customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()}
                       onClick={handleBooking}
                       className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed mt-8"
                     >
@@ -675,6 +754,39 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
 
             {cart.length > 0 && (
               <div className="p-6 border-t border-gray-100 space-y-6 bg-gray-50/50">
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Dados para cobrança</h4>
+                  <input
+                    type="text"
+                    placeholder="Nome completo *"
+                    value={paymentCustomerName || user.name || ''}
+                    onChange={(e) => setPaymentCustomerName(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
+                  />
+                  <input
+                    type="email"
+                    placeholder="E-mail *"
+                    value={paymentCustomerEmail || user.email || ''}
+                    onChange={(e) => setPaymentCustomerEmail(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
+                  />
+                  <input
+                    type="text"
+                    placeholder="CPF ou CNPJ * (somente números)"
+                    value={customerCpf}
+                    onChange={(e) => setCustomerCpf(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
+                    maxLength={14}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Telefone (opcional)"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
+                    maxLength={11}
+                  />
+                </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Subtotal</span>
@@ -704,9 +816,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
                   </div>
                 ) : (
                   <button 
-                    disabled={isOrderProcessing}
+                    disabled={isOrderProcessing || (customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()}
                     onClick={handleOrderPayment}
-                    className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3"
+                    className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isOrderProcessing ? (
                       <><i className="fas fa-spinner fa-spin"></i> Processando...</>

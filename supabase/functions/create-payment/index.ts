@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const asaasBaseUrl = (
-    Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3"
+    Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3"
   ).replace(/\/$/, "");
 
   try {
@@ -49,6 +49,8 @@ Deno.serve(async (req: Request) => {
       description = "",
       customerName,
       customerEmail,
+      customerCpfCnpj: bodyCpfCnpj,
+      customerPhone: bodyPhone,
     } = body || {};
 
     if (!amount || amount <= 0 || !shopWalletId || !customerName || !customerEmail) {
@@ -65,6 +67,26 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const cpfCnpjDigits = (bodyCpfCnpj != null && String(bodyCpfCnpj).trim() !== "")
+      ? String(bodyCpfCnpj).replace(/\D/g, "")
+      : "";
+    if (cpfCnpjDigits.length !== 11 && cpfCnpjDigits.length !== 14) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "CPF/CNPJ obrigatório. Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const mobilePhone = (bodyPhone != null && String(bodyPhone).trim() !== "")
+      ? String(bodyPhone).replace(/\D/g, "").slice(0, 11) || "11999999999"
+      : "11999999999";
+
     const totalValue = Number(amount) + Number(tip);
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1);
@@ -80,8 +102,8 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         name: String(customerName),
         email: String(customerEmail),
-        mobilePhone: "11999999999",
-        cpfCnpj: "00000000000",
+        mobilePhone: mobilePhone.length >= 10 ? mobilePhone : "11999999999",
+        cpfCnpj: cpfCnpjDigits,
       }),
     });
 

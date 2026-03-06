@@ -48,6 +48,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     cnpjCpf: '',
     email: '',
     phone: '',
+    password: '',
     pixKey: '',
     postalCode: '01310100',
     address: 'Rua Exemplo',
@@ -67,7 +68,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          cpfCnpj: formData.cnpjCpf || undefined
+          cpfCnpj: formData.cnpjCpf || undefined,
+          password: formData.password,
+          type: formData.type
         }
       });
 
@@ -78,8 +81,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       if (data?.success) {
         await onShopCreated?.();
         setShowAddModal(false);
-        setFormData({ name: '', type: 'BARBER', cnpjCpf: '', email: '', phone: '', pixKey: '', postalCode: '01310100', address: 'Rua Exemplo', addressNumber: 'S/N', province: 'Centro', incomeValue: 5000, subscriptionAmount: 99 });
-        alert('Barbearia cadastrada e cliente Asaas criado com sucesso!');
+        setFormData({ name: '', type: 'BARBER', cnpjCpf: '', email: '', phone: '', password: '', pixKey: '', postalCode: '01310100', address: 'Rua Exemplo', addressNumber: 'S/N', province: 'Centro', incomeValue: 5000, subscriptionAmount: 99 });
+        alert('Barbearia cadastrada, conta Asaas criada e login do dono ativado! O proprietário pode acessar com o e-mail e a senha definidos.');
       } else {
         const msg = data?.details || data?.error || 'Erro ao cadastrar barbearia.';
         alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -376,6 +379,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                       )}
                     </div>
                   )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Senha inicial do dono</label>
+                  <input 
+                    required
+                    type="password" 
+                    minLength={6}
+                    autoComplete="new-password"
+                    placeholder="Mínimo 6 caracteres (acesso do proprietário)" 
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                    value={formData.password}
+                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">O dono usará este e-mail e esta senha para acessar o painel da loja.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

@@ -25,12 +25,25 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { name, email, phone, cpfCnpj: bodyCpf } = await req.json();
+    const { name, email, phone, cpfCnpj: bodyCpf, password, type: shopType } = await req.json();
     if (!name || !email || !phone) {
       return new Response(
         JSON.stringify({
           success: false,
           error: "name, email e phone são obrigatórios",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+    const ownerPassword = password && String(password).length >= 6 ? String(password) : null;
+    if (!ownerPassword) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Senha inicial é obrigatória (mínimo 6 caracteres) para o dono acessar o sistema.",
         }),
         {
           status: 200,
@@ -128,7 +141,7 @@ Deno.serve(async (req: Request) => {
         email: String(email),
         phone: String(phone),
         asaas_customer_id: asaasCustomerId,
-        type: "BARBER",
+        type: (shopType === "SALON" ? "SALON" : "BARBER"),
         subscription_active: true,
         subscription_amount: 99,
         rating: 5.0,
@@ -167,11 +180,79 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // 3. Criar usuário no Supabase Auth (dono da loja) para login com email/senha
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: String(email),
+      password: ownerPassword,
+      email_confirm: true,
+    });
+
+    if (authError) {
+      console.error("Auth createUser error:", authError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: authError.message === "A user with this email address has already been registered"
+            ? "Já existe um usuário com este e-mail. O dono já pode fazer login."
+            : authError.message,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const ownerId = authData?.user?.id ?? null;
+    if (!ownerId) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Falha ao obter id do usuário criado",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // 4. Vincular loja ao dono (owner_id) e criar perfil (profiles)
+    const { error: updateOwnerError } = await supabase
+      .from("shops")
+      .update({ owner_id: ownerId })
+      .eq("id", shopId);
+
+    if (updateOwnerError) {
+      console.error("Update shop owner_id error:", updateOwnerError);
+    }
+
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: ownerId,
+      role: "barbearia",
+      shop_id: shopId,
+    });
+
+    if (profileError) {
+      console.error("Profile insert error:", profileError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: profileError.message,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         shopId,
         asaasCustomerId,
+        ownerCreated: true,
       }),
       {
         status: 200,

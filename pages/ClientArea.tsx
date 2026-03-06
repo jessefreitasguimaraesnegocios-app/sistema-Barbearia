@@ -26,7 +26,7 @@ export default function ClientArea() {
   }, []);
 
   const fetchShops = async () => {
-    const { data } = await supabase.from('shops').select('*');
+    const { data } = await supabase.from('shops').select('*, services(*), professionals(*), products(*)');
     if (data) {
       setShops(data.map((s: any) => ({
         ...s,
@@ -40,9 +40,29 @@ export default function ClientArea() {
         subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
         asaasAccountId: s.asaas_account_id,
         asaasWalletId: s.asaas_wallet_id,
-        services: [],
-        professionals: [],
-        products: [],
+        services: (s.services || []).map((sv: any) => ({
+          id: sv.id,
+          name: sv.name,
+          description: sv.description || '',
+          price: Number(sv.price),
+          duration: Number(sv.duration),
+        })),
+        professionals: (s.professionals || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          specialty: p.specialty || '',
+          avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}`,
+        })),
+        products: (s.products || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          price: Number(p.price),
+          promoPrice: p.promo_price != null ? Number(p.promo_price) : undefined,
+          category: p.category || 'Geral',
+          image: p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974',
+          stock: Number(p.stock) || 0,
+        })),
       })));
     }
   };

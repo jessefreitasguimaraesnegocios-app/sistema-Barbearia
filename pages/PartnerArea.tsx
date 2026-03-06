@@ -19,30 +19,72 @@ export default function PartnerArea() {
 
   useEffect(() => {
     if (user?.shopId) {
-      supabase.from('shops').select('*').eq('id', user.shopId).single().then(({ data }) => {
-        if (data) {
-          const s = {
-            ...data,
-            id: data.id,
-            ownerId: data.owner_id,
-            cnpjOrCpf: data.cnpj_cpf,
-            pixKey: data.pix_key,
-            profileImage: data.profile_image,
-            bannerImage: data.banner_image,
-            subscriptionActive: data.subscription_active,
-            subscriptionAmount: data.subscription_amount != null ? Number(data.subscription_amount) : 99,
-            asaasAccountId: data.asaas_account_id,
-            asaasWalletId: data.asaas_wallet_id,
-            services: [],
-            professionals: [],
-            products: [],
-          };
-          setMyShop(s);
-          setShops([s]);
-        }
-      });
+      supabase
+        .from('shops')
+        .select('*, services(*), professionals(*), products(*)')
+        .eq('id', user.shopId)
+        .single()
+        .then(({ data, error }) => {
+          if (error) {
+            supabase.from('shops').select('*').eq('id', user.shopId).single().then(({ data: d }) => {
+              if (d) {
+                const s = mapShopFromDb(d);
+                setMyShop(s);
+                setShops([s]);
+              }
+            });
+            return;
+          }
+          if (data) {
+            const s = mapShopFromDb(data);
+            setMyShop(s);
+            setShops([s]);
+          }
+        });
     }
   }, [user?.shopId]);
+
+  function mapShopFromDb(d: any): Shop {
+    const services = (d.services || []).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description || '',
+      price: Number(s.price),
+      duration: Number(s.duration),
+    }));
+    const professionals = (d.professionals || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      specialty: p.specialty || '',
+      avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}`,
+    }));
+    const products = (d.products || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description || '',
+      price: Number(p.price),
+      promoPrice: p.promo_price != null ? Number(p.promo_price) : undefined,
+      category: p.category || 'Geral',
+      image: p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974',
+      stock: Number(p.stock) || 0,
+    }));
+    return {
+      ...d,
+      id: d.id,
+      ownerId: d.owner_id,
+      cnpjOrCpf: d.cnpj_cpf,
+      pixKey: d.pix_key,
+      profileImage: d.profile_image,
+      bannerImage: d.banner_image,
+      subscriptionActive: d.subscription_active,
+      subscriptionAmount: d.subscription_amount != null ? Number(d.subscription_amount) : 99,
+      asaasAccountId: d.asaas_account_id,
+      asaasWalletId: d.asaas_wallet_id,
+      services,
+      professionals,
+      products,
+    };
+  }
 
   if (loading) {
     return (
@@ -73,7 +115,9 @@ export default function PartnerArea() {
 
   const updateShop = async (updated: Shop) => {
     if (!myShop?.id) return;
-    const { error } = await supabase
+    const shopId = myShop.id;
+
+    const { error: shopError } = await supabase
       .from('shops')
       .update({
         name: updated.name,
@@ -83,12 +127,76 @@ export default function PartnerArea() {
         primary_color: updated.primaryColor ?? null,
         theme: updated.theme ?? 'MODERN',
       })
-      .eq('id', myShop.id);
+      .eq('id', shopId);
 
-    if (error) {
-      alert('Erro ao salvar: ' + error.message);
+    if (shopError) {
+      alert('Erro ao salvar: ' + shopError.message);
       return;
     }
+
+    const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+    for (const s of updated.services || []) {
+      if (isUuid(s.id)) {
+        await supabase.from('services').update({
+          name: s.name,
+          description: s.description ?? null,
+          price: Number(s.price),
+          duration: Number(s.duration),
+        }).eq('id', s.id).eq('shop_id', shopId);
+      } else {
+        await supabase.from('services').insert({
+          shop_id: shopId,
+          name: s.name,
+          description: s.description ?? null,
+          price: Number(s.price),
+          duration: Number(s.duration),
+        });
+      }
+    }
+
+    for (const p of updated.professionals || []) {
+      if (isUuid(p.id)) {
+        await supabase.from('professionals').update({
+          name: p.name,
+          specialty: p.specialty ?? null,
+          avatar: p.avatar ?? null,
+        }).eq('id', p.id).eq('shop_id', shopId);
+      } else {
+        await supabase.from('professionals').insert({
+          shop_id: shopId,
+          name: p.name,
+          specialty: p.specialty ?? null,
+          avatar: p.avatar ?? null,
+        });
+      }
+    }
+
+    for (const p of updated.products || []) {
+      if (isUuid(p.id)) {
+        await supabase.from('products').update({
+          name: p.name,
+          description: p.description ?? null,
+          price: Number(p.price),
+          promo_price: p.promoPrice ?? null,
+          category: p.category ?? 'Geral',
+          image: p.image ?? null,
+          stock: Number(p.stock) || 0,
+        }).eq('id', p.id).eq('shop_id', shopId);
+      } else {
+        await supabase.from('products').insert({
+          shop_id: shopId,
+          name: p.name,
+          description: p.description ?? null,
+          price: Number(p.price),
+          promo_price: p.promoPrice ?? null,
+          category: p.category ?? 'Geral',
+          image: p.image ?? null,
+          stock: Number(p.stock) || 0,
+        });
+      }
+    }
+
     setMyShop(updated);
     setShops([updated]);
     setNotifications(prev => [{
@@ -99,6 +207,16 @@ export default function PartnerArea() {
       timestamp: new Date(),
       read: false,
     }, ...prev]);
+
+    const { data: refreshed } = await supabase
+      .from('shops')
+      .select('*, services(*), professionals(*), products(*)')
+      .eq('id', shopId)
+      .single();
+    if (refreshed) {
+      setMyShop(mapShopFromDb(refreshed));
+      setShops([mapShopFromDb(refreshed)]);
+    }
   };
 
   if (!myShop) {

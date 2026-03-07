@@ -155,6 +155,14 @@ export default function PartnerArea() {
 
     const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+    const { data: oldServices } = await supabase.from('services').select('id').eq('shop_id', shopId);
+    const { data: oldProfessionals } = await supabase.from('professionals').select('id').eq('shop_id', shopId);
+    const { data: oldProducts } = await supabase.from('products').select('id').eq('shop_id', shopId);
+
+    const keepServiceIds = (updated.services || []).filter((s) => isUuid(s.id)).map((s) => s.id);
+    const keepProIds = (updated.professionals || []).filter((p) => isUuid(p.id)).map((p) => p.id);
+    const keepProductIds = (updated.products || []).filter((p) => isUuid(p.id)).map((p) => p.id);
+
     for (const s of updated.services || []) {
       if (isUuid(s.id)) {
         await supabase.from('services').update({
@@ -214,6 +222,19 @@ export default function PartnerArea() {
           stock: Number(p.stock) || 0,
         });
       }
+    }
+
+    const toDeleteServiceIds = (oldServices || []).map((r) => r.id).filter((id) => !keepServiceIds.includes(id));
+    const toDeleteProIds = (oldProfessionals || []).map((r) => r.id).filter((id) => !keepProIds.includes(id));
+    const toDeleteProductIds = (oldProducts || []).map((r) => r.id).filter((id) => !keepProductIds.includes(id));
+    for (const id of toDeleteServiceIds) {
+      await supabase.from('services').delete().eq('id', id).eq('shop_id', shopId);
+    }
+    for (const id of toDeleteProIds) {
+      await supabase.from('professionals').delete().eq('id', id).eq('shop_id', shopId);
+    }
+    for (const id of toDeleteProductIds) {
+      await supabase.from('products').delete().eq('id', id).eq('shop_id', shopId);
     }
 
     setMyShop(updated);

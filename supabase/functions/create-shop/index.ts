@@ -1,5 +1,6 @@
 // Supabase Edge Function: create-shop
 // Deno - cria loja no Supabase e cliente no Asaas, retorna shopId e asaasCustomerId
+/// <reference path="./deno.d.ts" />
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -164,7 +165,7 @@ Deno.serve(async (req: Request) => {
     // 2. Criar registro na tabela shops no Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey) as ReturnType<typeof createClient>;
 
     // Imagens temáticas: barbearia ou salão (Unsplash)
     const isSalon = shopType === "SALON";
@@ -283,7 +284,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4. Vincular loja ao dono (owner_id) e criar perfil (profiles)
+    // 4. Vincular loja ao dono (owner_id) e garantir perfil barbearia (o trigger já criou perfil cliente; fazemos upsert para sobrescrever)
     const { error: updateOwnerError } = await supabase
       .from("shops")
       .update({ owner_id: ownerId })
@@ -293,11 +294,12 @@ Deno.serve(async (req: Request) => {
       console.error("Update shop owner_id error:", updateOwnerError);
     }
 
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: ownerId,
-      role: "barbearia",
-      shop_id: shopId,
-    });
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert(
+        { id: ownerId, role: "barbearia", shop_id: shopId },
+        { onConflict: "id" }
+      );
 
     if (profileError) {
       console.error("Profile insert error:", profileError);

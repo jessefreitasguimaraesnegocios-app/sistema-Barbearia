@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -55,6 +55,46 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
 
   const isComplete = !!(user.name && user.email && user.cpfCnpj && (user.cpfCnpj.length === 11 || user.cpfCnpj.length === 14) && user.phone);
 
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const max = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > max || h > max) {
+          if (w > h) {
+            h = Math.round((h * max) / w);
+            w = max;
+          } else {
+            w = Math.round((w * max) / h);
+            h = max;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setAvatarUrl(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const resized = canvas.toDataURL('image/jpeg', 0.85);
+        setAvatarUrl(resized);
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 animate-fade-in">
       <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 md:p-8">
@@ -64,7 +104,7 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Foto */}
+          {/* Foto da galeria */}
           <div className="flex flex-col sm:flex-row items-start gap-4">
             <div className="flex-shrink-0 w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 border-2 border-gray-100 flex items-center justify-center">
               {avatarUrl ? (
@@ -76,15 +116,23 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
               )}
             </div>
             <div className="flex-1 w-full">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Foto (URL)</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Foto</label>
               <input
-                type="url"
-                placeholder="https://exemplo.com/sua-foto.jpg"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
               />
-              <p className="text-[10px] text-gray-400 mt-1">Cole o link de uma imagem. Opcional.</p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent flex items-center justify-center gap-2 transition-all"
+              >
+                <i className="fas fa-images text-indigo-600" />
+                {avatarUrl ? 'Trocar foto' : 'Escolher da galeria'}
+              </button>
+              <p className="text-[10px] text-gray-400 mt-1">Toque para escolher uma imagem do seu dispositivo. Opcional.</p>
             </div>
           </div>
 

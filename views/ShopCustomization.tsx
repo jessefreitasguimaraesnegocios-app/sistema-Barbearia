@@ -2,13 +2,22 @@
 import React, { useState, useRef } from 'react';
 import { Shop, Product, Service, Professional } from '../types';
 
+function dedupeById<T extends { id: string }>(arr: T[]): T[] {
+  return Array.from(new Map(arr.map((x) => [x.id, x])).values());
+}
+
 interface ShopCustomizationProps {
   shop: Shop;
   onSave: (shop: Shop) => void | Promise<void>;
 }
 
 const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) => {
-  const [formData, setFormData] = useState<Shop>(shop);
+  const [formData, setFormData] = useState<Shop>(() => ({
+    ...shop,
+    services: dedupeById(shop.services || []),
+    professionals: dedupeById(shop.professionals || []),
+    products: dedupeById(shop.products || []),
+  }));
   const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<'GENERAL' | 'INVENTORY' | 'SERVICES' | 'PROFESSIONALS'>('GENERAL');
   

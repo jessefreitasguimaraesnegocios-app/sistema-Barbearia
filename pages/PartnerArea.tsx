@@ -15,50 +15,53 @@ export default function PartnerArea() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [currentView, setCurrentView] = useState<'shop-dashboard' | 'shop-customization'>('shop-dashboard');
+  const [customizationRefreshKey, setCustomizationRefreshKey] = useState(0);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
 
   useEffect(() => {
-    if (user?.shopId) {
-      supabase
+    if (!user?.shopId) return;
+    const shopId = user.shopId;
+    (async () => {
+      const { data: shopRow, error: shopErr } = await supabase
         .from('shops')
-        .select('*, services(*), professionals(*), products(*)')
-        .eq('id', user.shopId)
-        .single()
-        .then(({ data, error }) => {
-          if (error) {
-            supabase.from('shops').select('*').eq('id', user.shopId).single().then(({ data: d }) => {
-              if (d) {
-                const s = mapShopFromDb(d);
-                setMyShop(s);
-                setShops([s]);
-              }
-            });
-            return;
-          }
-          if (data) {
-            const s = mapShopFromDb(data);
-            setMyShop(s);
-            setShops([s]);
-          }
-        });
-    }
+        .select('*')
+        .eq('id', shopId)
+        .single();
+      if (shopErr || !shopRow) return;
+      const { data: servicesData } = await supabase.from('services').select('*').eq('shop_id', shopId);
+      const { data: professionalsData } = await supabase.from('professionals').select('*').eq('shop_id', shopId);
+      const { data: productsData } = await supabase.from('products').select('*').eq('shop_id', shopId);
+      const s = mapShopFromDb({
+        ...shopRow,
+        services: servicesData || [],
+        professionals: professionalsData || [],
+        products: productsData || [],
+      });
+      setMyShop(s);
+      setShops([s]);
+    })();
   }, [user?.shopId]);
 
   function mapShopFromDb(d: any): Shop {
-    const services = (d.services || []).map((s: any) => ({
+    const rawServices = (d.services || []);
+    const rawProfessionals = (d.professionals || []);
+    const rawProducts = (d.products || []);
+    const byId = <T extends { id: string }>(arr: T[]): T[] =>
+      Array.from(new Map(arr.map((x) => [x.id, x])).values());
+    const services = byId(rawServices).map((s: any) => ({
       id: s.id,
       name: s.name,
       description: s.description || '',
       price: Number(s.price),
       duration: Number(s.duration),
     }));
-    const professionals = (d.professionals || []).map((p: any) => ({
+    const professionals = byId(rawProfessionals).map((p: any) => ({
       id: p.id,
       name: p.name,
       specialty: p.specialty || '',
       avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}`,
     }));
-    const products = (d.products || []).map((p: any) => ({
+    const products = byId(rawProducts).map((p: any) => ({
       id: p.id,
       name: p.name,
       description: p.description || '',
@@ -217,13 +220,23 @@ export default function PartnerArea() {
 
     const { data: refreshed } = await supabase
       .from('shops')
-      .select('*, services(*), professionals(*), products(*)')
+      .select('*')
       .eq('id', shopId)
       .single();
     if (refreshed) {
-      setMyShop(mapShopFromDb(refreshed));
-      setShops([mapShopFromDb(refreshed)]);
+      const { data: sData } = await supabase.from('services').select('*').eq('shop_id', shopId);
+      const { data: pData } = await supabase.from('professionals').select('*').eq('shop_id', shopId);
+      const { data: prodData } = await supabase.from('products').select('*').eq('shop_id', shopId);
+      const full = mapShopFromDb({
+        ...refreshed,
+        services: sData || [],
+        professionals: pData || [],
+        products: prodData || [],
+      });
+      setMyShop(full);
+      setShops([full]);
     }
+    setCustomizationRefreshKey((k) => k + 1);
   };
 
   if (!myShop) {
@@ -237,7 +250,7 @@ export default function PartnerArea() {
   return (
     <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
       {currentView === 'shop-dashboard' && <ShopDashboard shop={myShop} appointments={appointments} orders={orders} />}
-      {currentView === 'shop-customization' && <ShopCustomization shop={myShop} onSave={updateShop} />}
+      {currentView === 'shop-customization' && <ShopCustomization key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`} shop={myShop} onSave={updateShop} />}
     </Layout>
   );
 }

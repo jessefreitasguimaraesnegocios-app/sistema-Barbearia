@@ -637,6 +637,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                       value={formData.companyType}
                       onChange={e => setFormData({ ...formData, companyType: e.target.value })}
                     >
+                      <option value="PF">Autônomo (CPF)</option>
                       <option value="MEI">MEI</option>
                       <option value="ME">ME</option>
                       <option value="EPP">EPP</option>

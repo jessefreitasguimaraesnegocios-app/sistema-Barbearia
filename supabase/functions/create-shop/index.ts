@@ -166,6 +166,42 @@ Deno.serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Imagens temáticas: barbearia ou salão (Unsplash)
+    const isSalon = shopType === "SALON";
+    const barberProfiles = [
+      "https://images.unsplash.com/photo-1585747860715-2ba9226a93f8?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1599351432882-e4723832b434?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1521590832167-8fcbf2ddcd85?w=400&h=400&fit=crop",
+    ];
+    const barberBanners = [
+      "https://images.unsplash.com/photo-1585747860715-2ba9226a93f8?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1599351432882-e4723832b434?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1521590832167-8fcbf2ddcd85?w=800&h=400&fit=crop",
+    ];
+    const salonProfiles = [
+      "https://images.unsplash.com/photo-1560066984-138dadb4e035?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1522337360788-8b5de6d8f8f8?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1560750588-73207bcf3fe8?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=400&h=400&fit=crop",
+    ];
+    const salonBanners = [
+      "https://images.unsplash.com/photo-1560066984-138dadb4e035?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1522337360788-8b5de6d8f8f8?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1560750588-73207bcf3fe8?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=800&h=400&fit=crop",
+    ];
+    const profileList = isSalon ? salonProfiles : barberProfiles;
+    const bannerList = isSalon ? salonBanners : barberBanners;
+    const idx = Math.floor(Math.random() * profileList.length);
+    const profile_image = profileList[idx];
+    const banner_image = bannerList[idx];
+
     const { data: shop, error: insertError } = await supabase
       .from("shops")
       .insert({
@@ -178,11 +214,8 @@ Deno.serve(async (req: Request) => {
         subscription_active: true,
         subscription_amount: 99,
         rating: 5.0,
-        profile_image:
-          "https://picsum.photos/400?random=" + Math.floor(Math.random() * 100),
-        banner_image:
-          "https://picsum.photos/800/400?random=" +
-          Math.floor(Math.random() * 100),
+        profile_image,
+        banner_image,
         address: "A definir",
       })
       .select("id")

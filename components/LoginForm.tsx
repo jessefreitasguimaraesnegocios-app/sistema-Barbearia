@@ -19,6 +19,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [emailSuggestionsOpen, setEmailSuggestionsOpen] = useState(false);
@@ -67,6 +69,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     e.preventDefault();
     setError(null);
     setLoading(true);
+    localStorage.setItem('beautyhub_remember_me', rememberMe ? 'true' : 'false');
     const timeoutMs = 15000;
     const timeoutPromise = new Promise<{ error: string | null }>((_, reject) =>
       setTimeout(() => reject(new Error('Tempo esgotado. Verifique sua conexão e tente novamente.')), timeoutMs)
@@ -129,15 +132,34 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Senha</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="w-full p-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-            placeholder="••••••••"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full p-4 pr-12 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+            </button>
+          </div>
         </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={e => setRememberMe(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+          />
+          <span className="text-sm text-gray-600">Permanecer logado</span>
+        </label>
         {error && (
           <p className="text-sm text-red-600 bg-red-50 p-3 rounded-xl">{error}</p>
         )}

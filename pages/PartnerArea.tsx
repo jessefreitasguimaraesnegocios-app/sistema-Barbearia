@@ -99,14 +99,21 @@ export default function PartnerArea() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <a href="/" className="absolute top-4 left-4 text-gray-500 hover:text-indigo-600 text-sm">← Voltar ao site</a>
+        <div className="absolute top-4 left-4 flex items-center gap-4">
+          <a href="/" className="text-gray-500 hover:text-indigo-600 text-sm">← Voltar ao site</a>
+          <span className="text-gray-300">|</span>
+          <a href="/" className="text-gray-500 hover:text-indigo-600 text-sm">Sou cliente</a>
+        </div>
         <LoginForm
           title="Acesso parceiro"
-          subtitle="Barbearias e salões: entre com seu e-mail e senha"
+          subtitle="Barbearias e salões: entre somente com o e-mail e senha do estabelecimento"
           onSubmit={signIn}
           submitLabel="Entrar"
           onSuccess={() => {}}
         />
+        <p className="mt-4 text-xs text-gray-400 text-center max-w-sm">
+          Esta área é exclusiva para donos de barbearias e salões. Cliente? Use a página inicial.
+        </p>
       </div>
     );
   }

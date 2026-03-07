@@ -154,15 +154,18 @@ export default function ClientArea() {
               <ClientHome shops={shops} onSelectShop={setSelectedShop} />
               <div className="flex flex-col items-center justify-center mt-12">
                 <p className="text-gray-500 text-sm mb-4">
-                  {showSignUp ? 'Crie sua conta para agendar' : 'Entre para agendar e ver seus agendamentos'}
+                  {showSignUp ? 'Crie sua conta de cliente para agendar' : 'Acesso exclusivo para clientes'}
                 </p>
                 <LoginForm
-                  title={showSignUp ? 'Criar conta' : 'Entrar'}
-                  subtitle={showSignUp ? 'E-mail e senha (mín. 6 caracteres)' : 'Use seu e-mail e senha'}
+                  title={showSignUp ? 'Criar conta (cliente)' : 'Entrar como cliente'}
+                  subtitle={showSignUp ? 'E-mail e senha (mín. 6 caracteres)' : 'Use seu e-mail e senha para agendar e comprar'}
                   onSubmit={showSignUp ? signUp : signIn}
                   submitLabel={showSignUp ? 'Criar conta' : 'Entrar'}
                   onSuccess={() => {}}
                 />
+                <p className="mt-2 text-xs text-gray-400 text-center max-w-sm">
+                  Dono de barbearia ou salão? Entre pelo link <strong>Sou parceiro</strong> no topo da página.
+                </p>
                 <p className="mt-4 text-sm text-gray-500">
                   {showSignUp ? (
                     <>

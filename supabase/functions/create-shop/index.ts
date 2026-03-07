@@ -207,7 +207,7 @@ Deno.serve(async (req: Request) => {
           errMessage = errJson.error;
         }
       } catch (_) {}
-      console.error("Asaas subaccount error:", errText);
+      console.error("[create-shop] Asaas subaccount error:", errMessage, "| raw:", errText);
       return new Response(
         JSON.stringify({
           success: false,

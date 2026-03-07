@@ -4,5 +4,11 @@
   "rewrites": [
     { "source": "/favicon.ico", "destination": "/favicon.svg" },
     { "source": "/((?!assets/)(?!api/).*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
 }

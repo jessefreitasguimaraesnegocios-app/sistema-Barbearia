@@ -82,41 +82,71 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('create-shop', {
-        body: {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          cpfCnpj: formData.cnpjCpf.replace(/\D/g, '') || undefined,
-          password: formData.password,
-          type: formData.type,
-          birthDate: formData.birthDate || '1994-05-16',
-          companyType: formData.companyType || 'MEI',
-          address: formData.address || undefined,
-          addressNumber: formData.addressNumber || undefined,
-          complement: formData.complement || undefined,
-          province: formData.province || undefined,
-          postalCode: formData.postalCode.replace(/\D/g, '') || undefined,
-          incomeValue: formData.incomeValue || 5000,
-        },
+      const body = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        cpfCnpj: formData.cnpjCpf.replace(/\D/g, '') || undefined,
+        password: formData.password,
+        type: formData.type,
+        birthDate: formData.birthDate || '1994-05-16',
+        companyType: formData.companyType || 'MEI',
+        address: formData.address || undefined,
+        addressNumber: formData.addressNumber || undefined,
+        complement: formData.complement || undefined,
+        province: formData.province || undefined,
+        postalCode: formData.postalCode.replace(/\D/g, '') || undefined,
+        incomeValue: formData.incomeValue || 5000,
+      };
+
+      let responseOk: boolean;
+      let responseStatus: number;
+      let data: Record<string, unknown>;
+
+      const apiRes = await fetch(`${window.location.origin}/api/admin/create-shop`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
+        body: JSON.stringify(body),
       });
 
-      console.log('[create-shop] response:', { data, error });
-
-      if (error) {
-        let msg = error.message || 'Erro ao cadastrar barbearia.';
-        const err = error as { context?: { json?: () => Promise<unknown> } };
-        if (typeof err.context?.json === 'function') {
-          try {
-            const body = await err.context.json() as { error?: string; details?: string };
-            msg = body?.error || body?.details || msg;
-          } catch (_) {}
+      if (apiRes.status === 404) {
+        const { data: invokeData, error } = await supabase.functions.invoke('create-shop', {
+          body,
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        responseOk = !error;
+        responseStatus = error ? 401 : 200;
+        if (error) {
+          let errBody: Record<string, unknown> = {};
+          const err = error as { context?: { json?: () => Promise<unknown> } };
+          if (typeof err.context?.json === 'function') {
+            try {
+              errBody = (await err.context.json()) as Record<string, unknown>;
+            } catch (_) {}
+          }
+          data = {
+            success: false,
+            error: (errBody?.error as string) || error.message,
+            details: errBody?.details,
+          };
+        } else {
+          data = (invokeData as Record<string, unknown>) || {};
         }
-        console.error('[create-shop] error:', error);
-        alert(msg);
+      } else {
+        responseOk = apiRes.ok;
+        responseStatus = apiRes.status;
+        data = (await apiRes.json().catch(() => ({}))) as Record<string, unknown>;
+      }
+
+      console.log('[create-shop] response:', { status: responseStatus, data });
+
+      if (!responseOk) {
+        const msg = (data?.error as string) || (responseStatus === 401 ? 'Sessão expirada. Faça login novamente.' : 'Erro ao cadastrar barbearia.');
+        const details = data?.details ? (typeof data.details === 'string' ? data.details : JSON.stringify(data.details)) : '';
+        alert(details ? `${msg}\n\nDetalhe: ${details.slice(0, 500)}${details.length > 500 ? '...' : ''}` : msg);
         return;
       }
       if (data?.success) {

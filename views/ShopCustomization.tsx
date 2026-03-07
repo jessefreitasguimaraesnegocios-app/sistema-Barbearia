@@ -2,8 +2,32 @@
 import React, { useState, useRef } from 'react';
 import { Shop, Product, Service, Professional } from '../types';
 
-function dedupeById<T extends { id: string }>(arr: T[]): T[] {
-  return Array.from(new Map(arr.map((x) => [x.id, x])).values());
+function dedupeServices(services: Service[]): Service[] {
+  const seen = new Set<string>();
+  return services.filter((s) => {
+    const k = `${s.name}|${s.price}|${s.duration}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+function dedupeProfessionals(pros: Professional[]): Professional[] {
+  const seen = new Set<string>();
+  return pros.filter((p) => {
+    const k = `${(p.name || '').trim()}|${(p.specialty || '').trim()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+function dedupeProducts(products: Product[]): Product[] {
+  const seen = new Set<string>();
+  return products.filter((p) => {
+    const k = `${(p.name || '').trim()}|${p.price}|${(p.category || 'Geral').trim()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 interface ShopCustomizationProps {
@@ -14,9 +38,9 @@ interface ShopCustomizationProps {
 const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) => {
   const [formData, setFormData] = useState<Shop>(() => ({
     ...shop,
-    services: dedupeById(shop.services || []),
-    professionals: dedupeById(shop.professionals || []),
-    products: dedupeById(shop.products || []),
+    services: dedupeServices(shop.services || []),
+    professionals: dedupeProfessionals(shop.professionals || []),
+    products: dedupeProducts(shop.products || []),
   }));
   const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<'GENERAL' | 'INVENTORY' | 'SERVICES' | 'PROFESSIONALS'>('GENERAL');

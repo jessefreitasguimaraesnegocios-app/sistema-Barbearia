@@ -46,22 +46,31 @@ export default function PartnerArea() {
     const rawServices = (d.services || []);
     const rawProfessionals = (d.professionals || []);
     const rawProducts = (d.products || []);
-    const byId = <T extends { id: string }>(arr: T[]): T[] =>
-      Array.from(new Map(arr.map((x) => [x.id, x])).values());
-    const services = byId(rawServices).map((s: any) => ({
+
+    const dedupeByKey = <T>(arr: T[], keyFn: (x: T) => string): T[] => {
+      const seen = new Set<string>();
+      return arr.filter((x) => {
+        const k = keyFn(x);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    };
+
+    const services = dedupeByKey(rawServices, (s: any) => `${s.name}|${Number(s.price)}|${Number(s.duration)}`).map((s: any) => ({
       id: s.id,
       name: s.name,
       description: s.description || '',
       price: Number(s.price),
       duration: Number(s.duration),
     }));
-    const professionals = byId(rawProfessionals).map((p: any) => ({
+    const professionals = dedupeByKey(rawProfessionals, (p: any) => `${(p.name || '').trim()}|${(p.specialty || '').trim()}`).map((p: any) => ({
       id: p.id,
       name: p.name,
       specialty: p.specialty || '',
       avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}`,
     }));
-    const products = byId(rawProducts).map((p: any) => ({
+    const products = dedupeByKey(rawProducts, (p: any) => `${(p.name || '').trim()}|${Number(p.price)}|${(p.category || 'Geral').trim()}`).map((p: any) => ({
       id: p.id,
       name: p.name,
       description: p.description || '',

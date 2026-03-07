@@ -31,7 +31,7 @@ export default async function handler(
     return res.status(500).json({ success: false, error: 'Configuração do Supabase indisponível.' });
   }
 
-  const shopId = req.query?.id ?? getShopIdFromPath(req.url || '');
+  const shopId = req.query?.id ?? getShopId(req);
   if (!shopId) {
     return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
   }

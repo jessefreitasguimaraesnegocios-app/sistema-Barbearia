@@ -26,7 +26,23 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { name, email, phone, cpfCnpj: bodyCpf, password, type: shopType } = await req.json();
+    const {
+      name,
+      email,
+      phone,
+      cpfCnpj: bodyCpf,
+      password,
+      type: shopType,
+      birthDate: bodyBirthDate,
+      companyType: bodyCompanyType,
+      address: bodyAddress,
+      addressNumber: bodyAddressNumber,
+      complement: bodyComplement,
+      province: bodyProvince,
+      postalCode: bodyPostalCode,
+      incomeValue: bodyIncomeValue,
+    } = await req.json();
+
     if (!name || !email || !phone) {
       return new Response(
         JSON.stringify({
@@ -132,6 +148,16 @@ Deno.serve(async (req: Request) => {
 
     let asaasWalletId: string | null = null;
     const cpfCnpjForAccount = cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : "00000000000";
+    const postalCodeDigits = bodyPostalCode != null ? String(bodyPostalCode).replace(/\D/g, "").slice(0, 8) : "";
+    const postalCode = postalCodeDigits.length === 8 ? postalCodeDigits : "01310100";
+    const birthDate = bodyBirthDate && String(bodyBirthDate).trim() !== "" ? String(bodyBirthDate).trim() : "1994-05-16";
+    const companyType = bodyCompanyType && String(bodyCompanyType).trim() !== "" ? String(bodyCompanyType).trim() : "MEI";
+    const address = bodyAddress && String(bodyAddress).trim() !== "" ? String(bodyAddress).trim() : "A definir";
+    const addressNumber = bodyAddressNumber && String(bodyAddressNumber).trim() !== "" ? String(bodyAddressNumber).trim() : "S/N";
+    const complement = bodyComplement != null ? String(bodyComplement).trim() : "";
+    const province = bodyProvince && String(bodyProvince).trim() !== "" ? String(bodyProvince).trim() : "Centro";
+    const incomeValue = typeof bodyIncomeValue === "number" && bodyIncomeValue > 0 ? bodyIncomeValue : 5000;
+
     const accountRes = await fetch(`${asaasBaseUrl}/accounts`, {
       method: "POST",
       headers: {
@@ -142,15 +168,16 @@ Deno.serve(async (req: Request) => {
         name: String(name),
         email: String(email),
         cpfCnpj: cpfCnpjForAccount,
-        birthDate: "1990-01-01",
-        companyType: "MEI",
+        birthDate,
+        companyType,
         phone: String(phone),
         mobilePhone: mobilePhone,
-        incomeValue: 5000,
-        address: "A definir",
-        addressNumber: "S/N",
-        province: "Centro",
-        postalCode: "01310100",
+        incomeValue,
+        address,
+        addressNumber,
+        ...(complement !== "" && { complement }),
+        province,
+        postalCode,
       }),
     });
 
@@ -243,6 +270,7 @@ Deno.serve(async (req: Request) => {
         name: String(name),
         email: String(email),
         phone: String(phone),
+        cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
         asaas_customer_id: asaasCustomerId,
         asaas_wallet_id: asaasWalletId,
         type: (shopType === "SALON" ? "SALON" : "BARBER"),
@@ -251,7 +279,7 @@ Deno.serve(async (req: Request) => {
         rating: 5.0,
         profile_image,
         banner_image,
-        address: "A definir",
+        address: [address, addressNumber, complement, province, postalCode].filter(Boolean).join(", ") || address,
       })
       .select("id")
       .single();

@@ -27,6 +27,13 @@ function formatCnpjCpf(value: string): string {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
+// Máscara CEP: 00000-000
+function formatCep(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 const EMAIL_DOMAINS = ['@gmail.com', '@hotmail.com', '@outlook.com', '@yahoo.com.br', '@yahoo.com', '@icloud.com', '@live.com', '@uol.com.br', '@bol.com.br'];
 
 interface AdminDashboardProps {
@@ -51,13 +58,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     phone: '',
     password: '',
     pixKey: '',
-    postalCode: '01310100',
-    address: 'Rua Exemplo',
-    addressNumber: 'S/N',
-    province: 'Centro',
+    birthDate: '1994-05-16',
+    companyType: 'MEI',
+    postalCode: '',
+    address: '',
+    addressNumber: '',
+    complement: '',
+    province: '',
     incomeValue: 5000,
     subscriptionAmount: 99
   });
+  const [loadingCep, setLoadingCep] = useState(false);
 
   const handleAddShop = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,9 +80,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          cpfCnpj: formData.cnpjCpf || undefined,
+          cpfCnpj: formData.cnpjCpf.replace(/\D/g, '') || undefined,
           password: formData.password,
-          type: formData.type
+          type: formData.type,
+          birthDate: formData.birthDate || '1994-05-16',
+          companyType: formData.companyType || 'MEI',
+          address: formData.address || undefined,
+          addressNumber: formData.addressNumber || undefined,
+          complement: formData.complement || undefined,
+          province: formData.province || undefined,
+          postalCode: formData.postalCode.replace(/\D/g, '') || undefined,
+          incomeValue: formData.incomeValue || 5000,
         }
       });
 
@@ -82,7 +101,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       if (data?.success) {
         await onShopCreated?.();
         setShowAddModal(false);
-        setFormData({ name: '', type: 'BARBER', cnpjCpf: '', email: '', phone: '', password: '', pixKey: '', postalCode: '01310100', address: 'Rua Exemplo', addressNumber: 'S/N', province: 'Centro', incomeValue: 5000, subscriptionAmount: 99 });
+        setFormData({
+          name: '', type: 'BARBER', cnpjCpf: '', email: '', phone: '', password: '', pixKey: '',
+          birthDate: '1994-05-16', companyType: 'MEI',
+          postalCode: '', address: '', addressNumber: '', complement: '', province: '',
+          incomeValue: 5000, subscriptionAmount: 99
+        });
         alert('Barbearia cadastrada, conta Asaas criada e login do dono ativado! O proprietário pode acessar com o e-mail e a senha definidos.');
       } else {
         const msg = data?.details || data?.error || 'Erro ao cadastrar barbearia.';
@@ -166,6 +190,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     setFormData(prev => ({ ...prev, email: beforeAt + domain }));
     setEmailSuggestionsOpen(false);
     emailInputRef.current?.focus();
+  };
+
+  const fetchAddressByCep = async () => {
+    const cepDigits = formData.postalCode.replace(/\D/g, '');
+    if (cepDigits.length !== 8) return;
+    setLoadingCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
+      const data = await res.json();
+      if (data?.erro) {
+        alert('CEP não encontrado.');
+        return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        address: data.logradouro || prev.address,
+        province: data.bairro || prev.province,
+      }));
+    } catch {
+      alert('Erro ao buscar CEP. Tente novamente.');
+    } finally {
+      setLoadingCep(false);
+    }
+  };
+
+  const handleCepBlur = () => {
+    fetchAddressByCep();
   };
 
   const saveSubscriptionAmount = async (shop: Shop, newAmount: number) => {
@@ -408,7 +459,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
 
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-lg rounded-[2rem] p-8 space-y-6 shadow-2xl animate-scale-in my-8">
+          <div className="bg-white w-full max-w-2xl rounded-[2rem] p-8 space-y-6 shadow-2xl animate-scale-in my-8">
              <div className="flex justify-between items-center">
                <h3 className="text-2xl font-bold text-gray-900">Novo Parceiro</h3>
                <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-900"><i className="fas fa-times"></i></button>
@@ -504,17 +555,98 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   <p className="text-xs text-gray-400 mt-1">O dono usará este e-mail e esta senha para acessar o painel da loja.</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CEP</label>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2 block">Endereço</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 sm:col-span-1 relative">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CEP</label>
+                      <input 
+                        type="text" 
+                        placeholder="00000-000" 
+                        maxLength={9}
+                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                        value={formData.postalCode}
+                        onChange={e => setFormData({ ...formData, postalCode: formatCep(e.target.value) })}
+                        onBlur={handleCepBlur}
+                      />
+                      {loadingCep && (
+                        <span className="absolute right-4 top-9 text-gray-400"><i className="fas fa-spinner fa-spin"></i></span>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">Digite o CEP e o endereço será preenchido automaticamente.</p>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Número</label>
+                      <input 
+                        required
+                        type="text" 
+                        placeholder="Ex: 277" 
+                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                        value={formData.addressNumber}
+                        onChange={e => setFormData({ ...formData, addressNumber: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Logradouro</label>
                     <input 
                       type="text" 
-                      placeholder="01310-100" 
+                      placeholder="Rua, Av. (preenchido pelo CEP)" 
                       className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                      value={formData.postalCode}
-                      onChange={e => setFormData({...formData, postalCode: e.target.value})}
+                      value={formData.address}
+                      onChange={e => setFormData({ ...formData, address: e.target.value })}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Complemento</label>
+                      <input 
+                        type="text" 
+                        placeholder="Sala, andar (opcional)" 
+                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                        value={formData.complement}
+                        onChange={e => setFormData({ ...formData, complement: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Bairro</label>
+                      <input 
+                        type="text" 
+                        placeholder="Preenchido pelo CEP" 
+                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                        value={formData.province}
+                        onChange={e => setFormData({ ...formData, province: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Data de nascimento (responsável)</label>
+                    <input 
+                      type="date" 
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                      value={formData.birthDate}
+                      onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Tipo de empresa</label>
+                    <select 
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 appearance-none"
+                      value={formData.companyType}
+                      onChange={e => setFormData({ ...formData, companyType: e.target.value })}
+                    >
+                      <option value="MEI">MEI</option>
+                      <option value="ME">ME</option>
+                      <option value="EPP">EPP</option>
+                      <option value="LTDA">LTDA</option>
+                      <option value="SA">SA</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Renda/Faturamento (R$)</label>
                     <input 
@@ -523,13 +655,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                       placeholder="5000" 
                       className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
                       value={formData.incomeValue}
-                      onChange={e => setFormData({...formData, incomeValue: Number(e.target.value) || 5000})}
+                      onChange={e => setFormData({ ...formData, incomeValue: Number(e.target.value) || 5000 })}
                     />
+                    <p className="text-xs text-gray-400 mt-1">Exigido pelo Asaas para subconta.</p>
                   </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Mensalidade (R$/mês)</label>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Mensalidade (R$/mês)</label>
                   <input 
                     type="number" 
                     min={0}
@@ -540,6 +671,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     onChange={e => setFormData({...formData, subscriptionAmount: Math.max(0, Number(e.target.value) || 99)})}
                   />
                   <p className="text-xs text-gray-400 mt-1">Valor cobrado mensalmente deste parceiro.</p>
+                </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

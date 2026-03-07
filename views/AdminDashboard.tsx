@@ -38,6 +38,7 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShopCreated }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [creatingWalletId, setCreatingWalletId] = useState<string | null>(null);
   const [emailSuggestionsOpen, setEmailSuggestionsOpen] = useState(false);
   const [emailSuggestionsFilter, setEmailSuggestionsFilter] = useState('');
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -211,6 +212,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     }
   };
 
+  const createWalletForShop = async (shop: Shop) => {
+    setCreatingWalletId(shop.id);
+    try {
+      const response = await fetch(`/api/admin/shops/${shop.id}/create-wallet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cpfCnpj: shop.cnpjOrCpf || undefined })
+      });
+      const data = await response.json();
+      if (data.success && data.shop) {
+        setShops(shops.map(s =>
+          s.id === shop.id
+            ? { ...s, asaasWalletId: data.shop.asaasWalletId, asaasAccountId: data.shop.asaasAccountId }
+            : s
+        ));
+        alert('Carteira Asaas criada e vinculada à loja.');
+      } else {
+        alert(data.error || 'Erro ao criar carteira.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao criar carteira.');
+    } finally {
+      setCreatingWalletId(null);
+    }
+  };
+
   const deleteShop = async (shop: Shop) => {
     if (!window.confirm(`Excluir o estabelecimento "${shop.name}"? Esta ação não pode ser desfeita.`)) return;
     try {
@@ -343,10 +371,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <span className="text-xs font-mono text-gray-400">{shop.asaasAccountId || 'N/A'}</span>
+                    <span className="text-xs font-mono text-gray-400">{shop.asaasAccountId || (shop.asaasWalletId ? 'OK' : 'Sem carteira')}</span>
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-3">
+                      {!shop.asaasWalletId && (
+                        <button
+                          type="button"
+                          onClick={() => createWalletForShop(shop)}
+                          disabled={!!creatingWalletId}
+                          className="text-sm font-bold text-amber-600 hover:text-amber-700 hover:underline disabled:opacity-50"
+                        >
+                          {creatingWalletId === shop.id ? 'Criando...' : 'Criar carteira'}
+                        </button>
+                      )}
                       <button 
                         onClick={() => toggleSubscription(shop)}
                         className={`text-sm font-bold ${shop.subscriptionActive ? 'text-red-500' : 'text-green-600'} hover:underline`}

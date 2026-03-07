@@ -132,34 +132,68 @@ Deno.serve(async (req: Request) => {
 
     let asaasWalletId: string | null = null;
     const cpfCnpjForAccount = cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : "00000000000";
-    try {
-      const accountRes = await fetch(`${asaasBaseUrl}/accounts`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          access_token: asaasApiKey,
-        },
-        body: JSON.stringify({
-          name: String(name),
-          email: String(email),
-          cpfCnpj: cpfCnpjForAccount,
-          birthDate: "1990-01-01",
-          companyType: "MEI",
-          phone: String(phone),
-          mobilePhone: mobilePhone,
-          incomeValue: 5000,
-          address: "A definir",
-          addressNumber: "S/N",
-          province: "Centro",
-          postalCode: "01310100",
+    const accountRes = await fetch(`${asaasBaseUrl}/accounts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        access_token: asaasApiKey,
+      },
+      body: JSON.stringify({
+        name: String(name),
+        email: String(email),
+        cpfCnpj: cpfCnpjForAccount,
+        birthDate: "1990-01-01",
+        companyType: "MEI",
+        phone: String(phone),
+        mobilePhone: mobilePhone,
+        incomeValue: 5000,
+        address: "A definir",
+        addressNumber: "S/N",
+        province: "Centro",
+        postalCode: "01310100",
+      }),
+    });
+
+    if (!accountRes.ok) {
+      const errText = await accountRes.text();
+      let errMessage = "Falha ao criar subconta Asaas (carteira da loja). Toda barbearia/salão precisa de uma carteira para receber o split.";
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson?.errors?.[0]?.description) {
+          errMessage = errJson.errors[0].description;
+        } else if (errJson?.error) {
+          errMessage = errJson.error;
+        }
+      } catch (_) {}
+      console.error("Asaas subaccount error:", errText);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: errMessage,
+          details: errText,
         }),
-      });
-      if (accountRes.ok) {
-        const accountData = await accountRes.json();
-        asaasWalletId = accountData?.walletId ?? null;
-      }
-    } catch (subErr) {
-      console.error("Asaas subaccount creation failed (payment will use ASAAS_WALLET_ID):", subErr);
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const accountData = await accountRes.json();
+    asaasWalletId = accountData?.walletId ?? null;
+
+    if (!asaasWalletId || String(asaasWalletId).trim() === "") {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            "Asaas não retornou a carteira (walletId) da subconta. Não foi possível cadastrar a loja. Tente novamente ou entre em contato com o suporte.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // 2. Criar registro na tabela shops no Supabase

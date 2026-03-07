@@ -73,8 +73,21 @@ Deno.serve(async (req: Request) => {
     }
 
     const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
+    if ((recordType === "booking" || recordType === "order") && !shopId) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Agendamento e pedido exigem shopId (loja).",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
     let effectiveWalletId = "";
     let splitToShop = Math.min(100, Math.max(0, bodySplitPercent != null ? Number(bodySplitPercent) : 95));
+    let hasShopWallet = false;
 
     if (shopId) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -90,33 +103,31 @@ Deno.serve(async (req: Request) => {
           const shopWallet = (shop.asaas_wallet_id != null && String(shop.asaas_wallet_id).trim() !== "")
             ? String(shop.asaas_wallet_id).trim()
             : "";
-          effectiveWalletId = shopWallet || (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
+          if (shopWallet) {
+            effectiveWalletId = shopWallet;
+            hasShopWallet = true;
+          }
           if (shop.split_percent != null) {
             const pct = Number(shop.split_percent);
             if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
           }
-        } else {
-          effectiveWalletId = (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
         }
-      } else {
-        effectiveWalletId = (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
       }
-    } else {
-      effectiveWalletId = (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
-    }
 
-    if (!effectiveWalletId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error:
-            "Nenhuma carteira configurada para receber o split. Configure o secret ASAAS_WALLET_ID na Edge Function (Supabase Dashboard → Settings → Edge Functions → Secrets) com o Wallet ID da sua conta Asaas, ou cadastre a loja com subconta para ter asaas_wallet_id.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      // Pagamento com loja (agendamento/pedido) exige carteira da loja para split
+      if ((recordType === "booking" || recordType === "order") && !hasShopWallet) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error:
+              "Esta loja ainda não possui carteira Asaas configurada. Não é possível processar pagamento com split. Entre em contato com o suporte.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
 
     const cpfCnpjDigits = (bodyCpfCnpj != null && String(bodyCpfCnpj).trim() !== "")
@@ -195,20 +206,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2) Criar cobrança com split para a carteira da loja (wallet e % já definidos acima a partir do banco)
-    const paymentPayload = {
+    // 2) Criar cobrança; split só quando a loja tem carteira (nunca split para própria carteira)
+    const paymentPayload: Record<string, unknown> = {
       customer: customerId,
       billingType: "PIX",
       value: totalValue,
       dueDate: dueDateStr,
       description: String(description).slice(0, 500),
-      split: [
+    };
+    if (effectiveWalletId) {
+      paymentPayload.split = [
         {
           walletId: effectiveWalletId,
           percentualValue: splitToShop,
         },
-      ],
-    };
+      ];
+    }
 
     const paymentRes = await fetch(`${asaasBaseUrl}/payments`, {
       method: "POST",

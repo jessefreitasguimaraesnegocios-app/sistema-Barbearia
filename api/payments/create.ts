@@ -69,6 +69,7 @@ export default async function handler(
     const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
     let effectiveWalletId = '';
     let splitToShop = 95;
+    let hasShopWallet = false;
 
     if (shopId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -82,23 +83,35 @@ export default async function handler(
           shop.asaas_wallet_id != null && String(shop.asaas_wallet_id).trim() !== ''
             ? String(shop.asaas_wallet_id).trim()
             : '';
-        effectiveWalletId = shopWallet || ASAAS_WALLET_ID;
+        if (shopWallet) {
+          effectiveWalletId = shopWallet;
+          hasShopWallet = true;
+        }
         if (shop.split_percent != null) {
           const pct = Number(shop.split_percent);
           if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
         }
-      } else {
-        effectiveWalletId = ASAAS_WALLET_ID;
       }
-    } else {
-      effectiveWalletId = ASAAS_WALLET_ID;
-    }
-
-    if (!effectiveWalletId) {
+      if ((recordType === 'booking' || recordType === 'order') && !hasShopWallet) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Esta loja ainda não possui carteira Asaas configurada. Não é possível processar pagamento com split. Entre em contato com o suporte.',
+        });
+      }
+    } else if (shopId && (recordType === 'booking' || recordType === 'order')) {
       return res.status(400).json({
         success: false,
         error:
-          'Nenhuma carteira configurada. Defina ASAAS_WALLET_ID no projeto ou cadastre a loja com asaas_wallet_id.',
+          'Esta loja ainda não possui carteira Asaas configurada. Não é possível processar pagamento com split. Entre em contato com o suporte.',
+      });
+    }
+
+    if ((recordType === 'booking' || recordType === 'order') && !effectiveWalletId) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Esta loja ainda não possui carteira Asaas configurada. Não é possível processar pagamento com split. Entre em contato com o suporte.',
       });
     }
 
@@ -158,19 +171,21 @@ export default async function handler(
       });
     }
 
-    const paymentPayload = {
+    const paymentPayload: Record<string, unknown> = {
       customer: customerId,
       billingType: 'PIX' as const,
       value: totalValue,
       dueDate: dueDateStr,
       description: String(description).slice(0, 500),
-      split: [
+    };
+    if (effectiveWalletId) {
+      paymentPayload.split = [
         {
           walletId: effectiveWalletId,
           percentualValue: splitToShop,
         },
-      ],
-    };
+      ];
+    }
 
     const paymentRes = await fetch(`${ASAAS_API_URL}/payments`, {
       method: 'POST',

@@ -25,6 +25,54 @@ export default function ClientArea() {
     fetchShops();
   }, []);
 
+  const mapAppointment = (a: any): Appointment => ({
+    id: a.id,
+    clientId: a.client_id,
+    shopId: a.shop_id,
+    serviceId: a.service_id,
+    professionalId: a.professional_id,
+    date: a.date,
+    time: a.time,
+    status: a.status || 'PENDING',
+    amount: Number(a.amount),
+    tip: a.tip != null ? Number(a.tip) : undefined,
+  });
+
+  const mapOrder = (o: any): Order => ({
+    id: o.id,
+    clientId: o.client_id,
+    shopId: o.shop_id,
+    items: Array.isArray(o.items) ? o.items : [],
+    total: Number(o.total),
+    status: o.status || 'PENDING',
+    date: o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+  });
+
+  const fetchAppointments = async () => {
+    if (!user?.id) return;
+    const { data } = await supabase.from('appointments').select('*').eq('client_id', user.id).order('date', { ascending: false });
+    setAppointments((data || []).map(mapAppointment));
+  };
+
+  const fetchOrders = async () => {
+    if (!user?.id) return;
+    const { data } = await supabase.from('orders').select('*').eq('client_id', user.id).order('created_at', { ascending: false });
+    setOrders((data || []).map(mapOrder));
+  };
+
+  useEffect(() => {
+    if (user?.role === 'ADMIN' || user?.role === 'SHOP') return;
+    if (!user?.id) return;
+    fetchAppointments();
+    fetchOrders();
+    const subA = supabase.channel('appointments').on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `client_id=eq.${user.id}` }, () => fetchAppointments()).subscribe();
+    const subO = supabase.channel('orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `client_id=eq.${user.id}` }, () => fetchOrders()).subscribe();
+    return () => {
+      subA.unsubscribe();
+      subO.unsubscribe();
+    };
+  }, [user?.id, user?.role]);
+
   const fetchShops = async () => {
     const { data } = await supabase.from('shops').select('*, services(*), professionals(*), products(*)');
     if (data) {
@@ -154,19 +202,25 @@ export default function ClientArea() {
   const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
   if (currentView === 'shop-details' && selectedShop) {
+    const refetchAppointmentsAndOrders = () => {
+      fetchAppointments();
+      fetchOrders();
+    };
     return (
       <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
         <ShopDetails
           shop={selectedShop}
           user={user}
-          onBook={apt => {
-            setAppointments(a => [...a, apt]);
-            addNotification('Agendamento confirmado', `Seu horário na ${selectedShop.name} está garantido!`, 'SUCCESS');
+          onRefetchAppointmentsAndOrders={refetchAppointmentsAndOrders}
+          onBook={() => {
+            refetchAppointmentsAndOrders();
+            addNotification('Aguardando pagamento', 'Assim que o PIX for confirmado, seu agendamento aparecerá como pago.', 'INFO');
             setCurrentView('client-appointments');
           }}
-          onOrder={order => {
-            setOrders(o => [...o, order]);
-            addNotification('Pedido recebido', `Pedido de R$ ${order.total.toFixed(2)} processado.`, 'SUCCESS');
+          onOrder={() => {
+            refetchAppointmentsAndOrders();
+            addNotification('Aguardando pagamento', 'Assim que o PIX for confirmado, seu pedido aparecerá como pago.', 'INFO');
+            setCurrentView('client-orders');
           }}
           onBack={() => setCurrentView('client-home')}
         />

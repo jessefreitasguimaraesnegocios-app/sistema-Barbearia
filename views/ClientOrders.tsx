@@ -34,8 +34,8 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({ orders, shops, user, onNavi
                       <p className="text-xs text-gray-500">Pedido #{order.id.substr(0, 6)}</p>
                     </div>
                   </div>
-                  <span className="text-[10px] bg-green-100 text-green-600 px-3 py-1 rounded-full font-black uppercase tracking-widest">
-                    {order.status === 'PAID' ? 'Pago' : 'Entregue'}
+                  <span className={`text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${order.status === 'PAID' ? 'bg-green-100 text-green-600' : order.status === 'PENDING' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                    {order.status === 'PAID' ? 'Pago' : order.status === 'PENDING' ? 'Aguardando pagamento' : order.status === 'DELIVERED' ? 'Entregue' : order.status}
                   </span>
                 </div>
 

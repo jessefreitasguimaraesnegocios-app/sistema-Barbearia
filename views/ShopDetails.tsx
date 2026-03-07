@@ -19,14 +19,15 @@ function getPaymentHeaders(): Record<string, string> {
 interface ShopDetailsProps {
   shop: Shop;
   user: User;
-  onBook: (appointment: Appointment) => void;
-  onOrder: (order: Order) => void;
+  onRefetchAppointmentsAndOrders?: () => void;
+  onBook: (appointment?: Appointment) => void;
+  onOrder: (order?: Order) => void;
   onBack: () => void;
 }
 
 type PaymentMethod = 'PIX' | 'CREDIT' | 'DEBIT';
 
-const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, onBack }) => {
+const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointmentsAndOrders, onBook, onOrder, onBack }) => {
   const [activeTab, setActiveTab] = useState<'SERVICES' | 'STORE'>('SERVICES');
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -41,6 +42,11 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
   const [paymentCustomerEmail, setPaymentCustomerEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  
+  // Pagamento PIX pendente: exibe link para pagar e botão "Já paguei"
+  type PaymentPendingBooking = { invoiceUrl: string; amount: number; type: 'booking'; pendingBooking: Appointment };
+  type PaymentPendingOrder = { invoiceUrl: string; amount: number; type: 'order'; pendingOrder: Order };
+  const [paymentPending, setPaymentPending] = useState<PaymentPendingBooking | PaymentPendingOrder | null>(null);
   
   // Store States
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
@@ -96,7 +102,18 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
           customerName,
           customerEmail,
           customerCpfCnpj: cpfDigits,
-          customerPhone: customerPhone.trim() || undefined
+          customerPhone: customerPhone.trim() || undefined,
+          recordType: 'booking',
+          booking: {
+            shopId: shop.id,
+            clientId: user.id,
+            serviceId: selectedService.id,
+            professionalId: selectedPro.id,
+            date: selectedDate,
+            time: selectedTime,
+            amount: totalAmount,
+            tip: tipAmount > 0 ? tipAmount : undefined,
+          },
         })
       });
 
@@ -111,28 +128,34 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
       const data = isJson && text ? JSON.parse(text) : {};
       console.log("Asaas Split Payment Response:", data);
 
-      // Simulação de sucesso após retorno do Asaas
-      setTimeout(() => {
-        const newApt: Appointment = {
-          id: Math.random().toString(36).substr(2, 9),
-          clientId: user.id,
-          shopId: shop.id,
-          serviceId: selectedService.id,
-          professionalId: selectedPro.id,
-          date: selectedDate,
-          time: selectedTime,
-          status: 'PAID',
-          amount: totalAmount,
-          tip: tipAmount > 0 ? tipAmount : undefined
-        };
-        
+      const invoiceUrl = data.invoiceUrl || data.payment?.invoiceUrl;
+      if (!invoiceUrl) {
         setIsProcessing(false);
-        setBookingSuccess(true);
-        
-        setTimeout(() => {
-          onBook(newApt);
-        }, 2500);
-      }, 1500);
+        alert('Cobrança criada, mas o link de pagamento não foi retornado. Tente novamente ou entre em contato.');
+        return;
+      }
+
+      const newApt: Appointment = {
+        id: Math.random().toString(36).substr(2, 9),
+        clientId: user.id,
+        shopId: shop.id,
+        serviceId: selectedService.id,
+        professionalId: selectedPro.id,
+        date: selectedDate,
+        time: selectedTime,
+        status: 'PENDING',
+        amount: totalAmount,
+        tip: tipAmount > 0 ? tipAmount : undefined
+      };
+
+      setIsProcessing(false);
+      setPaymentPending({
+        invoiceUrl,
+        amount: totalAmount,
+        type: 'booking',
+        pendingBooking: { ...newApt, status: 'PAID' }
+      });
+      onRefetchAppointmentsAndOrders?.();
     } catch (error) {
       console.error("Payment error:", error);
       setIsProcessing(false);
@@ -190,7 +213,18 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
           customerName,
           customerEmail,
           customerCpfCnpj: cpfDigits,
-          customerPhone: customerPhone.trim() || undefined
+          customerPhone: customerPhone.trim() || undefined,
+          recordType: 'order',
+          order: {
+            shopId: shop.id,
+            clientId: user.id,
+            items: cart.map(item => ({
+              productId: item.product.id,
+              quantity: item.quantity,
+              price: item.product.promoPrice ?? item.product.price,
+            })),
+            total: cartTotal,
+          },
         })
       });
 
@@ -205,30 +239,35 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
       const data = isJson && text ? JSON.parse(text) : {};
       console.log("Asaas Split Order Response:", data);
 
-      setTimeout(() => {
-        const newOrder: Order = {
-          id: Math.random().toString(36).substr(2, 9),
-          clientId: user.id,
-          shopId: shop.id,
-          items: cart.map(item => ({
-            productId: item.product.id,
-            quantity: item.quantity,
-            price: item.product.promoPrice || item.product.price
-          })),
-          total: cartTotal,
-          status: 'PAID',
-          date: new Date().toLocaleDateString('pt-BR')
-        };
-        
-        onOrder(newOrder);
+      const invoiceUrl = data.invoiceUrl || data.payment?.invoiceUrl;
+      if (!invoiceUrl) {
         setIsOrderProcessing(false);
-        setOrderSuccess(true);
-        setCart([]);
-        setTimeout(() => {
-          setOrderSuccess(false);
-          setIsCartOpen(false);
-        }, 3000);
-      }, 2000);
+        alert('Cobrança criada, mas o link de pagamento não foi retornado. Tente novamente ou entre em contato.');
+        return;
+      }
+
+      const newOrder: Order = {
+        id: Math.random().toString(36).substr(2, 9),
+        clientId: user.id,
+        shopId: shop.id,
+        items: cart.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          price: item.product.promoPrice || item.product.price
+        })),
+        total: cartTotal,
+        status: 'PAID',
+        date: new Date().toLocaleDateString('pt-BR')
+      };
+
+      setIsOrderProcessing(false);
+      setPaymentPending({
+        invoiceUrl,
+        amount: cartTotal,
+        type: 'order',
+        pendingOrder: newOrder
+      });
+      onRefetchAppointmentsAndOrders?.();
     } catch (error) {
       console.error("Order payment error:", error);
       setIsOrderProcessing(false);
@@ -277,6 +316,56 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onBook, onOrder, 
            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
            <div className="w-2 h-2 bg-indigo-200 rounded-full animate-bounce"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Tela: complete o pagamento PIX (link + "Já paguei, finalizar")
+  if (paymentPending) {
+    const handlePaid = () => {
+      const pending = paymentPending;
+      setPaymentPending(null);
+      if (pending.type === 'booking') {
+        onBook();
+      } else {
+        setCart([]);
+        setIsCartOpen(false);
+        onOrder();
+      }
+    };
+    return (
+      <div className="fixed inset-0 z-[120] bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-fade-in">
+        <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-8 max-w-md w-full text-center space-y-6">
+          <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
+            <i className="fas fa-qrcode text-3xl text-emerald-600"></i>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Pague com PIX</h2>
+          <p className="text-gray-500 text-sm">
+            A cobrança foi gerada. Abra a página abaixo para ver o QR Code ou o código PIX Copia e Cola, pague no app do seu banco e depois clique em &quot;Já paguei&quot;.
+          </p>
+          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+            <p className="text-sm text-gray-500 mb-1">Valor a pagar</p>
+            <p className="text-3xl font-black text-indigo-600">R$ {paymentPending.amount.toFixed(2).replace('.', ',')}</p>
+          </div>
+          <a
+            href={paymentPending.invoiceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors"
+          >
+            <i className="fas fa-external-link-alt mr-2"></i> Abrir página de pagamento PIX
+          </a>
+          <button
+            type="button"
+            onClick={handlePaid}
+            className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-colors"
+          >
+            <i className="fas fa-check mr-2"></i> Já paguei, finalizar
+          </button>
+          <p className="text-xs text-gray-400">
+            Ao clicar em &quot;Já paguei&quot;, seu agendamento/pedido será confirmado na lista.
+          </p>
         </div>
       </div>
     );

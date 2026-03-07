@@ -83,7 +83,7 @@ export interface Order {
   shopId: string;
   items: { productId: string; quantity: number; price: number }[];
   total: number;
-  status: 'PAID' | 'DELIVERED';
+  status: 'PENDING' | 'PAID' | 'DELIVERED';
   date: string;
 }
 

@@ -5,6 +5,7 @@ import { Appointment, Shop, User } from '../types';
 interface ClientAppointmentsProps {
   appointments: Appointment[];
   shops: Shop[];
+  user: User;
   onCancel: (id: string) => void;
 }
 
@@ -48,8 +49,8 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, s
                   <div>
                     <div className="flex justify-between items-start">
                       <h3 className={`text-lg font-bold text-gray-900 transition-all ${apt.status === 'CANCELLED' ? 'line-through decoration-red-500 decoration-2' : ''}`}>{shop?.name}</h3>
-                      <span className={`text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${apt.status === 'PAID' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                        {apt.status === 'PAID' ? 'Pago' : apt.status}
+                      <span className={`text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${apt.status === 'PAID' ? 'bg-green-100 text-green-600' : apt.status === 'PENDING' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'}`}>
+                        {apt.status === 'PAID' ? 'Pago' : apt.status === 'PENDING' ? 'Aguardando pagamento' : apt.status}
                       </span>
                     </div>
                     <p className={`text-sm text-gray-500 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}>{service?.name} com <span className="text-gray-900 font-medium">{pro?.name}</span></p>

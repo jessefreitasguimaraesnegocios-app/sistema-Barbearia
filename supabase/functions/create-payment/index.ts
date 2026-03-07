@@ -1,5 +1,7 @@
 // Supabase Edge Function: create-payment
-// Cria cobrança Asaas (PIX) com split para a carteira da loja
+// Cria cobrança Asaas (PIX) com split para a carteira da loja e opcionalmente grava agendamento/pedido PENDING no Supabase
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +54,9 @@ Deno.serve(async (req: Request) => {
       customerEmail,
       customerCpfCnpj: bodyCpfCnpj,
       customerPhone: bodyPhone,
+      recordType,
+      booking: bodyBooking,
+      order: bodyOrder,
     } = body || {};
 
     if (!amount || amount <= 0 || !customerName || !customerEmail) {
@@ -218,12 +223,77 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const asaasPaymentId = paymentData.id as string | undefined;
+    let recordId: string | null = null;
+
+    if (asaasPaymentId && (recordType === "booking" || recordType === "order")) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseServiceKey) {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        if (recordType === "booking" && bodyBooking && typeof bodyBooking === "object") {
+          const b = bodyBooking as {
+            shopId?: string;
+            clientId?: string;
+            serviceId?: string;
+            professionalId?: string;
+            date?: string;
+            time?: string;
+            amount?: number;
+            tip?: number;
+          };
+          if (b.shopId && b.clientId && b.serviceId && b.professionalId && b.date && b.time != null && b.amount != null) {
+            const { data: apt, error: aptErr } = await supabase
+              .from("appointments")
+              .insert({
+                client_id: b.clientId,
+                shop_id: b.shopId,
+                service_id: b.serviceId,
+                professional_id: b.professionalId,
+                date: b.date,
+                time: b.time,
+                amount: Number(b.amount),
+                status: "PENDING",
+                asaas_payment_id: asaasPaymentId,
+              })
+              .select("id")
+              .single();
+            if (!aptErr && apt?.id) recordId = apt.id;
+          }
+        } else if (recordType === "order" && bodyOrder && typeof bodyOrder === "object") {
+          const o = bodyOrder as {
+            shopId?: string;
+            clientId?: string;
+            items?: Array<{ productId: string; quantity: number; price: number }>;
+            total?: number;
+          };
+          if (o.shopId && o.clientId && Array.isArray(o.items) && o.total != null) {
+            const { data: ord, error: ordErr } = await supabase
+              .from("orders")
+              .insert({
+                client_id: o.clientId,
+                shop_id: o.shopId,
+                items: o.items,
+                total: Number(o.total),
+                status: "PENDING",
+                asaas_payment_id: asaasPaymentId,
+              })
+              .select("id")
+              .single();
+            if (!ordErr && ord?.id) recordId = ord.id;
+          }
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         payment: paymentData,
         invoiceUrl: paymentData.invoiceUrl,
         id: paymentData.id,
+        appointmentId: recordType === "booking" ? recordId : undefined,
+        orderId: recordType === "order" ? recordId : undefined,
       }),
       {
         status: 200,

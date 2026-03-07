@@ -1,7 +1,6 @@
 
 import React, { useState, useRef } from 'react';
 import { Shop, Product, Service, Professional } from '../types';
-import { generateShopDescription } from '../geminiService';
 
 interface ShopCustomizationProps {
   shop: Shop;
@@ -10,19 +9,11 @@ interface ShopCustomizationProps {
 
 const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) => {
   const [formData, setFormData] = useState<Shop>(shop);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<'GENERAL' | 'INVENTORY' | 'SERVICES' | 'PROFESSIONALS'>('GENERAL');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ type: 'SHOP_PROFILE' | 'SHOP_BANNER' | 'PRO' | 'PRODUCT', id?: string } | null>(null);
-
-  const handleAI = async () => {
-    setIsGenerating(true);
-    const desc = await generateShopDescription(formData.name, formData.type);
-    setFormData({ ...formData, description: desc });
-    setIsGenerating(false);
-  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -186,12 +177,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                 />
               </div>
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">Descrição</label>
-                  <button onClick={handleAI} disabled={isGenerating} className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
-                    {isGenerating ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>} Gerar com IA
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Descrição</label>
                 <textarea 
                   rows={4}
                   value={formData.description}

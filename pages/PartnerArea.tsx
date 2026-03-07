@@ -47,7 +47,7 @@ export default function PartnerArea() {
     const rawProfessionals = (d.professionals || []);
     const rawProducts = (d.products || []);
 
-    const dedupeByKey = <T>(arr: T[], keyFn: (x: T) => string): T[] => {
+    const dedupeByKey = <T,>(arr: T[], keyFn: (x: T) => string): T[] => {
       const seen = new Set<string>();
       return arr.filter((x) => {
         const k = keyFn(x);

@@ -75,6 +75,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     setIsSubmitting(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        alert('Sessão expirada. Faça login novamente para cadastrar parceiros.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('create-shop', {
         body: {
           name: formData.name,
@@ -91,7 +98,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           province: formData.province || undefined,
           postalCode: formData.postalCode.replace(/\D/g, '') || undefined,
           incomeValue: formData.incomeValue || 5000,
-        }
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       console.log('[create-shop] response:', { data, error });

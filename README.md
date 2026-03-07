@@ -54,3 +54,10 @@ As migrations ficam em `supabase/migrations/` (incluindo schema inicial e `asaas
 Depois do link (ou com projeto configurado):  
 `npx supabase functions deploy create-shop`  
 E configure o secret **ASAAS_API_KEY** em **Settings → Edge Functions → Secrets** no painel do Supabase.
+
+**Edge Function `create-payment`** (PIX com split)  
+Para pagamentos funcionarem:  
+`npx supabase functions deploy create-payment`  
+Em **Settings → Edge Functions → Secrets** configure:
+- **ASAAS_API_KEY** – chave da API Asaas
+- **ASAAS_WALLET_ID** – obrigatório: Wallet ID da conta da plataforma (onde você recebe a mensalidade e a porcentagem menor). A carteira da loja vem do banco (`shops.asaas_wallet_id`); quando a loja não tiver wallet, o split usa este secret. Exemplo de valor: `c1c11850-aced-4867-9401-6f25a4cbc2f2` (use o seu no painel do Supabase).

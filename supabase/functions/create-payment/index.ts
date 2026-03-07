@@ -47,7 +47,6 @@ Deno.serve(async (req: Request) => {
     const {
       amount,
       tip = 0,
-      shopWalletId,
       splitPercent: bodySplitPercent,
       description = "",
       customerName,
@@ -73,16 +72,45 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const effectiveWalletId =
-      shopWalletId && String(shopWalletId).trim() !== "" && String(shopWalletId) !== "default_wallet_id"
-        ? String(shopWalletId).trim()
-        : (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
+    const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
+    let effectiveWalletId = "";
+    let splitToShop = Math.min(100, Math.max(0, bodySplitPercent != null ? Number(bodySplitPercent) : 95));
+
+    if (shopId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && supabaseServiceKey) {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const { data: shop, error: shopErr } = await supabase
+          .from("shops")
+          .select("asaas_wallet_id, split_percent")
+          .eq("id", shopId)
+          .single();
+        if (!shopErr && shop) {
+          const shopWallet = (shop.asaas_wallet_id != null && String(shop.asaas_wallet_id).trim() !== "")
+            ? String(shop.asaas_wallet_id).trim()
+            : "";
+          effectiveWalletId = shopWallet || (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
+          if (shop.split_percent != null) {
+            const pct = Number(shop.split_percent);
+            if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
+          }
+        } else {
+          effectiveWalletId = (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
+        }
+      } else {
+        effectiveWalletId = (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
+      }
+    } else {
+      effectiveWalletId = (Deno.env.get("ASAAS_WALLET_ID") || "").trim();
+    }
+
     if (!effectiveWalletId) {
       return new Response(
         JSON.stringify({
           success: false,
           error:
-            "Nenhuma carteira configurada para a loja. Configure ASAAS_WALLET_ID nos Secrets do Supabase ou cadastre a loja com wallet (criação de subconta).",
+            "Nenhuma carteira configurada para receber o split. Configure o secret ASAAS_WALLET_ID na Edge Function (Supabase Dashboard → Settings → Edge Functions → Secrets) com o Wallet ID da sua conta Asaas, ou cadastre a loja com subconta para ter asaas_wallet_id.",
         }),
         {
           status: 400,
@@ -167,9 +195,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2) Criar cobrança com split para a carteira da loja
-    const rawSplit = bodySplitPercent != null ? Number(bodySplitPercent) : 95;
-    const splitToShop = Math.min(100, Math.max(0, rawSplit));
+    // 2) Criar cobrança com split para a carteira da loja (wallet e % já definidos acima a partir do banco)
     const paymentPayload = {
       customer: customerId,
       billingType: "PIX",

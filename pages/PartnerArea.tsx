@@ -136,6 +136,7 @@ export default function PartnerArea() {
     if (!myShop?.id) return;
     const shopId = myShop.id;
 
+    try {
     const { error: shopError } = await supabase
       .from('shops')
       .update({
@@ -148,10 +149,7 @@ export default function PartnerArea() {
       })
       .eq('id', shopId);
 
-    if (shopError) {
-      alert('Erro ao salvar: ' + shopError.message);
-      return;
-    }
+    if (shopError) throw new Error(shopError.message);
 
     const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
@@ -165,43 +163,47 @@ export default function PartnerArea() {
 
     for (const s of updated.services || []) {
       if (isUuid(s.id)) {
-        await supabase.from('services').update({
+        const { error: e } = await supabase.from('services').update({
           name: s.name,
           description: s.description ?? null,
           price: Number(s.price),
           duration: Number(s.duration),
-        }).eq('id', s.id).eq('shop_id', shopId);
+        }).match({ id: s.id, shop_id: shopId });
+        if (e) throw new Error(`Serviços: ${e.message}`);
       } else {
-        await supabase.from('services').insert({
+        const { error: e } = await supabase.from('services').insert({
           shop_id: shopId,
           name: s.name,
           description: s.description ?? null,
           price: Number(s.price),
           duration: Number(s.duration),
         });
+        if (e) throw new Error(`Serviços: ${e.message}`);
       }
     }
 
     for (const p of updated.professionals || []) {
       if (isUuid(p.id)) {
-        await supabase.from('professionals').update({
+        const { error: e } = await supabase.from('professionals').update({
           name: p.name,
           specialty: p.specialty ?? null,
           avatar: p.avatar ?? null,
-        }).eq('id', p.id).eq('shop_id', shopId);
+        }).match({ id: p.id, shop_id: shopId });
+        if (e) throw new Error(`Equipe: ${e.message}`);
       } else {
-        await supabase.from('professionals').insert({
+        const { error: e } = await supabase.from('professionals').insert({
           shop_id: shopId,
           name: p.name,
           specialty: p.specialty ?? null,
           avatar: p.avatar ?? null,
         });
+        if (e) throw new Error(`Equipe: ${e.message}`);
       }
     }
 
     for (const p of updated.products || []) {
       if (isUuid(p.id)) {
-        await supabase.from('products').update({
+        const { error: e } = await supabase.from('products').update({
           name: p.name,
           description: p.description ?? null,
           price: Number(p.price),
@@ -209,9 +211,10 @@ export default function PartnerArea() {
           category: p.category ?? 'Geral',
           image: p.image ?? null,
           stock: Number(p.stock) || 0,
-        }).eq('id', p.id).eq('shop_id', shopId);
+        }).match({ id: p.id, shop_id: shopId });
+        if (e) throw new Error(`Produtos: ${e.message}`);
       } else {
-        await supabase.from('products').insert({
+        const { error: e } = await supabase.from('products').insert({
           shop_id: shopId,
           name: p.name,
           description: p.description ?? null,
@@ -221,6 +224,7 @@ export default function PartnerArea() {
           image: p.image ?? null,
           stock: Number(p.stock) || 0,
         });
+        if (e) throw new Error(`Produtos: ${e.message}`);
       }
     }
 
@@ -228,13 +232,16 @@ export default function PartnerArea() {
     const toDeleteProIds = (oldProfessionals || []).map((r) => r.id).filter((id) => !keepProIds.includes(id));
     const toDeleteProductIds = (oldProducts || []).map((r) => r.id).filter((id) => !keepProductIds.includes(id));
     for (const id of toDeleteServiceIds) {
-      await supabase.from('services').delete().eq('id', id).eq('shop_id', shopId);
+      const { error: e } = await supabase.from('services').delete().match({ id, shop_id: shopId });
+      if (e) throw new Error(`Excluir serviço: ${e.message}`);
     }
     for (const id of toDeleteProIds) {
-      await supabase.from('professionals').delete().eq('id', id).eq('shop_id', shopId);
+      const { error: e } = await supabase.from('professionals').delete().match({ id, shop_id: shopId });
+      if (e) throw new Error(`Excluir equipe: ${e.message}`);
     }
     for (const id of toDeleteProductIds) {
-      await supabase.from('products').delete().eq('id', id).eq('shop_id', shopId);
+      const { error: e } = await supabase.from('products').delete().match({ id, shop_id: shopId });
+      if (e) throw new Error(`Excluir produto: ${e.message}`);
     }
 
     setMyShop(updated);
@@ -267,6 +274,10 @@ export default function PartnerArea() {
       setShops([full]);
     }
     setCustomizationRefreshKey((k) => k + 1);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar. Tente novamente.';
+      alert(msg);
+    }
   };
 
   if (!myShop) {

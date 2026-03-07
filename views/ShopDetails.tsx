@@ -96,8 +96,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         body: JSON.stringify({
           amount: totalAmount,
           tip: tipAmount,
-          shopWalletId: shop.asaasWalletId || 'default_wallet_id',
-          splitPercent: shop.splitPercent ?? 95,
           description: `Agendamento: ${selectedService.name} na ${shop.name}${tipAmount > 0 ? ' (inclui gorjeta)' : ''}`,
           customerName,
           customerEmail,
@@ -207,8 +205,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         headers: getPaymentHeaders(),
         body: JSON.stringify({
           amount: cartTotal,
-          shopWalletId: shop.asaasWalletId || 'default_wallet_id',
-          splitPercent: shop.splitPercent ?? 95,
           description: `Compra de Produtos na ${shop.name}`,
           customerName,
           customerEmail,

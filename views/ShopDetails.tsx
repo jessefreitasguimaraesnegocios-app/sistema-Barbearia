@@ -56,6 +56,12 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
   const allTimes = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
 
+  const isProfileComplete = !!(
+    user.name && user.email && user.cpfCnpj &&
+    (user.cpfCnpj.length === 11 || user.cpfCnpj.length === 14) &&
+    user.phone
+  );
+
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const availableDates = Array.from({ length: 14 }, (_, i) => {
@@ -73,23 +79,24 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
   const handleBooking = async () => {
     if (!selectedService || !selectedPro || !selectedDate || !selectedTime || !selectedPaymentMethod) return;
-    const cpfDigits = (customerCpf || '').replace(/\D/g, '');
+    const useProfile = isProfileComplete;
+    const cpfDigits = useProfile ? (user.cpfCnpj || '').replace(/\D/g, '') : (customerCpf || '').replace(/\D/g, '');
     if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
       alert('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido para a cobrança.');
       return;
     }
-    const customerName = (paymentCustomerName || user.name || '').trim();
-    const customerEmail = (paymentCustomerEmail || user.email || '').trim();
+    const customerName = useProfile ? (user.name || '').trim() : (paymentCustomerName || user.name || '').trim();
+    const customerEmail = useProfile ? (user.email || '').trim() : (paymentCustomerEmail || user.email || '').trim();
     if (!customerName || !customerEmail) {
       alert('Preencha nome e e-mail para a cobrança.');
       return;
     }
+    const phoneForPayment = useProfile ? (user.phone || '').trim() : customerPhone.trim();
     
     setIsProcessing(true);
     
     try {
       const totalAmount = (selectedService.price + tipAmount);
-      // Call backend to create Asaas Payment with Split
       const response = await fetch(PAYMENT_API_URL, {
         method: 'POST',
         headers: getPaymentHeaders(),
@@ -100,7 +107,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
           customerName,
           customerEmail,
           customerCpfCnpj: cpfDigits,
-          customerPhone: customerPhone.trim() || undefined,
+          customerPhone: phoneForPayment || undefined,
           recordType: 'booking',
           booking: {
             shopId: shop.id,
@@ -185,21 +192,22 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   };
 
   const handleOrderPayment = async () => {
-    const cpfDigits = (customerCpf || '').replace(/\D/g, '');
+    const useProfile = isProfileComplete;
+    const cpfDigits = useProfile ? (user.cpfCnpj || '').replace(/\D/g, '') : (customerCpf || '').replace(/\D/g, '');
     if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
       alert('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido para a cobrança.');
       return;
     }
-    const customerName = (paymentCustomerName || user.name || '').trim();
-    const customerEmail = (paymentCustomerEmail || user.email || '').trim();
+    const customerName = useProfile ? (user.name || '').trim() : (paymentCustomerName || user.name || '').trim();
+    const customerEmail = useProfile ? (user.email || '').trim() : (paymentCustomerEmail || user.email || '').trim();
     if (!customerName || !customerEmail) {
       alert('Preencha nome e e-mail para a cobrança.');
       return;
     }
+    const phoneForPayment = useProfile ? (user.phone || '').trim() : customerPhone.trim();
     setIsOrderProcessing(true);
     
     try {
-      // Call backend to create Asaas Payment with Split for Products
       const response = await fetch(PAYMENT_API_URL, {
         method: 'POST',
         headers: getPaymentHeaders(),
@@ -209,7 +217,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
           customerName,
           customerEmail,
           customerCpfCnpj: cpfDigits,
-          customerPhone: customerPhone.trim() || undefined,
+          customerPhone: phoneForPayment || undefined,
           recordType: 'order',
           order: {
             shopId: shop.id,
@@ -595,9 +603,17 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         </div>
                       </div>
 
-                      {/* Dados para cobrança (Asaas exige CPF/CNPJ válido) */}
+                      {/* Dados para cobrança: escondido se perfil completo */}
+                      {isProfileComplete ? (
+                        <div className="bg-green-50 p-6 rounded-3xl border border-green-100 shadow-sm">
+                          <h4 className="text-xs font-bold text-green-700 uppercase tracking-widest mb-2">Pagamento com os dados do seu perfil</h4>
+                          <p className="text-sm text-gray-700">Usaremos <strong>{user.name}</strong> e seu CPF/telefone cadastrados. Nada a preencher.</p>
+                          <p className="text-[10px] text-gray-500 mt-2">Para alterar, vá em <strong>Meu Perfil</strong> no menu.</p>
+                        </div>
+                      ) : (
                       <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Dados para cobrança</h4>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Dados para cobrança</h4>
+                        <p className="text-[10px] text-gray-400 mb-4">Exigidos pelo gateway para gerar o PIX. Ou complete em Meu Perfil para não preencher aqui.</p>
                         <div className="space-y-3">
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Nome completo *</label>
@@ -629,6 +645,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                               className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                               maxLength={14}
                             />
+                            <p className="text-[9px] text-gray-400 mt-1">Obrigatório pelo gateway para emissão da cobrança PIX.</p>
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Telefone (opcional)</label>
@@ -643,6 +660,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                           </div>
                         </div>
                       </div>
+                      )}
 
                       {/* Lado Direito: Opções de Pagamento */}
                       <div className="space-y-4">
@@ -716,7 +734,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     </div>
 
                     <button 
-                      disabled={isProcessing || !selectedPaymentMethod || (customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()}
+                      disabled={isProcessing || !selectedPaymentMethod || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
                       onClick={handleBooking}
                       className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed mt-8"
                     >
@@ -841,8 +859,18 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
             {cart.length > 0 && (
               <div className="p-6 border-t border-gray-100 space-y-6 bg-gray-50/50">
+                {isProfileComplete ? (
+                  <div className="bg-green-50 p-4 rounded-2xl border border-green-100">
+                    <p className="text-sm text-green-800 font-medium flex items-center gap-2">
+                      <i className="fas fa-check-circle text-green-600" />
+                      Pagamento com os dados do seu perfil (<strong>{user.name}</strong>)
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-1">Para alterar, vá em Meu Perfil no menu.</p>
+                  </div>
+                ) : (
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Dados para cobrança</h4>
+                  <p className="text-[9px] text-gray-400 -mt-1">Exigidos pelo gateway para gerar o PIX. Ou complete em Meu Perfil.</p>
                   <input
                     type="text"
                     placeholder="Nome completo *"
@@ -874,6 +902,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     maxLength={11}
                   />
                 </div>
+                )}
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Subtotal</span>
@@ -903,7 +932,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                   </div>
                 ) : (
                   <button 
-                    disabled={isOrderProcessing || (customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()}
+                    disabled={isOrderProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
                     onClick={handleOrderPayment}
                     className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >

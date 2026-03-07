@@ -8,6 +8,10 @@ interface Profile {
   id: string;
   role: ProfileRole;
   shop_id: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  cpf_cnpj: string | null;
+  phone: string | null;
 }
 
 function mapRole(role: ProfileRole): UserRole {
@@ -18,13 +22,16 @@ function mapRole(role: ProfileRole): UserRole {
 
 function toAppUser(profile: Profile | null, email: string): AppUser | null {
   if (!profile) return null;
-  const name = email?.split('@')[0] || 'Usuário';
+  const name = (profile.full_name && profile.full_name.trim()) || email?.split('@')[0] || 'Usuário';
   return {
     id: profile.id,
     name: name.charAt(0).toUpperCase() + name.slice(1),
     email,
     role: mapRole(profile.role),
     shopId: profile.shop_id || undefined,
+    avatar: profile.avatar_url || undefined,
+    cpfCnpj: profile.cpf_cnpj || undefined,
+    phone: profile.phone || undefined,
   };
 }
 
@@ -36,6 +43,7 @@ interface AuthContextValue {
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateProfile: (data: { full_name?: string; avatar_url?: string; cpf_cnpj?: string; phone?: string }) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('id, role, shop_id').eq('id', userId).single();
+    const { data } = await supabase.from('profiles').select('id, role, shop_id, full_name, avatar_url, cpf_cnpj, phone').eq('id', userId).single();
     return data as Profile | null;
   }, []);
 
@@ -146,10 +154,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEmail(null);
   }, []);
 
+  const updateProfile = useCallback(async (data: { full_name?: string; avatar_url?: string; cpf_cnpj?: string; phone?: string }) => {
+    const uid = profile?.id;
+    if (!uid) return { error: 'Não autenticado.' };
+    const { error } = await supabase.from('profiles').update(data).eq('id', uid);
+    if (error) return { error: error.message };
+    await refreshProfile();
+    return { error: null };
+  }, [profile?.id, refreshProfile]);
+
   const user = toAppUser(profile, email || '');
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

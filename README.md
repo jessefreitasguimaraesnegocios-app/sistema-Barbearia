@@ -58,6 +58,9 @@ E configure o secret **ASAAS_API_KEY** em **Settings → Edge Functions → Secr
 **Edge Function `create-payment`** (PIX com split)  
 Para pagamentos funcionarem:  
 `npx supabase functions deploy create-payment`  
+
+O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com `shopId`). A função busca `asaas_wallet_id` e `split_percent` na tabela `shops`; não é mais necessário enviar `shopWalletId`. Se aparecer erro pedindo `shopWalletId`, redeploy da função com o código atual resolve.
+
 Em **Settings → Edge Functions → Secrets** configure:
 - **ASAAS_API_KEY** – chave da API Asaas
 - **ASAAS_WALLET_ID** – obrigatório: Wallet ID da conta da plataforma (onde você recebe a mensalidade e a porcentagem menor). A carteira da loja vem do banco (`shops.asaas_wallet_id`); quando a loja não tiver wallet, o split usa este secret. Exemplo de valor: `c1c11850-aced-4867-9401-6f25a4cbc2f2` (use o seu no painel do Supabase).

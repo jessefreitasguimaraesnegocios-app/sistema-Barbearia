@@ -83,6 +83,12 @@ const Layout: React.FC<LayoutProps> = ({
                 >
                   <i className="fas fa-shopping-bag w-5"></i> Meus Pedidos
                 </button>
+                <button 
+                  onClick={() => onNavigate('client-profile')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'client-profile' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <i className="fas fa-user w-5"></i> Meu Perfil
+                </button>
               </>
             )}
             

@@ -6,6 +6,7 @@ import ClientHome from '../views/ClientHome';
 import ShopDetails from '../views/ShopDetails';
 import ClientAppointments from '../views/ClientAppointments';
 import ClientOrders from '../views/ClientOrders';
+import ClientProfile from '../views/ClientProfile';
 import { LoginForm } from '../components/LoginForm';
 import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
@@ -18,7 +19,7 @@ export default function ClientArea() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [currentView, setCurrentView] = useState<'client-home' | 'shop-details' | 'client-appointments' | 'client-orders'>('client-home');
+  const [currentView, setCurrentView] = useState<'client-home' | 'shop-details' | 'client-appointments' | 'client-orders' | 'client-profile'>('client-home');
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
 
   useEffect(() => {
@@ -246,6 +247,7 @@ export default function ClientArea() {
         />
       )}
       {currentView === 'client-orders' && <ClientOrders orders={orders} shops={shops} user={user} onNavigate={setCurrentView} />}
+      {currentView === 'client-profile' && <ClientProfile user={user} />}
     </Layout>
   );
 }

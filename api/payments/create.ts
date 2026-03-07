@@ -1,16 +1,25 @@
-// Vercel Serverless: POST /api/payments/create — cria cobrança Asaas com split para a loja
+// Vercel Serverless: POST /api/payments/create
+// Mesmo contrato da Edge Function create-payment: wallet/split resolvidos por shopId (booking/order); shopWalletId não é mais obrigatório
+
+import { createClient } from '@supabase/supabase-js';
 
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ASAAS_WALLET_ID = (process.env.ASAAS_WALLET_ID || '').trim();
 
 interface CreatePaymentBody {
   amount: number;
   tip?: number;
-  shopWalletId: string;
-  splitPercent?: number;
-  description: string;
+  description?: string;
   customerName: string;
   customerEmail: string;
+  customerCpfCnpj?: string;
+  customerPhone?: string;
+  recordType?: 'booking' | 'order';
+  booking?: { shopId: string; clientId: string; serviceId: string; professionalId: string; date: string; time: string; amount: number; tip?: number };
+  order?: { shopId: string; clientId: string; items: Array<{ productId: string; quantity: number; price: number }>; total: number };
 }
 
 export default async function handler(
@@ -18,7 +27,7 @@ export default async function handler(
   res: { setHeader: (k: string, v: string) => void; status: (n: number) => { json: (o: object) => void; end: () => void }; end?: (code?: number) => void }
 ) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, authorization, apikey');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -36,22 +45,84 @@ export default async function handler(
   }
 
   try {
-    const body = req.body as CreatePaymentBody | undefined;
-    const { amount, shopWalletId, splitPercent: bodySplitPercent, description, customerName, customerEmail, tip = 0 } = body || {};
+    const body = (req.body || {}) as CreatePaymentBody;
+    const {
+      amount,
+      tip = 0,
+      description = '',
+      customerName,
+      customerEmail,
+      customerCpfCnpj: bodyCpfCnpj,
+      customerPhone: bodyPhone,
+      recordType,
+      booking: bodyBooking,
+      order: bodyOrder,
+    } = body;
 
-    if (!amount || amount <= 0 || !shopWalletId || !customerName || !customerEmail) {
+    if (!amount || amount <= 0 || !customerName || !customerEmail) {
       return res.status(400).json({
         success: false,
-        error: 'Campos obrigatórios: amount, shopWalletId, customerName, customerEmail.',
+        error: 'Campos obrigatórios: amount, customerName, customerEmail.',
       });
     }
+
+    const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
+    let effectiveWalletId = '';
+    let splitToShop = 95;
+
+    if (shopId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { data: shop, error: shopErr } = await supabase
+        .from('shops')
+        .select('asaas_wallet_id, split_percent')
+        .eq('id', shopId)
+        .single();
+      if (!shopErr && shop) {
+        const shopWallet =
+          shop.asaas_wallet_id != null && String(shop.asaas_wallet_id).trim() !== ''
+            ? String(shop.asaas_wallet_id).trim()
+            : '';
+        effectiveWalletId = shopWallet || ASAAS_WALLET_ID;
+        if (shop.split_percent != null) {
+          const pct = Number(shop.split_percent);
+          if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
+        }
+      } else {
+        effectiveWalletId = ASAAS_WALLET_ID;
+      }
+    } else {
+      effectiveWalletId = ASAAS_WALLET_ID;
+    }
+
+    if (!effectiveWalletId) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Nenhuma carteira configurada. Defina ASAAS_WALLET_ID no projeto ou cadastre a loja com asaas_wallet_id.',
+      });
+    }
+
+    const cpfCnpjDigits =
+      bodyCpfCnpj != null && String(bodyCpfCnpj).trim() !== ''
+        ? String(bodyCpfCnpj).replace(/\D/g, '')
+        : '';
+    if (cpfCnpjDigits.length !== 11 && cpfCnpjDigits.length !== 14) {
+      return res.status(400).json({
+        success: false,
+        error: 'CPF/CNPJ obrigatório. Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.',
+      });
+    }
+
+    const mobilePhone =
+      bodyPhone != null && String(bodyPhone).trim() !== ''
+        ? String(bodyPhone).replace(/\D/g, '').slice(0, 11) || '11999999999'
+        : '11999999999';
 
     const totalValue = Number(amount) + Number(tip);
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1);
     const dueDateStr = dueDate.toISOString().slice(0, 10);
 
-    // 1) Criar cliente no Asaas (pagador)
     const customerRes = await fetch(`${ASAAS_API_URL}/customers`, {
       method: 'POST',
       headers: {
@@ -61,8 +132,8 @@ export default async function handler(
       body: JSON.stringify({
         name: String(customerName),
         email: String(customerEmail),
-        mobilePhone: '11999999999',
-        cpfCnpj: '00000000000',
+        mobilePhone: mobilePhone.length >= 10 ? mobilePhone : '11999999999',
+        cpfCnpj: cpfCnpjDigits,
       }),
     });
 
@@ -87,18 +158,15 @@ export default async function handler(
       });
     }
 
-    // 2) Criar cobrança com split para a carteira da loja
-    const rawSplit = bodySplitPercent != null ? Number(bodySplitPercent) : 95;
-    const splitToShop = Math.min(100, Math.max(0, rawSplit));
     const paymentPayload = {
       customer: customerId,
       billingType: 'PIX' as const,
       value: totalValue,
       dueDate: dueDateStr,
-      description: (description || '').slice(0, 500),
+      description: String(description).slice(0, 500),
       split: [
         {
-          walletId: String(shopWalletId),
+          walletId: effectiveWalletId,
           percentualValue: splitToShop,
         },
       ],
@@ -133,11 +201,58 @@ export default async function handler(
       });
     }
 
+    const asaasPaymentId = paymentData.id as string | undefined;
+    let recordId: string | null = null;
+
+    if (asaasPaymentId && (recordType === 'booking' || recordType === 'order') && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      if (recordType === 'booking' && bodyBooking && typeof bodyBooking === 'object') {
+        const b = bodyBooking;
+        if (b.shopId && b.clientId && b.serviceId && b.professionalId && b.date && b.time != null && b.amount != null) {
+          const { data: apt, error: aptErr } = await supabase
+            .from('appointments')
+            .insert({
+              client_id: b.clientId,
+              shop_id: b.shopId,
+              service_id: b.serviceId,
+              professional_id: b.professionalId,
+              date: b.date,
+              time: b.time,
+              amount: Number(b.amount),
+              status: 'PENDING',
+              asaas_payment_id: asaasPaymentId,
+            })
+            .select('id')
+            .single();
+          if (!aptErr && apt?.id) recordId = apt.id;
+        }
+      } else if (recordType === 'order' && bodyOrder && typeof bodyOrder === 'object') {
+        const o = bodyOrder;
+        if (o.shopId && o.clientId && Array.isArray(o.items) && o.total != null) {
+          const { data: ord, error: ordErr } = await supabase
+            .from('orders')
+            .insert({
+              client_id: o.clientId,
+              shop_id: o.shopId,
+              items: o.items,
+              total: Number(o.total),
+              status: 'PENDING',
+              asaas_payment_id: asaasPaymentId,
+            })
+            .select('id')
+            .single();
+          if (!ordErr && ord?.id) recordId = ord.id;
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       payment: paymentData,
       invoiceUrl: (paymentData as { invoiceUrl?: string }).invoiceUrl,
       id: (paymentData as { id?: string }).id,
+      appointmentId: recordType === 'booking' ? recordId : undefined,
+      orderId: recordType === 'order' ? recordId : undefined,
     });
   } catch (e) {
     console.error('[api/payments/create]', e);

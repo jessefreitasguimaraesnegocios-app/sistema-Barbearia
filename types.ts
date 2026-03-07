@@ -9,6 +9,10 @@ export interface User {
   role: UserRole;
   avatar?: string;
   shopId?: string;
+  /** CPF ou CNPJ (somente dígitos) – vindo do perfil para PIX */
+  cpfCnpj?: string;
+  /** Telefone (somente dígitos) – vindo do perfil para PIX */
+  phone?: string;
 }
 
 export interface Service {

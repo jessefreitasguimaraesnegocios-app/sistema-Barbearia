@@ -94,8 +94,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         }
       });
 
+      console.log('[create-shop] response:', { data, error });
+
       if (error) {
-        alert(error.message || 'Erro ao cadastrar barbearia.');
+        let msg = error.message || 'Erro ao cadastrar barbearia.';
+        const err = error as { context?: { json?: () => Promise<unknown> } };
+        if (typeof err.context?.json === 'function') {
+          try {
+            const body = await err.context.json() as { error?: string; details?: string };
+            msg = body?.error || body?.details || msg;
+          } catch (_) {}
+        }
+        console.error('[create-shop] error:', error);
+        alert(msg);
         return;
       }
       if (data?.success) {
@@ -458,13 +469,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-2xl rounded-[2rem] p-8 space-y-6 shadow-2xl animate-scale-in my-8">
-             <div className="flex justify-between items-center">
-               <h3 className="text-2xl font-bold text-gray-900">Novo Parceiro</h3>
-               <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-900"><i className="fas fa-times"></i></button>
-             </div>
-             <p className="text-gray-500 text-sm">Preencha os dados para criar a barbearia e a subconta no Asaas.</p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 min-h-screen">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] min-h-0 flex flex-col rounded-2xl sm:rounded-[2rem] shadow-2xl animate-scale-in overflow-hidden my-auto">
+            <div className="flex-shrink-0 px-4 pt-6 pb-2 sm:p-6 sm:pb-4 md:p-8 md:pb-6 border-b border-gray-100">
+              <div className="flex justify-between items-center gap-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Novo Parceiro</h3>
+                <button type="button" onClick={() => setShowAddModal(false)} className="flex-shrink-0 p-2 rounded-xl text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors" aria-label="Fechar">
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+              <p className="text-gray-500 text-sm mt-1">Preencha os dados para criar a barbearia e a subconta no Asaas.</p>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-6 pt-4 sm:px-6 sm:pb-8 md:px-8 md:pb-10">
              <form onSubmit={handleAddShop} className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Nome do Estabelecimento</label>
@@ -710,6 +726,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   Cadastrar e Criar Subconta Asaas
                 </button>
              </form>
+            </div>
           </div>
         </div>
       )}

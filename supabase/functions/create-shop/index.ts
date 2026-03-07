@@ -152,6 +152,21 @@ Deno.serve(async (req: Request) => {
     const postalCode = postalCodeDigits.length === 8 ? postalCodeDigits : "01310100";
     const birthDate = bodyBirthDate && String(bodyBirthDate).trim() !== "" ? String(bodyBirthDate).trim() : "1994-05-16";
     const companyType = bodyCompanyType && String(bodyCompanyType).trim() !== "" ? String(bodyCompanyType).trim() : "MEI";
+    // Asaas aceita apenas MEI, LIMITED, INDIVIDUAL, ASSOCIATION — mapear PF (Autônomo) para INDIVIDUAL
+    const asaasCompanyType = companyType === "PF" ? "INDIVIDUAL" : companyType;
+
+    if (asaasCompanyType === "INDIVIDUAL" && cpfCnpjDigits.length !== 11) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Para Autônomo (CPF) é obrigatório informar um CPF válido com 11 dígitos.",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
     const address = bodyAddress && String(bodyAddress).trim() !== "" ? String(bodyAddress).trim() : "A definir";
     const addressNumber = bodyAddressNumber && String(bodyAddressNumber).trim() !== "" ? String(bodyAddressNumber).trim() : "S/N";
     const complement = bodyComplement != null ? String(bodyComplement).trim() : "";
@@ -169,7 +184,7 @@ Deno.serve(async (req: Request) => {
         email: String(email),
         cpfCnpj: cpfCnpjForAccount,
         birthDate,
-        companyType,
+        companyType: asaasCompanyType,
         phone: String(phone),
         mobilePhone: mobilePhone,
         incomeValue,

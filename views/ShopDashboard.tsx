@@ -1,7 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Shop, Appointment, Order } from '../types';
-import { generateDailyBriefing } from '../geminiService';
 
 interface ShopDashboardProps {
   shop: Shop;
@@ -12,7 +11,6 @@ interface ShopDashboardProps {
 type Period = 'TODAY' | 'WEEK' | 'MONTH';
 
 const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, orders }) => {
-  const [briefing, setBriefing] = useState<string>("Carregando seu resumo diário...");
   const [filterPro, setFilterPro] = useState<string>('ALL');
   const [period, setPeriod] = useState<Period>('TODAY');
 
@@ -71,18 +69,9 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, order
 
   const nextApt = todayApts.find(a => a.status === 'PAID' || a.status === 'PENDING');
 
-  useEffect(() => {
-    const fetchBriefing = async () => {
-      const busyTime = todayApts.length > 0 ? todayApts[Math.floor(todayApts.length / 2)].time : "09:00";
-      const text = await generateDailyBriefing(shop.name, todayApts.length, busyTime);
-      setBriefing(text);
-    };
-    fetchBriefing();
-  }, [shop.name, todayApts.length]);
-
   return (
     <div className="space-y-8 animate-fade-in pb-20">
-      {/* Header & AI Briefing */}
+      {/* Header */}
       <header className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -98,21 +87,6 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, order
               <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
                 <i className="fas fa-calendar-day"></i>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-r from-indigo-600 to-violet-700 p-6 rounded-[2rem] text-white shadow-xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-            <i className="fas fa-wand-magic-sparkles text-8xl"></i>
-          </div>
-          <div className="relative z-10 flex items-start gap-4">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center flex-shrink-0">
-              <i className="fas fa-robot text-xl"></i>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-indigo-100 uppercase tracking-widest mb-1">Resumo da IA</p>
-              <p className="text-lg font-medium leading-relaxed">{briefing}</p>
             </div>
           </div>
         </div>

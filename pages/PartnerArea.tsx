@@ -42,6 +42,54 @@ export default function PartnerArea() {
     })();
   }, [user?.shopId]);
 
+  // Carregar agendamentos e pedidos da loja para o dashboard do parceiro
+  useEffect(() => {
+    if (!myShop?.id) return;
+    const shopId = myShop.id;
+    (async () => {
+      const { data: aptRows, error: aptErr } = await supabase
+        .from('appointments')
+        .select('id, client_id, shop_id, service_id, professional_id, date, time, status, amount')
+        .eq('shop_id', shopId)
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
+      if (!aptErr && aptRows) {
+        const mapped: Appointment[] = aptRows.map((r: Record<string, unknown>) => ({
+          id: String(r.id),
+          clientId: String(r.client_id),
+          shopId: String(r.shop_id),
+          serviceId: String(r.service_id),
+          professionalId: String(r.professional_id),
+          date: typeof r.date === 'string' ? r.date.split('T')[0] : String(r.date),
+          time: typeof r.time === 'string' ? String(r.time).slice(0, 8) : String(r.time),
+          status: (r.status as Appointment['status']) || 'PENDING',
+          amount: Number(r.amount) || 0,
+        }));
+        setAppointments(mapped);
+      }
+
+      const { data: ordRows, error: ordErr } = await supabase
+        .from('orders')
+        .select('id, client_id, shop_id, items, total, status, created_at')
+        .eq('shop_id', shopId)
+        .order('created_at', { ascending: false });
+      if (!ordErr && ordRows) {
+        const mapped: Order[] = ordRows.map((r: Record<string, unknown>) => ({
+          id: String(r.id),
+          clientId: String(r.client_id),
+          shopId: String(r.shop_id),
+          items: Array.isArray(r.items) ? (r.items as Order['items']) : [],
+          total: Number(r.total) || 0,
+          status: (r.status as Order['status']) || 'PENDING',
+          date: r.created_at
+            ? new Date(String(r.created_at)).toLocaleDateString('pt-BR')
+            : new Date().toLocaleDateString('pt-BR'),
+        }));
+        setOrders(mapped);
+      }
+    })();
+  }, [myShop?.id]);
+
   function mapShopFromDb(d: any): Shop {
     const rawServices = (d.services || []);
     const rawProfessionals = (d.professionals || []);

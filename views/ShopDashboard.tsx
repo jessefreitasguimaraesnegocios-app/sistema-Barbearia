@@ -221,10 +221,10 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, order
         {/* Coluna da Direita: Timeline do Dia */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm">
-            <div className="flex justify-between items-center mb-8">
+              <div className="flex justify-between items-center mb-8">
               <h3 className="text-xl font-bold text-gray-900">Agenda do Dia</h3>
               <div className="flex items-center gap-2 text-xs text-gray-400 font-bold">
-                 <span className="w-2 h-2 rounded-full bg-green-500"></span> Confirmado
+                 <span className="w-2 h-2 rounded-full bg-green-500"></span> Finalizado
                  <span className="w-2 h-2 rounded-full bg-indigo-500 ml-2"></span> Agora
               </div>
             </div>
@@ -237,12 +237,19 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, order
                 const pro = shop.professionals.find(p => p.id === apt.professionalId);
                 const service = shop.services.find(s => s.id === apt.serviceId);
                 const isNext = nextApt?.id === apt.id;
+                const isCompleted = apt.status === 'COMPLETED';
 
                 return (
                   <div key={apt.id} className={`relative pl-12 pb-8 group ${isNext ? 'scale-[1.02]' : ''}`}>
-                    {/* Marcador da timeline */}
-                    <div className={`absolute left-0 w-9 h-9 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center transition-all ${isNext ? 'bg-indigo-600 scale-110 ring-4 ring-indigo-50' : 'bg-gray-200 group-hover:bg-indigo-400'}`}>
-                      <i className={`text-[10px] text-white fas ${isNext ? 'fa-play' : 'fa-check'}`}></i>
+                    {/* Marcador da timeline: verde + check branco = finalizado; indigo = próximo; cinza = aguardando */}
+                    <div className={`absolute left-0 w-9 h-9 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center transition-all ${
+                      isCompleted
+                        ? 'bg-green-500 text-white'
+                        : isNext
+                          ? 'bg-indigo-600 scale-110 ring-4 ring-indigo-50 text-white'
+                          : 'bg-gray-200 group-hover:bg-indigo-400 text-gray-600'
+                    }`}>
+                      <i className={`text-[10px] fas ${isNext && !isCompleted ? 'fa-play' : 'fa-check'}`}></i>
                     </div>
 
                     <div className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${isNext ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-gray-100 hover:border-indigo-100 hover:shadow-md'}`}>

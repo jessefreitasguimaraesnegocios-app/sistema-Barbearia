@@ -1,14 +1,25 @@
 // Supabase Edge Function: asaas-webhook
 // Recebe eventos do Asaas (PAYMENT_RECEIVED etc.) e atualiza status de agendamentos e pedidos para PAID
+// Requer verify_jwt = false (config ou --no-verify-jwt no deploy) e validação via header asaas-access-token
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PAYMENT_CONFIRMED_EVENTS = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
 
+function unauthorized(message: string) {
+  return new Response(JSON.stringify({ code: 401, message }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
-      headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type" },
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "content-type, asaas-access-token",
+      },
     });
   }
 
@@ -17,6 +28,15 @@ Deno.serve(async (req: Request) => {
       status: 405,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  // Validação do token do webhook Asaas (header asaas-access-token)
+  const webhookToken = Deno.env.get("ASAAS_WEBHOOK_TOKEN");
+  if (webhookToken && String(webhookToken).trim() !== "") {
+    const receivedToken = req.headers.get("asaas-access-token")?.trim() ?? "";
+    if (receivedToken === "" || receivedToken !== webhookToken.trim()) {
+      return unauthorized("Missing or invalid asaas-access-token");
+    }
   }
 
   let payload: { event?: string; payment?: { id?: string } } = {};

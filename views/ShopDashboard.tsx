@@ -6,13 +6,15 @@ interface ShopDashboardProps {
   shop: Shop;
   appointments: Appointment[];
   orders: Order[];
+  onMarkAppointmentCompleted?: (appointmentId: string) => Promise<void>;
 }
 
 type Period = 'TODAY' | 'WEEK' | 'MONTH';
 
-const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, orders }) => {
+const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, orders, onMarkAppointmentCompleted }) => {
   const [filterPro, setFilterPro] = useState<string>('ALL');
   const [period, setPeriod] = useState<Period>('TODAY');
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
   // Filtrar dados da loja
   const myApts = appointments.filter(a => a.shopId === shop.id);
@@ -170,8 +172,22 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({ shop, appointments, order
                    <p className="text-xs font-black text-indigo-600">R$ {nextApt.amount}</p>
                 </div>
               </div>
-              <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
-                Iniciar Atendimento
+              <button
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed"
+                onClick={() => {
+                  if (!nextApt?.id || completingId) return;
+                  setCompletingId(nextApt.id);
+                  onMarkAppointmentCompleted?.(nextApt.id)?.finally(() => setCompletingId(null));
+                }}
+                disabled={!onMarkAppointmentCompleted || !!completingId}
+              >
+                {completingId === nextApt?.id ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin mr-2"></i> Aguarde...
+                  </>
+                ) : (
+                  'Iniciar Atendimento'
+                )}
               </button>
             </div>
           )}

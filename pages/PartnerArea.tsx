@@ -90,7 +90,44 @@ export default function PartnerArea() {
     })();
   }, [myShop?.id]);
 
-  function mapShopFromDb(d: any): Shop {
+  const refreshAppointments = React.useCallback(async () => {
+    if (!myShop?.id) return;
+    const shopId = myShop.id;
+    const { data: aptRows, error: aptErr } = await supabase
+      .from('appointments')
+      .select('id, client_id, shop_id, service_id, professional_id, date, time, status, amount')
+      .eq('shop_id', shopId)
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+    if (!aptErr && aptRows) {
+      const mapped: Appointment[] = aptRows.map((r: Record<string, unknown>) => ({
+        id: String(r.id),
+        clientId: String(r.client_id),
+        shopId: String(r.shop_id),
+        serviceId: String(r.service_id),
+        professionalId: String(r.professional_id),
+        date: typeof r.date === 'string' ? r.date.split('T')[0] : String(r.date),
+        time: typeof r.time === 'string' ? String(r.time).slice(0, 8) : String(r.time),
+        status: (r.status as Appointment['status']) || 'PENDING',
+        amount: Number(r.amount) || 0,
+      }));
+      setAppointments(mapped);
+    }
+  }, [myShop?.id]);
+
+  const markAppointmentCompleted = React.useCallback(async (aptId: string) => {
+    if (!myShop?.id) return;
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'COMPLETED' })
+      .eq('id', aptId)
+      .eq('shop_id', myShop.id);
+    if (error) {
+      alert('Não foi possível marcar o atendimento como concluído. Tente novamente.');
+      return;
+    }
+    await refreshAppointments();
+  }, [myShop?.id, refreshAppointments]);
     const rawServices = (d.services || []);
     const rawProfessionals = (d.professionals || []);
     const rawProducts = (d.products || []);
@@ -338,7 +375,7 @@ export default function PartnerArea() {
 
   return (
     <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
-      {currentView === 'shop-dashboard' && <ShopDashboard shop={myShop} appointments={appointments} orders={orders} />}
+      {currentView === 'shop-dashboard' && <ShopDashboard shop={myShop} appointments={appointments} orders={orders} onMarkAppointmentCompleted={markAppointmentCompleted} />}
       {currentView === 'shop-customization' && <ShopCustomization key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`} shop={myShop} onSave={updateShop} />}
     </Layout>
   );

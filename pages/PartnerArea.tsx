@@ -128,6 +128,8 @@ export default function PartnerArea() {
     }
     await refreshAppointments();
   }, [myShop?.id, refreshAppointments]);
+
+  function mapShopFromDb(d: any): Shop {
     const rawServices = (d.services || []);
     const rawProfessionals = (d.professionals || []);
     const rawProducts = (d.products || []);

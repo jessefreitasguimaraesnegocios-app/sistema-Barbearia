@@ -371,9 +371,14 @@ export default function PartnerArea() {
 
   if (!myShop) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500"><i className="fas fa-spinner fa-spin text-3xl"></i></div>
-      </div>
+      <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center text-gray-500">
+            <i className="fas fa-spinner fa-spin text-4xl mb-4"></i>
+            <p className="font-medium">Carregando dados da sua loja...</p>
+          </div>
+        </div>
+      </Layout>
     );
   }
 

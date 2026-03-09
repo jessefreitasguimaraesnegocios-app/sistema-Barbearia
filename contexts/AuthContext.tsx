@@ -128,6 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const p = await fetchProfile(data.user.id);
       setProfile(p ?? { id: data.user.id, role: 'cliente', shop_id: null });
       setEmail(data.user.email ?? null);
+      setLoading(false);
       return { error: null };
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'Erro ao conectar. Tente novamente.' };
@@ -142,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const p = await fetchProfile(data.user.id);
       setProfile(p ?? { id: data.user.id, role: 'cliente', shop_id: null });
       setEmail(data.user.email ?? null);
+      setLoading(false);
       return { error: null };
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'Erro ao conectar. Tente novamente.' };

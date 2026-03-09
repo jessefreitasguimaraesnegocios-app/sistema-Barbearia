@@ -280,7 +280,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
               </div>
             </div>
             <button 
-              onClick={async () => { setIsSaving(true); await onSave(formData); setIsSaving(false); }}
+              onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
               disabled={isSaving}
               className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
             >
@@ -357,11 +357,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-50">
-             <button 
-                onClick={() => onSave(formData)}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all"
+             <button
+                onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
+                disabled={isSaving}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
               >
-                Salvar Serviços
+                {isSaving ? 'Salvando...' : 'Salvar Serviços'}
               </button>
           </div>
         </div>
@@ -425,11 +426,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-50">
-             <button 
-                onClick={() => onSave(formData)}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all"
+             <button
+                onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
+                disabled={isSaving}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
               >
-                Salvar Alterações na Equipe
+                {isSaving ? 'Salvando...' : 'Salvar Alterações na Equipe'}
               </button>
           </div>
         </div>
@@ -511,11 +513,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
             ))}
           </div>
           <div className="mt-8 pt-8 border-t border-gray-50">
-             <button 
-                onClick={() => onSave(formData)}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all"
+             <button
+                onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
+                disabled={isSaving}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
               >
-                Salvar Inventário
+                {isSaving ? 'Salvando...' : 'Salvar Inventário'}
               </button>
           </div>
         </div>

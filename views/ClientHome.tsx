@@ -63,7 +63,7 @@ const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
             className="group bg-white rounded-3xl overflow-hidden border border-gray-100 hover:shadow-2xl transition-all cursor-pointer transform hover:-translate-y-1"
           >
             <div className="relative h-48 overflow-hidden">
-              <img src={shop.bannerImage} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={shop.name} />
+              <img src={shop.bannerImage} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500" alt={shop.name} />
               <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                 <i className="fas fa-star text-yellow-400"></i> {shop.rating}
               </div>
@@ -72,9 +72,9 @@ const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
               </div>
             </div>
             <div className="p-6">
-              <div className="flex justify-between items-start mb-2">
+              <div className="flex justify-between items-center mb-2 mt-4">
                 <h3 className="text-xl font-bold text-gray-900">{shop.name}</h3>
-                <img src={shop.profileImage} className="w-12 h-12 rounded-2xl border-4 border-white shadow-md -mt-12" alt="profile" />
+                <img src={shop.profileImage} className="w-16 h-16 rounded-2xl border-4 border-white shadow-md -mt-5 object-cover object-center flex-shrink-0" alt="" />
               </div>
               <p className="text-gray-500 text-sm line-clamp-2 mb-4 leading-relaxed">{shop.description}</p>
               <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -84,7 +84,7 @@ const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
               <div className="mt-6 flex justify-between items-center">
                 <div className="flex -space-x-2">
                   {shop.professionals.map((p, idx) => (
-                    <img key={idx} src={p.avatar} className="w-8 h-8 rounded-full border-2 border-white bg-gray-100" title={p.name} alt={p.name} />
+                    <img key={idx} src={p.avatar} className="w-8 h-8 rounded-full border-2 border-white bg-gray-100 object-cover object-center" title={p.name} alt={p.name} />
                   ))}
                 </div>
                 <button className="text-indigo-600 font-bold text-sm group-hover:underline">

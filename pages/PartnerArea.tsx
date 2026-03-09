@@ -175,6 +175,8 @@ export default function PartnerArea() {
       pixKey: d.pix_key,
       profileImage: d.profile_image,
       bannerImage: d.banner_image,
+      primaryColor: d.primary_color || '#1a1a1a',
+      theme: d.theme || 'MODERN',
       subscriptionActive: d.subscription_active,
       subscriptionAmount: d.subscription_amount != null ? Number(d.subscription_amount) : 99,
       asaasAccountId: d.asaas_account_id,

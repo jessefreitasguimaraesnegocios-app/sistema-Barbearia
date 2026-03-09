@@ -252,16 +252,31 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
 
                <div>
                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Cor Principal</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
                   {['#1a1a1a', '#db2777', '#4f46e5', '#059669', '#d97706'].map(color => (
-                    <button 
+                    <button
                       key={color}
-                      onClick={() => setFormData({...formData, primaryColor: color})}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${formData.primaryColor === color ? 'border-indigo-400 scale-110' : 'border-transparent'}`}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, primaryColor: color })}
+                      className={`w-10 h-10 rounded-full border-2 transition-all flex-shrink-0 ${(formData.primaryColor || shop.primaryColor || '#1a1a1a') === color ? 'border-gray-800 scale-110 ring-2 ring-offset-2 ring-gray-300' : 'border-transparent hover:scale-105'}`}
                       style={{ backgroundColor: color }}
+                      title={color}
                     />
                   ))}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="color"
+                      value={(() => {
+                        const c = formData.primaryColor || shop.primaryColor || '#1a1a1a';
+                        return c.startsWith('#') ? c : `#${c}`;
+                      })()}
+                      onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
+                      className="w-10 h-10 rounded-full border-0 cursor-pointer p-0 bg-transparent"
+                    />
+                    <span className="text-xs text-gray-500">Personalizada</span>
+                  </label>
                 </div>
+                <p className="mt-1 text-[10px] text-gray-400">Clique em uma cor ou use o seletor para personalizar. Salve as alterações abaixo.</p>
               </div>
             </div>
             <button 

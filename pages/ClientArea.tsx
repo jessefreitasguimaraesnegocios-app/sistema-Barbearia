@@ -129,8 +129,8 @@ export default function ClientArea() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white border-b border-gray-100 p-4 flex justify-between items-center">
+      <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
+        <header className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
               <i className="fas fa-scissors"></i>
@@ -139,55 +139,35 @@ export default function ClientArea() {
           </div>
           <a href="/parceiros" className="text-sm text-gray-500 hover:text-indigo-600">Sou parceiro</a>
         </header>
-        <main className="max-w-7xl mx-auto p-4 md:p-8">
-          {selectedShop ? (
-            <>
-              <ShopDetails
-                shop={selectedShop}
-                user={{ id: '', name: 'Visitante', email: '', role: 'CLIENT' }}
-                onBook={() => alert('Entre na sua conta para agendar.')}
-                onOrder={() => alert('Entre na sua conta para pedir.')}
-                onBack={() => setSelectedShop(null)}
-              />
-            </>
-          ) : (
-            <>
-              <ClientHome shops={shops} onSelectShop={setSelectedShop} />
-              <div className="flex flex-col items-center justify-center mt-12">
-                <p className="text-gray-500 text-sm mb-4">
-                  {showSignUp ? 'Crie sua conta de cliente para agendar' : 'Acesso exclusivo para clientes'}
-                </p>
-                <LoginForm
-                  title={showSignUp ? 'Criar conta (cliente)' : 'Entrar como cliente'}
-                  subtitle={showSignUp ? 'E-mail e senha (mín. 6 caracteres)' : 'Use seu e-mail e senha para agendar e comprar'}
-                  onSubmit={showSignUp ? signUp : signIn}
-                  submitLabel={showSignUp ? 'Criar conta' : 'Entrar'}
-                  onSuccess={() => {}}
-                  onGoogleSignIn={signInWithGoogle}
-                />
-                <p className="mt-2 text-xs text-gray-400 text-center max-w-sm">
-                  Dono de barbearia ou salão? Entre pelo link <strong>Sou parceiro</strong> no topo da página.
-                </p>
-                <p className="mt-4 text-sm text-gray-500">
-                  {showSignUp ? (
-                    <>
-                      Já tem conta?{' '}
-                      <button type="button" onClick={() => setShowSignUp(false)} className="text-indigo-600 font-medium hover:underline">
-                        Entrar
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      Não tem conta?{' '}
-                      <button type="button" onClick={() => setShowSignUp(true)} className="text-indigo-600 font-medium hover:underline">
-                        Criar conta
-                      </button>
-                    </>
-                  )}
-                </p>
-              </div>
-            </>
-          )}
+        <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto min-h-0">
+          <p className="text-gray-500 text-sm mb-4">
+            {showSignUp ? 'Crie sua conta de cliente para agendar' : 'Acesso exclusivo para clientes'}
+          </p>
+          <LoginForm
+            title={showSignUp ? 'Criar conta (cliente)' : 'Entrar como cliente'}
+            subtitle={showSignUp ? 'E-mail e senha (mín. 6 caracteres)' : 'Use seu e-mail e senha para agendar e comprar'}
+            onSubmit={showSignUp ? signUp : signIn}
+            submitLabel={showSignUp ? 'Criar conta' : 'Entrar'}
+            onSuccess={() => {}}
+            onGoogleSignIn={signInWithGoogle}
+          />
+          <p className="mt-4 text-sm text-gray-500">
+            {showSignUp ? (
+              <>
+                Já tem conta?{' '}
+                <button type="button" onClick={() => setShowSignUp(false)} className="text-indigo-600 font-medium hover:underline">
+                  Entrar
+                </button>
+              </>
+            ) : (
+              <>
+                Não tem conta?{' '}
+                <button type="button" onClick={() => setShowSignUp(true)} className="text-indigo-600 font-medium hover:underline">
+                  Criar conta
+                </button>
+              </>
+            )}
+          </p>
         </main>
       </div>
     );
@@ -206,13 +186,18 @@ export default function ClientArea() {
 
   const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/', { replace: true });
+  };
+
   if (currentView === 'shop-details' && selectedShop) {
     const refetchAppointmentsAndOrders = () => {
       fetchAppointments();
       fetchOrders();
     };
     return (
-      <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+      <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
         <ShopDetails
           shop={selectedShop}
           user={user}
@@ -234,7 +219,7 @@ export default function ClientArea() {
   }
 
   return (
-    <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+    <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
       {currentView === 'client-home' && <ClientHome shops={shops} onSelectShop={s => { setSelectedShop(s); setCurrentView('shop-details'); }} />}
       {currentView === 'client-appointments' && (
         <ClientAppointments

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ShopDashboard from '../views/ShopDashboard';
@@ -10,6 +10,7 @@ import { supabase } from '../src/lib/supabase';
 
 export default function PartnerArea() {
   const { user, loading, signIn, signOut } = useAuth();
+  const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [myShop, setMyShop] = useState<Shop | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -369,9 +370,14 @@ export default function PartnerArea() {
     }
   };
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/', { replace: true });
+  };
+
   if (!myShop) {
     return (
-      <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+      <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center text-gray-500">
             <i className="fas fa-spinner fa-spin text-4xl mb-4"></i>
@@ -383,7 +389,7 @@ export default function PartnerArea() {
   }
 
   return (
-    <Layout user={user} onLogout={signOut} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+    <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
       {currentView === 'shop-dashboard' && <ShopDashboard shop={myShop} appointments={appointments} orders={orders} onMarkAppointmentCompleted={markAppointmentCompleted} />}
       {currentView === 'shop-customization' && <ShopCustomization key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`} shop={myShop} onSave={updateShop} />}
     </Layout>

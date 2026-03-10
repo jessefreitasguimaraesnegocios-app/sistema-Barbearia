@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import AdminDashboard from '../views/AdminDashboard';
@@ -8,6 +8,7 @@ import { supabase } from '../src/lib/supabase';
 
 export default function AdminArea() {
   const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
 
@@ -49,13 +50,18 @@ export default function AdminArea() {
   if (!user) return <Navigate to="/admin/login" replace />;
   if (user.role !== 'ADMIN') return <Navigate to="/" replace />;
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/', { replace: true });
+  };
+
   const setShopsState = (next: Shop[] | ((prev: Shop[]) => Shop[])) => {
     setShops(typeof next === 'function' ? next(shops) : next);
   };
   const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
   return (
-    <Layout user={user} onLogout={signOut} onNavigate={() => {}} currentView="admin-dashboard" notifications={notifications} onMarkRead={markAllAsRead}>
+    <Layout user={user} onLogout={handleLogout} onNavigate={() => {}} currentView="admin-dashboard" notifications={notifications} onMarkRead={markAllAsRead}>
       <AdminDashboard shops={shops} setShops={setShopsState} onShopCreated={fetchShops} />
     </Layout>
   );

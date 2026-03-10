@@ -387,7 +387,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
           <img src={shop.bannerImage} className="w-full h-full object-cover" alt="banner" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
           <div className="absolute bottom-6 left-6 flex items-end gap-4 md:gap-6">
-            <img src={shop.profileImage} className="w-16 h-16 md:w-24 md:h-24 rounded-2xl md:rounded-3xl border-4 border-white shadow-xl" alt="profile" />
+            <img src={shop.profileImage} className="w-16 h-16 md:w-24 md:h-24 rounded-2xl md:rounded-3xl border-4 border-white shadow-xl object-cover" alt="profile" />
             <div className="mb-1 md:mb-2">
               <h2 className="text-xl md:text-3xl font-bold text-white mb-1 font-display">{shop.name}</h2>
               <div className="flex items-center gap-3 text-white/90 text-xs md:text-sm">

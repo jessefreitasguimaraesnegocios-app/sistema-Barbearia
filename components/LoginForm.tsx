@@ -197,7 +197,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                   setGoogleLoading(false);
                 }
               }}
-              className="w-full py-3.5 px-4 bg-white border border-gray-200 rounded-2xl font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+              className="w-full py-3.5 px-4 bg-white border border-gray-200 rounded-2xl font-medium text-gray-700
+                hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm
+                active:scale-[0.99] active:bg-gray-100 active:border-gray-300
+                focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2
+                transition-all duration-150 ease-out select-none cursor-pointer
+                disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100
+                flex items-center justify-center gap-3"
             >
               <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

@@ -41,6 +41,7 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (data: { full_name?: string; avatar_url?: string; cpf_cnpj?: string; phone?: string }) => Promise<{ error: string | null }>;
@@ -150,6 +151,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchProfile]);
 
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + window.location.pathname },
+      });
+      if (error) return { error: error.message };
+      return { error: null };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Erro ao conectar. Tente novamente.' };
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setProfile(null);
@@ -168,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const user = toAppUser(profile, email || '');
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile, updateProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

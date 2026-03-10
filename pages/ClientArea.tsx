@@ -12,7 +12,7 @@ import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
 
 export default function ClientArea() {
-  const { user, loading, signIn, signUp, signOut } = useAuth();
+  const { user, loading, signIn, signUp, signInWithGoogle, signOut } = useAuth();
   const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -163,6 +163,7 @@ export default function ClientArea() {
                   onSubmit={showSignUp ? signUp : signIn}
                   submitLabel={showSignUp ? 'Criar conta' : 'Entrar'}
                   onSuccess={() => {}}
+                  onGoogleSignIn={signInWithGoogle}
                 />
                 <p className="mt-2 text-xs text-gray-400 text-center max-w-sm">
                   Dono de barbearia ou salão? Entre pelo link <strong>Sou parceiro</strong> no topo da página.

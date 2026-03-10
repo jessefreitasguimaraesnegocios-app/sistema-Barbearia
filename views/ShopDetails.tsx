@@ -916,14 +916,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     <span className="font-bold text-gray-900">Total</span>
                     <span className="font-black text-indigo-600">R$ {cartTotal.toFixed(2)}</span>
                   </div>
-                  <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mt-2">
-                    <p className="text-[10px] text-indigo-600 font-bold uppercase flex items-center gap-2">
-                      <i className="fas fa-info-circle"></i> Split de Pagamento Ativo
-                    </p>
-                    <p className="text-[9px] text-indigo-400 mt-1">
-                      Esta transação será dividida: 95% para a loja e 5% de taxa de serviço da plataforma.
-                    </p>
-                  </div>
                 </div>
 
                 {orderSuccess ? (

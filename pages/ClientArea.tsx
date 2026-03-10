@@ -128,6 +128,18 @@ export default function ClientArea() {
   if (user?.role === 'ADMIN') return <Navigate to="/admin" replace />;
 
   if (!user) {
+    const handleClientLogin = async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+      if (!data.user) return { error: 'Erro ao entrar.' };
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
+      if (profile?.role === 'barbearia' || profile?.role === 'admin') {
+        await supabase.auth.signOut();
+        return { error: 'Esta área é só para clientes. Parceiros e administradores devem usar o link "Sou parceiro" no topo.' };
+      }
+      return { error: null };
+    };
+
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
         <header className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
@@ -146,7 +158,7 @@ export default function ClientArea() {
           <LoginForm
             title={showSignUp ? 'Criar conta (cliente)' : 'Entrar como cliente'}
             subtitle={showSignUp ? 'E-mail e senha (mín. 6 caracteres)' : 'Use seu e-mail e senha para agendar e comprar'}
-            onSubmit={showSignUp ? signUp : signIn}
+            onSubmit={showSignUp ? signUp : handleClientLogin}
             submitLabel={showSignUp ? 'Criar conta' : 'Entrar'}
             onSuccess={() => {}}
             onGoogleSignIn={signInWithGoogle}

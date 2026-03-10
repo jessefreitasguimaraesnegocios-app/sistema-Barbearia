@@ -66,6 +66,8 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
   const [activeSection, setActiveSection] = useState<'GENERAL' | 'INVENTORY' | 'SERVICES' | 'PROFESSIONALS'>('GENERAL');
   /** Quando "Repassar taxas" está ativo, valor que o parceiro quer receber por serviço (id → valor) */
   const [serviceNetValues, setServiceNetValues] = useState<Record<string, number>>({});
+  /** Quando "Repassar taxas" está ativo, valor que o parceiro quer receber por produto (id → valor) */
+  const [productNetValues, setProductNetValues] = useState<Record<string, number>>({});
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ type: 'SHOP_PROFILE' | 'SHOP_BANNER' | 'PRO' | 'PRODUCT', id?: string } | null>(null);
@@ -540,8 +542,32 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
             </button>
           </div>
 
+          {(() => {
+            const platformFeePct = 100 - (shop.splitPercent ?? 95);
+            const passFees = formData.passFeesToCustomer ?? false;
+            return (
+              <>
+                <label className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 mb-6 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={passFees}
+                    onChange={() => setFormData({ ...formData, passFeesToCustomer: !passFees })}
+                    className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                  />
+                  <div>
+                    <span className="font-semibold text-gray-900">Repassar taxas para os clientes</span>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Ative para informar o valor que você quer receber por produto; o app calcula o preço mínimo a cobrar (sua taxa + R$ 1,99 Asaas), arredondado em R$ 0,50.
+                    </p>
+                  </div>
+                </label>
+
           <div className="space-y-4">
-            {formData.products.map(product => (
+            {formData.products.map(product => {
+              const netFromReverse = passFees ? Math.max(0, reverseCalcNetReceipt(product.price, platformFeePct)) : 0;
+              const valorReceber = productNetValues[product.id] ?? (passFees ? netFromReverse : product.price);
+              const minPrice = passFees ? calcMinPrice(Number(valorReceber) || 0, platformFeePct) : product.price;
+              return (
               <div key={product.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col md:flex-row gap-6">
                  <div 
                   className="w-full md:w-32 h-32 rounded-xl overflow-hidden flex-shrink-0 bg-gray-200 relative group cursor-pointer"
@@ -561,17 +587,40 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                         placeholder="Nome do produto"
                         className="w-full bg-transparent font-bold text-gray-900 text-lg border-b border-gray-200 focus:outline-none focus:border-indigo-600"
                       />
-                      <div className="flex gap-4">
-                        <div className="flex-1">
-                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço (R$)</label>
-                          <input 
-                            type="number" 
-                            value={product.price} 
-                            onChange={(e) => updateProduct(product.id, { price: parseFloat(e.target.value) })}
-                            className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
-                          />
-                        </div>
-                        <div className="flex-1">
+                      <div className="flex gap-4 flex-wrap">
+                        {passFees ? (
+                          <>
+                            <div className="flex-1 min-w-[120px]">
+                              <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Valor que você quer receber (R$)</label>
+                              <input 
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={valorReceber === 0 && !(product.id in productNetValues) ? '' : valorReceber}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value) || 0;
+                                  setProductNetValues(prev => ({ ...prev, [product.id]: v }));
+                                }}
+                                className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200 font-bold text-indigo-600"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-[120px]">
+                              <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço mínimo a cobrar</label>
+                              <p className="bg-white p-2 rounded-lg text-sm border border-gray-200 font-bold text-indigo-600">R$ {minPrice.toFixed(2).replace('.', ',')}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex-1 min-w-[120px]">
+                            <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço (R$)</label>
+                            <input 
+                              type="number" 
+                              value={product.price} 
+                              onChange={(e) => updateProduct(product.id, { price: parseFloat(e.target.value) })}
+                              className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-[120px]">
                           <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Promoção (R$)</label>
                           <input 
                             type="number" 
@@ -603,11 +652,36 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     </div>
                  </div>
               </div>
-            ))}
+            );})}
           </div>
+              </>
+            );
+          })()}
+
           <div className="mt-8 pt-8 border-t border-gray-50">
              <button
-                onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
+                onClick={async () => {
+                  setIsSaving(true);
+                  try {
+                    const platformFeePct = 100 - (shop.splitPercent ?? 95);
+                    const passFees = formData.passFeesToCustomer ?? false;
+                    const dataToSave = passFees
+                      ? {
+                          ...formData,
+                          products: formData.products.map(p => ({
+                            ...p,
+                            price: calcMinPrice(
+                              Math.max(0, productNetValues[p.id] ?? reverseCalcNetReceipt(p.price, platformFeePct)),
+                              platformFeePct
+                            ),
+                          })),
+                        }
+                      : formData;
+                    await onSave(dataToSave);
+                  } finally {
+                    setIsSaving(false);
+                  }
+                }}
                 disabled={isSaving}
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
               >

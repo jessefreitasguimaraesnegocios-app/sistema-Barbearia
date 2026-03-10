@@ -226,8 +226,8 @@ export default function PartnerArea() {
         </header>
         <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto min-h-0">
           <LoginForm
-            title="Parceiros e administradores"
-            subtitle="Barbearias, salões e admin: entre com o e-mail e senha do estabelecimento ou da conta admin"
+            title="Acesso parceiro"
+            subtitle="Barbearias e salões: entre somente com o e-mail e senha do estabelecimento"
             onSubmit={handlePartnerAdminLogin}
             submitLabel="Entrar"
             onSuccess={() => {}}

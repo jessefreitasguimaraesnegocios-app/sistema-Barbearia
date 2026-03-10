@@ -180,6 +180,8 @@ export default function PartnerArea() {
       theme: d.theme || 'MODERN',
       subscriptionActive: d.subscription_active,
       subscriptionAmount: d.subscription_amount != null ? Number(d.subscription_amount) : 99,
+      splitPercent: d.split_percent != null ? Number(d.split_percent) : 95,
+      passFeesToCustomer: d.pass_fees_to_customer === true,
       asaasAccountId: d.asaas_account_id,
       asaasWalletId: d.asaas_wallet_id,
       services,
@@ -256,6 +258,7 @@ export default function PartnerArea() {
         banner_image: updated.bannerImage ?? null,
         primary_color: updated.primaryColor ?? null,
         theme: updated.theme ?? 'MODERN',
+        pass_fees_to_customer: updated.passFeesToCustomer === true,
       })
       .eq('id', shopId);
 

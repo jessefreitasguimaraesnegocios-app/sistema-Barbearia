@@ -2,6 +2,25 @@
 import React, { useState, useRef } from 'react';
 import { Shop, Product, Service, Professional } from '../types';
 
+const ASAAS_FEE = 1.99;
+
+/** Arredonda para cima para o próximo múltiplo de R$ 0,50 (ex.: 7,24 → 7,50; 7,65 → 8,00) */
+function roundUpToFiftyCents(value: number): number {
+  return Math.ceil(value * 2) / 2;
+}
+
+/** Calcula o preço mínimo a cobrar: valor que o parceiro quer receber + taxa plataforma (%) + R$ 1,99 Asaas, arredondado para cima em R$ 0,50 */
+function calcMinPrice(valorReceber: number, platformFeePct: number): number {
+  const raw = valorReceber * (1 + platformFeePct / 100) + ASAAS_FEE;
+  return roundUpToFiftyCents(raw);
+}
+
+/** Reverso: a partir do preço final (já arredondado), estima o "valor a receber" para exibição quando não temos o valor digitado */
+function reverseCalcNetReceipt(priceCharged: number, platformFeePct: number): number {
+  const raw = (priceCharged - ASAAS_FEE) / (1 + platformFeePct / 100);
+  return Math.round(raw * 100) / 100;
+}
+
 function dedupeServices(services: Service[]): Service[] {
   const seen = new Set<string>();
   return services.filter((s) => {
@@ -41,9 +60,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
     services: dedupeServices(shop.services || []),
     professionals: dedupeProfessionals(shop.professionals || []),
     products: dedupeProducts(shop.products || []),
+    passFeesToCustomer: shop.passFeesToCustomer ?? false,
   }));
   const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<'GENERAL' | 'INVENTORY' | 'SERVICES' | 'PROFESSIONALS'>('GENERAL');
+  /** Quando "Repassar taxas" está ativo, valor que o parceiro quer receber por serviço (id → valor) */
+  const [serviceNetValues, setServiceNetValues] = useState<Record<string, number>>({});
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ type: 'SHOP_PROFILE' | 'SHOP_BANNER' | 'PRO' | 'PRODUCT', id?: string } | null>(null);
@@ -300,8 +322,32 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
             </button>
           </div>
 
+          {(() => {
+            const platformFeePct = 100 - (shop.splitPercent ?? 95);
+            const passFees = formData.passFeesToCustomer ?? false;
+            return (
+              <>
+                <label className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 mb-6 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={passFees}
+                    onChange={() => setFormData({ ...formData, passFeesToCustomer: !passFees })}
+                    className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                  />
+                  <div>
+                    <span className="font-semibold text-gray-900">Repassar taxas para os clientes</span>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Ative para informar o valor que você quer receber; o app calcula o preço mínimo a cobrar (sua taxa + R$ 1,99 Asaas), arredondado em R$ 0,50.
+                    </p>
+                  </div>
+                </label>
+
           <div className="space-y-4">
-            {formData.services.map(service => (
+            {formData.services.map(service => {
+              const netFromReverse = passFees ? Math.max(0, reverseCalcNetReceipt(service.price, platformFeePct)) : 0;
+              const valorReceber = serviceNetValues[service.id] ?? (passFees ? netFromReverse : service.price);
+              const minPrice = passFees ? calcMinPrice(Number(valorReceber) || 0, platformFeePct) : service.price;
+              return (
               <div key={service.id} className="p-6 rounded-2xl bg-gray-50 border border-gray-100 space-y-4 group relative">
                 <button 
                   onClick={() => removeService(service.id)}
@@ -332,16 +378,39 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 h-fit">
-                    <div>
-                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço (R$)</label>
-                      <input 
-                        type="number" 
-                        value={service.price} 
-                        onChange={(e) => updateService(service.id, { price: parseFloat(e.target.value) })}
-                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-bold text-indigo-600"
-                      />
-                    </div>
-                    <div>
+                    {passFees ? (
+                      <>
+                        <div>
+                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Valor que você quer receber (R$)</label>
+                          <input 
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={valorReceber === 0 && !(service.id in serviceNetValues) ? '' : valorReceber}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value) || 0;
+                              setServiceNetValues(prev => ({ ...prev, [service.id]: v }));
+                            }}
+                            className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-bold text-indigo-600"
+                          />
+                        </div>
+                        <div className="flex flex-col justify-end">
+                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço mínimo a cobrar</label>
+                          <p className="bg-white p-3 rounded-xl text-sm border border-gray-200 font-bold text-indigo-600">R$ {minPrice.toFixed(2).replace('.', ',')}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço (R$)</label>
+                        <input 
+                          type="number" 
+                          value={service.price} 
+                          onChange={(e) => updateService(service.id, { price: parseFloat(e.target.value) })}
+                          className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-bold text-indigo-600"
+                        />
+                      </div>
+                    )}
+                    <div className={passFees ? 'col-span-2' : ''}>
                       <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Duração (min)</label>
                       <input 
                         type="number" 
@@ -353,12 +422,36 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   </div>
                 </div>
               </div>
-            ))}
+            );})}
           </div>
+              </>
+            );
+          })()}
 
           <div className="mt-8 pt-8 border-t border-gray-50">
              <button
-                onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
+                onClick={async () => {
+                  setIsSaving(true);
+                  try {
+                    const platformFeePct = 100 - (shop.splitPercent ?? 95);
+                    const passFees = formData.passFeesToCustomer ?? false;
+                    const dataToSave = passFees
+                      ? {
+                          ...formData,
+                          services: formData.services.map(s => ({
+                            ...s,
+                            price: calcMinPrice(
+                              Math.max(0, serviceNetValues[s.id] ?? reverseCalcNetReceipt(s.price, platformFeePct)),
+                              platformFeePct
+                            ),
+                          })),
+                        }
+                      : formData;
+                    await onSave(dataToSave);
+                  } finally {
+                    setIsSaving(false);
+                  }
+                }}
                 disabled={isSaving}
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
               >

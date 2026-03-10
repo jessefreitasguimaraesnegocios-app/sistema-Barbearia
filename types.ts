@@ -58,6 +58,8 @@ export interface Shop {
   subscriptionActive: boolean;
   subscriptionAmount?: number;
   splitPercent?: number;
+  /** Se true, na edição de serviços o parceiro informa "valor a receber" e o app calcula o preço mínimo a cobrar (taxa + Asaas), arredondado em R$ 0,50 */
+  passFeesToCustomer?: boolean;
   rating: number;
   asaasWalletId?: string;
   asaasAccountId?: string;

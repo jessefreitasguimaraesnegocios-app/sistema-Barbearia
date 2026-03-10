@@ -196,26 +196,46 @@ export default function PartnerArea() {
     );
   }
 
-  if (user && user.role !== 'SHOP') return <Navigate to="/" replace />;
+  if (user && user.role === 'ADMIN') return <Navigate to="/admin" replace />;
+  if (user && user.role === 'CLIENT') return <Navigate to="/" replace />;
 
   if (!user) {
+    const handlePartnerAdminLogin = async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+      if (!data.user) return { error: 'Erro ao entrar.' };
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
+      if (profile?.role === 'cliente') {
+        await supabase.auth.signOut();
+        return { error: 'Esta área é só para parceiros e administradores. Use a página inicial para entrar como cliente.' };
+      }
+      return { error: null };
+    };
+
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <div className="absolute top-4 left-4 flex items-center gap-4">
-          <a href="/" className="text-gray-500 hover:text-indigo-600 text-sm">← Voltar ao site</a>
-          <span className="text-gray-300">|</span>
-          <a href="/" className="text-gray-500 hover:text-indigo-600 text-sm">Sou cliente</a>
-        </div>
-        <LoginForm
-          title="Acesso parceiro"
-          subtitle="Barbearias e salões: entre somente com o e-mail e senha do estabelecimento"
-          onSubmit={signIn}
-          submitLabel="Entrar"
-          onSuccess={() => {}}
-        />
-        <p className="mt-4 text-xs text-gray-400 text-center max-w-sm">
-          Esta área é exclusiva para donos de barbearias e salões. Cliente? Use a página inicial.
-        </p>
+      <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
+        <header className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
+          <a href="/" className="text-sm text-gray-500 hover:text-indigo-600">← Voltar (sou cliente)</a>
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
+              <i className="fas fa-scissors"></i>
+            </div>
+            <span className="font-display text-lg font-bold text-gray-800">BeautyHub</span>
+          </div>
+          <div className="w-24" aria-hidden />
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto min-h-0">
+          <LoginForm
+            title="Parceiros e administradores"
+            subtitle="Barbearias, salões e admin: entre com o e-mail e senha do estabelecimento ou da conta admin"
+            onSubmit={handlePartnerAdminLogin}
+            submitLabel="Entrar"
+            onSuccess={() => {}}
+          />
+          <p className="mt-4 text-xs text-gray-400 text-center max-w-sm">
+            Área exclusiva para parceiros (estabelecimentos) e administradores. Cliente? Use a página inicial.
+          </p>
+        </main>
       </div>
     );
   }

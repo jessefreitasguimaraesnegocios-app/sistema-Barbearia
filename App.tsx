@@ -4,7 +4,6 @@ import { AuthProvider } from './contexts/AuthContext';
 import ClientArea from './pages/ClientArea';
 import PartnerArea from './pages/PartnerArea';
 import AdminArea from './pages/AdminArea';
-import AdminLoginPage from './pages/AdminLoginPage';
 
 function AppRoutes() {
   return (
@@ -12,7 +11,7 @@ function AppRoutes() {
       <Route path="/" element={<ClientArea />} />
       <Route path="/parceiros" element={<PartnerArea />} />
       <Route path="/admin" element={<AdminArea />} />
-      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/login" element={<Navigate to="/parceiros" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

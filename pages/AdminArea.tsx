@@ -47,7 +47,7 @@ export default function AdminArea() {
     );
   }
 
-  if (!user) return <Navigate to="/admin/login" replace />;
+  if (!user) return <Navigate to="/parceiros" replace />;
   if (user.role !== 'ADMIN') return <Navigate to="/" replace />;
 
   const handleLogout = async () => {

@@ -239,11 +239,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Opcional: criar chave de API da subconta para o parceiro acessar Documentos/onboarding (requer liberação no painel Asaas)
+    // Criar chave de API da subconta para Documentos (sem IP na whitelist Asaas = qualquer IP aceito)
     let asaasApiKeySub: string | null = null;
     if (asaasAccountId && String(asaasAccountId).trim() !== "") {
       try {
-        await new Promise((r) => setTimeout(r, 2000)); // breve espera antes de chamar o endpoint de chaves
+        await new Promise((r) => setTimeout(r, 2000));
         const tokenRes = await fetch(`${asaasBaseUrl}/accounts/${asaasAccountId}/accessTokens`, {
           method: "POST",
           headers: {
@@ -257,9 +257,7 @@ Deno.serve(async (req: Request) => {
           const key = tokenData?.apiKey?.trim();
           if (key) asaasApiKeySub = key;
         }
-      } catch (_) {
-        // Ignora; o parceiro poderá usar a área Documentos se o suporte configurar a chave depois
-      }
+      } catch (_) {}
     }
 
     // 2. Criar registro na tabela shops no Supabase

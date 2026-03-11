@@ -15,7 +15,7 @@ export default function AdminArea() {
   const fetchShops = async () => {
     const { data } = await supabase.from('shops').select('*');
     if (data) {
-      setShops(data.map((s: any) => ({
+      setShops(data.map((s: Record<string, unknown>) => ({
         ...s,
         id: s.id,
         ownerId: s.owner_id,
@@ -28,6 +28,7 @@ export default function AdminArea() {
         splitPercent: s.split_percent != null ? Number(s.split_percent) : 95,
         asaasAccountId: s.asaas_account_id,
         asaasWalletId: s.asaas_wallet_id,
+        asaasApiKeyConfigured: !!(s.asaas_api_key && String(s.asaas_api_key).trim()),
         services: [],
         professionals: [],
         products: [],

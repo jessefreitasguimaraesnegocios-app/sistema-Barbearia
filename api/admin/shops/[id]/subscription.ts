@@ -40,15 +40,17 @@ export default async function handler(
     subscriptionActive?: boolean;
     subscriptionAmount?: number;
     splitPercent?: number;
+    asaasApiKey?: string | null;
   };
 
   const updates: Record<string, unknown> = {};
   if (typeof body.subscriptionActive === 'boolean') updates.subscription_active = body.subscriptionActive;
   if (typeof body.subscriptionAmount === 'number' && body.subscriptionAmount >= 0) updates.subscription_amount = body.subscriptionAmount;
   if (typeof body.splitPercent === 'number' && body.splitPercent >= 0 && body.splitPercent <= 100) updates.split_percent = body.splitPercent;
+  if (body.asaasApiKey !== undefined) updates.asaas_api_key = body.asaasApiKey === '' || body.asaasApiKey === null ? null : String(body.asaasApiKey).trim();
 
   if (Object.keys(updates).length === 0) {
-    return res.status(400).json({ success: false, error: 'Envie subscriptionActive, subscriptionAmount e/ou splitPercent.' });
+    return res.status(400).json({ success: false, error: 'Envie subscriptionActive, subscriptionAmount, splitPercent e/ou asaasApiKey.' });
   }
 
   try {
@@ -79,6 +81,7 @@ export default async function handler(
         splitPercent: shop.split_percent != null ? Number(shop.split_percent) : 95,
         asaasAccountId: shop.asaas_account_id,
         asaasWalletId: shop.asaas_wallet_id,
+        asaasApiKeyConfigured: !!(shop as { asaas_api_key?: string }).asaas_api_key,
         cnpjOrCpf: shop.cnpj_cpf,
         pixKey: shop.pix_key,
         services: (shop as { services?: unknown[] }).services ?? [],

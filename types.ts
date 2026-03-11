@@ -64,6 +64,8 @@ export interface Shop {
   asaasWalletId?: string;
   asaasAccountId?: string;
   asaasApiKey?: string;
+  /** Apenas para exibição no admin: true se a loja tem chave da subconta configurada (não envia a chave ao cliente) */
+  asaasApiKeyConfigured?: boolean;
   cnpjOrCpf?: string;
   email?: string;
   phone?: string;

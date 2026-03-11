@@ -102,7 +102,7 @@ export default async function handler(
     });
   }
 
-  // Se não temos chave da subconta mas temos id da conta, tentar criar uma (requer liberação no painel Asaas)
+  // Se não temos chave mas temos id da conta, tentar criar (sem Whitelist de IP = qualquer IP aceito)
   if (!subAccountKey && asaasAccountId) {
     try {
       const tokenRes = await fetch(`${ASAAS_API_URL}/accounts/${asaasAccountId}/accessTokens`, {
@@ -121,9 +121,7 @@ export default async function handler(
           subAccountKey = newKey;
         }
       }
-    } catch (_) {
-      // Ignora; vamos retornar mensagem para configurar manualmente se necessário
-    }
+    } catch (_) {}
   }
 
   if (!subAccountKey) {

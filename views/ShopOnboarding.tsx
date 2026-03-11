@@ -120,9 +120,22 @@ const ShopOnboarding: React.FC<ShopOnboardingProps> = ({ shop }) => {
       </header>
 
       {data?.error && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex items-start gap-3">
-          <i className="fas fa-info-circle text-amber-500 mt-0.5" />
-          <p className="text-sm">{data.error}</p>
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-start gap-3">
+          <i className="fas fa-info-circle text-amber-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm">{data.error}</p>
+            <p className="text-xs text-amber-700 mt-2">
+              Se você já habilitou o &quot;Gerenciamento de Chaves de API de Subcontas&quot; no Asaas, confira se o IP do servidor está na Whitelist de IP (Integrações → Mecanismos de Segurança). Depois clique em &quot;Tentar gerar link&quot;.
+            </p>
+            <button
+              type="button"
+              onClick={() => fetchOnboarding()}
+              className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-sm font-semibold transition-colors"
+            >
+              <i className="fas fa-sync-alt" />
+              Tentar gerar link
+            </button>
+          </div>
         </div>
       )}
 

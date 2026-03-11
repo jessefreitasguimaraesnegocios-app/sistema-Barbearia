@@ -55,6 +55,12 @@ const Layout: React.FC<LayoutProps> = ({
                   <i className="fas fa-store w-5"></i> Minha Loja
                 </button>
                 <button 
+                  onClick={() => onNavigate('shop-onboarding')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-onboarding' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <i className="fas fa-file-alt w-5"></i> Documentos
+                </button>
+                <button 
                   onClick={() => onNavigate('shop-customization')}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-customization' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
                 >
@@ -227,6 +233,10 @@ const Layout: React.FC<LayoutProps> = ({
               <button onClick={() => onNavigate('shop-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'shop-dashboard' ? 'text-indigo-600' : 'text-gray-400'}`}>
                 <i className="fas fa-store text-xl"></i>
                 <span className="text-[10px] mt-1">Painel</span>
+              </button>
+              <button onClick={() => onNavigate('shop-onboarding')} className={`flex flex-col items-center p-2 ${currentView === 'shop-onboarding' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                <i className="fas fa-file-alt text-xl"></i>
+                <span className="text-[10px] mt-1">Documentos</span>
               </button>
               <button onClick={() => onNavigate('shop-appointments')} className={`flex flex-col items-center p-2 ${currentView === 'shop-appointments' ? 'text-indigo-600' : 'text-gray-400'}`}>
                 <i className="fas fa-list text-xl"></i>

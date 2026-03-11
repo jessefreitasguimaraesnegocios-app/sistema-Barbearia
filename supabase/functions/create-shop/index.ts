@@ -87,7 +87,7 @@ Deno.serve(async (req: Request) => {
     // 1. Criar cliente no Asaas (API v3 customers)
     const mobilePhone = String(phone)
       .replace(/\D/g, "")
-      .slice(0, 11) || "11999999999";
+      .slice(0, 11) || "31999999999";
     const cpfCnpjDigits = bodyCpf != null
       ? String(bodyCpf).replace(/\D/g, "").slice(0, 14)
       : "";
@@ -223,6 +223,7 @@ Deno.serve(async (req: Request) => {
 
     const accountData = await accountRes.json();
     asaasWalletId = accountData?.walletId ?? null;
+    const asaasAccountId = accountData?.id ?? null;
 
     if (!asaasWalletId || String(asaasWalletId).trim() === "") {
       return new Response(
@@ -236,6 +237,29 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // Opcional: criar chave de API da subconta para o parceiro acessar Documentos/onboarding (requer liberação no painel Asaas)
+    let asaasApiKeySub: string | null = null;
+    if (asaasAccountId && String(asaasAccountId).trim() !== "") {
+      try {
+        await new Promise((r) => setTimeout(r, 2000)); // breve espera antes de chamar o endpoint de chaves
+        const tokenRes = await fetch(`${asaasBaseUrl}/accounts/${asaasAccountId}/accessTokens`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            access_token: asaasApiKey,
+          },
+          body: JSON.stringify({ name: "BeautyHub Onboarding" }),
+        });
+        if (tokenRes.ok) {
+          const tokenData = (await tokenRes.json()) as { apiKey?: string };
+          const key = tokenData?.apiKey?.trim();
+          if (key) asaasApiKeySub = key;
+        }
+      } catch (_) {
+        // Ignora; o parceiro poderá usar a área Documentos se o suporte configurar a chave depois
+      }
     }
 
     // 2. Criar registro na tabela shops no Supabase
@@ -288,6 +312,8 @@ Deno.serve(async (req: Request) => {
         cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
         asaas_customer_id: asaasCustomerId,
         asaas_wallet_id: asaasWalletId,
+        asaas_account_id: asaasAccountId ?? null,
+        ...(asaasApiKeySub && { asaas_api_key: asaasApiKeySub }),
         type: (shopType === "SALON" ? "SALON" : "BARBER"),
         subscription_active: true,
         subscription_amount: 99,
@@ -397,6 +423,8 @@ Deno.serve(async (req: Request) => {
         success: true,
         shopId,
         asaasCustomerId,
+        asaasAccountId: asaasAccountId ?? undefined,
+        asaasWalletId: asaasWalletId ?? undefined,
         ownerCreated: true,
       }),
       {

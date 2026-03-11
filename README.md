@@ -27,6 +27,13 @@ View your app in AI Studio: https://ai.studio/apps/ddeb1908-60ff-49a3-850a-10f35
 
 (O app sobe só com Vite; não há mais backend Express.)
 
+Para testar a **área de documentos** (parceiro) em desenvolvimento, as rotas `/api/*` precisam estar ativas. Use um dos modos:
+
+- **`npm run dev:all`** — sobe o Vite e o servidor da API juntos (recomendado).
+- Ou em dois terminais: **`npm run dev`** e **`npm run dev:api`**.
+
+Certifique-se de ter um `.env` com `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` e `ASAAS_API_KEY` para a rota `/api/partner/onboarding` responder corretamente.
+
 ## Aplicar todos os .sql (migrations) via CLI
 
 As migrations ficam em `supabase/migrations/` (incluindo schema inicial e `asaas_customer_id`). Para aplicá-las no banco remoto:
@@ -66,3 +73,6 @@ O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com
 Em **Settings → Edge Functions → Secrets** configure:
 - **ASAAS_API_KEY** – chave da API Asaas (obrigatório)
 - **ASAAS_API_URL** – opcional; use `https://sandbox.asaas.com/api/v3` para testes.
+
+**Documentos e aprovação da subconta (onboarding)**  
+O parceiro envia documentos pela área **Documentos** no menu (parceiro). A rota **GET /api/partner/onboarding** (Vercel) retorna o status da conta e os links para envio (onboardingUrl). O parceiro pode abrir o link, copiar ou enviar por WhatsApp. Se a plataforma tiver **Gerenciamento de Chaves de API de Subcontas** habilitado no painel Asaas, a chave da subconta é criada automaticamente na primeira consulta; caso contrário, o suporte pode configurar `asaas_api_key` na loja manualmente.

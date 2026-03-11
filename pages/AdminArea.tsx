@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import AdminDashboard from '../views/AdminDashboard';
+import AdminWallet from '../views/AdminWallet';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
 
@@ -11,6 +12,7 @@ export default function AdminArea() {
   const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
+  const [currentView, setCurrentView] = useState<'admin-dashboard' | 'admin-wallet'>('admin-dashboard');
 
   const fetchShops = async () => {
     const { data } = await supabase.from('shops').select('*');
@@ -62,8 +64,9 @@ export default function AdminArea() {
   const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
   return (
-    <Layout user={user} onLogout={handleLogout} onNavigate={() => {}} currentView="admin-dashboard" notifications={notifications} onMarkRead={markAllAsRead}>
-      <AdminDashboard shops={shops} setShops={setShopsState} onShopCreated={fetchShops} />
+    <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+      {currentView === 'admin-dashboard' && <AdminDashboard shops={shops} setShops={setShopsState} onShopCreated={fetchShops} />}
+      {currentView === 'admin-wallet' && <AdminWallet />}
     </Layout>
   );
 }

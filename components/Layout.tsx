@@ -38,12 +38,20 @@ const Layout: React.FC<LayoutProps> = ({
 
           <nav className="flex-1 space-y-2">
             {user.role === 'ADMIN' && (
-              <button 
-                onClick={() => onNavigate('admin-dashboard')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'admin-dashboard' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
-                <i className="fas fa-chart-line w-5"></i> Dashboard Admin
-              </button>
+              <>
+                <button 
+                  onClick={() => onNavigate('admin-dashboard')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'admin-dashboard' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <i className="fas fa-chart-line w-5"></i> Dashboard Admin
+                </button>
+                <button 
+                  onClick={() => onNavigate('admin-wallet')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'admin-wallet' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <i className="fas fa-wallet w-5"></i> Saque
+                </button>
+              </>
             )}
             
             {user.role === 'SHOP' && (
@@ -258,10 +266,16 @@ const Layout: React.FC<LayoutProps> = ({
               </button>
             </>
           ) : (
-            <button onClick={() => onNavigate('admin-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'admin-dashboard' ? 'text-indigo-600' : 'text-gray-400'}`}>
-              <i className="fas fa-shield-alt text-xl"></i>
-              <span className="text-[10px] mt-1">Admin</span>
-            </button>
+            <>
+              <button onClick={() => onNavigate('admin-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'admin-dashboard' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                <i className="fas fa-chart-line text-xl"></i>
+                <span className="text-[10px] mt-1">Admin</span>
+              </button>
+              <button onClick={() => onNavigate('admin-wallet')} className={`flex flex-col items-center p-2 ${currentView === 'admin-wallet' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                <i className="fas fa-wallet text-xl"></i>
+                <span className="text-[10px] mt-1">Saque</span>
+              </button>
+            </>
           )}
         </nav>
       )}

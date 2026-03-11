@@ -1,14 +1,15 @@
-// Vercel Serverless: GET /api/partner/wallet (saldo + opcional histórico) | POST /api/partner/wallet (saque)
-// Usa a chave da subconta (asaas_api_key) para GET /v3/finance/balance, GET /v3/financialTransactions e POST /v3/transfers.
+// Vercel Serverless: GET /api/admin/wallet (saldo conta principal) | POST /api/admin/wallet (saque da parte da plataforma)
+// Usa ASAAS_API_KEY (conta principal) para saldo e transferências da sua parte (split, mensalidades).
 
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 
-async function getPartnerShopId(token: string): Promise<{ shopId: string } | { error: string; status: number }> {
+async function ensureAdmin(token: string): Promise<{ error: string; status: number } | null> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return { error: 'Configuração indisponível.', status: 500 };
   }
@@ -25,7 +26,7 @@ async function getPartnerShopId(token: string): Promise<{ shopId: string } | { e
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY!);
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('shop_id, role')
+    .select('role')
     .eq('id', userId)
     .single();
 
@@ -33,11 +34,10 @@ async function getPartnerShopId(token: string): Promise<{ shopId: string } | { e
     return { error: 'Perfil não encontrado.', status: 403 };
   }
   const role = (profile as { role?: string }).role;
-  const shopId = (profile as { shop_id?: string }).shop_id;
-  if (role !== 'barbearia' || !shopId) {
-    return { error: 'Acesso apenas para parceiros (lojas).', status: 403 };
+  if (role !== 'admin') {
+    return { error: 'Acesso apenas para administradores.', status: 403 };
   }
-  return { shopId };
+  return null;
 }
 
 export default async function handler(
@@ -85,67 +85,30 @@ export default async function handler(
     return res.status(401).json({ success: false, error: 'Token não enviado. Faça login novamente.' });
   }
 
-  const partner = await getPartnerShopId(token);
-  if ('error' in partner) {
-    return res.status(partner.status).json({ success: false, error: partner.error });
+  const adminError = await ensureAdmin(token);
+  if (adminError) {
+    return res.status(adminError.status).json({ success: false, error: adminError.error });
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: 'Configuração do servidor indisponível.' });
-  }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data: shop, error: shopError } = await supabase
-    .from('shops')
-    .select('id, asaas_api_key, asaas_account_id')
-    .eq('id', partner.shopId)
-    .single();
-
-  if (shopError || !shop) {
-    return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
-  }
-
-  const subAccountKey = (shop as { asaas_api_key?: string }).asaas_api_key?.trim() || null;
-  if (!subAccountKey) {
-    return res.status(400).json({
+  if (!ASAAS_API_KEY || !ASAAS_API_KEY.trim()) {
+    return res.status(500).json({
       success: false,
-      error: 'Sua loja ainda não tem conta de pagamentos configurada para saque. Configure os documentos e a chave da subconta.',
+      error: 'ASAAS_API_KEY não configurada. Configure a chave da conta principal no ambiente.',
     });
   }
 
   const baseUrl = ASAAS_API_URL.startsWith('http') ? ASAAS_API_URL : `https://${ASAAS_API_URL}`;
-  const apiHeaders: Record<string, string> = { access_token: subAccountKey };
-
-  // Garantir que a chave usada é da SUBCONTA da loja, não da conta principal Asaas
-  const expectedSubAccountId = (shop as { asaas_account_id?: string }).asaas_account_id?.trim() || null;
-  if (expectedSubAccountId) {
-    try {
-      const meRes = await fetch(`${baseUrl}/myAccount/status`, { headers: apiHeaders });
-      if (meRes.ok) {
-        const meData = (await meRes.json()) as { id?: string };
-        const keyAccountId = (meData?.id ?? '').trim().toLowerCase();
-        const expectedId = expectedSubAccountId.trim().toLowerCase();
-        if (keyAccountId && expectedId && keyAccountId !== expectedId) {
-          return res.status(400).json({
-            success: false,
-            error: 'A chave de API configurada para esta loja pertence à conta principal do Asaas, não à subconta da barbearia. No painel admin, atualize a "Chave API" do parceiro com a chave da subconta (Documentos > gerar chave da subconta no Asaas).',
-          });
-        }
-      }
-    } catch (e) {
-      console.error('[api/partner/wallet] myAccount/status check', e);
-    }
-  }
+  const apiHeaders: Record<string, string> = { access_token: ASAAS_API_KEY.trim() };
 
   if (req.method === 'GET') {
     try {
       const balanceRes = await fetch(`${baseUrl}/finance/balance`, { headers: apiHeaders });
       if (!balanceRes.ok) {
         const errBody = await balanceRes.text();
-        console.error('[api/partner/wallet] balance', balanceRes.status, errBody);
+        console.error('[api/admin/wallet] balance', balanceRes.status, errBody);
         return res.status(balanceRes.status).json({
           success: false,
-          error: 'Não foi possível consultar o saldo. Tente mais tarde.',
+          error: 'Não foi possível consultar o saldo da conta. Tente mais tarde.',
         });
       }
       const balanceData = (await balanceRes.json()) as { balance?: number };
@@ -186,15 +149,15 @@ export default async function handler(
         transactions,
       });
     } catch (e) {
-      console.error('[api/partner/wallet] GET', e);
+      console.error('[api/admin/wallet] GET', e);
       return res.status(500).json({
         success: false,
-        error: e instanceof Error ? e.message : 'Erro ao consultar saldo e histórico.',
+        error: e instanceof Error ? e.message : 'Erro ao consultar saldo.',
       });
     }
   }
 
-  // POST: criar transferência (saque)
+  // POST: saque da conta principal (sua parte)
   const body = req.body ?? {};
   const value = typeof body.value === 'number' ? body.value : Number(body.value);
   if (!Number.isFinite(value) || value <= 0) {
@@ -260,7 +223,7 @@ export default async function handler(
       },
     });
   } catch (e) {
-    console.error('[api/partner/wallet] POST', e);
+    console.error('[api/admin/wallet] POST', e);
     return res.status(500).json({
       success: false,
       error: e instanceof Error ? e.message : 'Erro ao solicitar saque. Tente novamente.',

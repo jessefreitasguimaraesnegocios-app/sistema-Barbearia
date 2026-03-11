@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import ShopDashboard from '../views/ShopDashboard';
 import ShopCustomization from '../views/ShopCustomization';
 import ShopOnboarding from '../views/ShopOnboarding';
+import ShopWallet from '../views/ShopWallet';
 import { LoginForm } from '../components/LoginForm';
 import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
@@ -16,7 +17,7 @@ export default function PartnerArea() {
   const [myShop, setMyShop] = useState<Shop | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [currentView, setCurrentView] = useState<'shop-dashboard' | 'shop-onboarding' | 'shop-customization'>('shop-dashboard');
+  const [currentView, setCurrentView] = useState<'shop-dashboard' | 'shop-onboarding' | 'shop-wallet' | 'shop-customization'>('shop-dashboard');
   const [customizationRefreshKey, setCustomizationRefreshKey] = useState(0);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
 
@@ -416,6 +417,7 @@ export default function PartnerArea() {
     <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
       {currentView === 'shop-dashboard' && <ShopDashboard shop={myShop} appointments={appointments} orders={orders} onMarkAppointmentCompleted={markAppointmentCompleted} />}
       {currentView === 'shop-onboarding' && <ShopOnboarding shop={myShop} />}
+      {currentView === 'shop-wallet' && <ShopWallet shop={myShop} />}
       {currentView === 'shop-customization' && <ShopCustomization key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`} shop={myShop} onSave={updateShop} />}
     </Layout>
   );

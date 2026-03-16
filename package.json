@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "supabase:link": "supabase link --project-ref wevcqosziiwfbxbmjqln",
     "supabase:db-push": "supabase db push",
+    "supabase:functions-deploy": "supabase functions deploy create-shop && supabase functions deploy create-payment && supabase functions deploy asaas-webhook",
     "db:push": "node scripts/apply-migrations.js"
   },
   "dependencies": {

@@ -89,10 +89,11 @@ export default async function handler(
       body: JSON.stringify({
         name,
         email,
+        loginEmail: email,
         cpfCnpj: cpfCnpjDigits,
         birthDate: '1990-01-01',
         companyType: 'MEI',
-        phone: String(shop.phone || ''),
+        phone: String(shop.phone || '') || null,
         mobilePhone,
         incomeValue: 5000,
         address: 'A definir',
@@ -113,18 +114,59 @@ export default async function handler(
       return res.status(400).json({ success: false, error: errMessage, details: errText });
     }
 
-    const accountData = (await accountRes.json()) as { walletId?: string; id?: string };
-    const walletId = accountData?.walletId ?? null;
+    const accountData = (await accountRes.json()) as { walletId?: string; wallet?: string; id?: string; accountId?: string };
+    const walletId = (accountData?.walletId ?? accountData?.wallet ?? null)?.trim() || null;
+    const asaasAccountId = (accountData?.id ?? accountData?.accountId ?? null)?.trim() || null;
 
-    if (!walletId || String(walletId).trim() === '') {
+    if (!walletId) {
       return res.status(500).json({
         success: false,
         error: 'Asaas não retornou walletId. Não foi possível vincular a carteira à loja.',
       });
     }
 
-    const updates: Record<string, unknown> = { asaas_wallet_id: String(walletId).trim() };
-    if (accountData?.id) updates.asaas_account_id = accountData.id;
+    const isSandbox = ASAAS_API_URL.toLowerCase().includes('sandbox');
+    if (isSandbox && asaasAccountId) {
+      try {
+        const approveRes = await fetch(`${ASAAS_API_URL}/accounts/${asaasAccountId}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', access_token: ASAAS_API_KEY },
+        });
+        if (!approveRes.ok) {
+          console.warn('[create-wallet] Sandbox approve (opcional):', approveRes.status, await approveRes.text());
+        }
+      } catch (_) {}
+    }
+
+    let asaasApiKeySub: string | null = null;
+    if (asaasAccountId) {
+      try {
+        await new Promise((r) => setTimeout(r, 2000));
+        const tokenRes = await fetch(`${ASAAS_API_URL}/accounts/${asaasAccountId}/accessTokens`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            access_token: ASAAS_API_KEY,
+          },
+          body: JSON.stringify({ name: 'BeautyHub App' }),
+        });
+        if (tokenRes.ok) {
+          const tokenData = (await tokenRes.json()) as { apiKey?: string };
+          const key = tokenData?.apiKey?.trim();
+          if (key) asaasApiKeySub = key;
+        } else {
+          console.error('[create-wallet] accessTokens:', tokenRes.status, await tokenRes.text());
+        }
+      } catch (e) {
+        console.error('[create-wallet] accessTokens error:', e);
+      }
+    }
+
+    const updates: Record<string, unknown> = {
+      asaas_wallet_id: walletId,
+      asaas_account_id: asaasAccountId,
+    };
+    if (asaasApiKeySub) updates.asaas_api_key = asaasApiKeySub;
 
     const { data: updated, error: updateError } = await supabase
       .from('shops')
@@ -139,11 +181,12 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      message: 'Carteira Asaas criada e vinculada à loja.',
+      message: 'Carteira Asaas criada e vinculada à loja.' + (asaasApiKeySub ? ' Chave da subconta gerada e salva.' : ' Configure a chave da subconta manualmente (Integrações no Asaas) ou pelo onboarding.'),
       shop: {
         id: updated?.id,
         asaasWalletId: (updated as { asaas_wallet_id?: string })?.asaas_wallet_id,
         asaasAccountId: (updated as { asaas_account_id?: string })?.asaas_account_id,
+        asaasApiKeyConfigured: !!asaasApiKeySub,
       },
     });
   } catch (e) {

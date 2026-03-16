@@ -182,10 +182,11 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         name: String(name),
         email: String(email),
+        loginEmail: String(email),
         cpfCnpj: cpfCnpjForAccount,
         birthDate,
         companyType: asaasCompanyType,
-        phone: String(phone),
+        phone: String(phone) || null,
         mobilePhone: mobilePhone,
         incomeValue,
         address,
@@ -221,9 +222,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const accountData = await accountRes.json();
-    asaasWalletId = accountData?.walletId ?? null;
-    const asaasAccountId = accountData?.id ?? null;
+    const accountData = (await accountRes.json()) as { id?: string; accountId?: string; walletId?: string; wallet?: string };
+    asaasWalletId = accountData?.walletId ?? accountData?.wallet ?? null;
+    const asaasAccountId = accountData?.id ?? accountData?.accountId ?? null;
 
     if (!asaasWalletId || String(asaasWalletId).trim() === "") {
       return new Response(
@@ -239,7 +240,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Criar chave de API da subconta para Documentos (sem IP na whitelist Asaas = qualquer IP aceito)
+    const isSandbox = asaasBaseUrl.toLowerCase().includes("sandbox");
+    if (isSandbox && asaasAccountId && String(asaasAccountId).trim() !== "") {
+      try {
+        const approveRes = await fetch(`${asaasBaseUrl}/accounts/${asaasAccountId}/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", access_token: asaasApiKey },
+        });
+        if (!approveRes.ok) {
+          const errText = await approveRes.text();
+          console.warn("[create-shop] Sandbox approve (opcional):", approveRes.status, errText);
+        }
+      } catch (e) {
+        console.warn("[create-shop] Sandbox approve error:", e);
+      }
+    }
+
     let asaasApiKeySub: string | null = null;
     if (asaasAccountId && String(asaasAccountId).trim() !== "") {
       try {
@@ -250,14 +266,19 @@ Deno.serve(async (req: Request) => {
             "Content-Type": "application/json",
             access_token: asaasApiKey,
           },
-          body: JSON.stringify({ name: "BeautyHub Onboarding" }),
+          body: JSON.stringify({ name: "BeautyHub App" }),
         });
-        if (tokenRes.ok) {
-          const tokenData = (await tokenRes.json()) as { apiKey?: string };
-          const key = tokenData?.apiKey?.trim();
-          if (key) asaasApiKeySub = key;
+        const tokenData = tokenRes.ok ? (await tokenRes.json()) as { apiKey?: string } : null;
+        const key = tokenData?.apiKey?.trim();
+        if (key) {
+          asaasApiKeySub = key;
+        } else if (!tokenRes.ok) {
+          const errText = await tokenRes.text();
+          console.error("[create-shop] accessTokens falhou:", tokenRes.status, errText);
         }
-      } catch (_) {}
+      } catch (e) {
+        console.error("[create-shop] accessTokens error:", e);
+      }
     }
 
     // 2. Criar registro na tabela shops no Supabase
@@ -423,6 +444,7 @@ Deno.serve(async (req: Request) => {
         asaasCustomerId,
         asaasAccountId: asaasAccountId ?? undefined,
         asaasWalletId: asaasWalletId ?? undefined,
+        asaasApiKeyConfigured: !!asaasApiKeySub,
         ownerCreated: true,
       }),
       {

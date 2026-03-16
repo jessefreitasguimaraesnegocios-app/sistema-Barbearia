@@ -57,22 +57,27 @@ As migrations ficam em `supabase/migrations/` (incluindo schema inicial e `asaas
 2. Linke o projeto (use a senha do banco quando pedida): `npm run supabase:link`
 3. Aplique as migrations: `npm run supabase:db-push`
 
-**Edge Function `create-shop`**  
-Depois do link (ou com projeto configurado):  
-`npx supabase functions deploy create-shop`  
-E configure o secret **ASAAS_API_KEY** em **Settings → Edge Functions → Secrets** no painel do Supabase.
+**Edge Functions (create-shop, create-payment, asaas-webhook)**  
+Depois do link (ou com projeto configurado), para fazer deploy de todas de uma vez:
 
-Toda barbearia/salão é cadastrada **com subconta Asaas**; a criação da subconta (carteira) é obrigatória. Se a subconta não for criada, a loja não é cadastrada e o erro do Asaas é retornado (ex.: limite de subcontas no Sandbox, CPF/CNPJ inválido).
+```bash
+npm run supabase:functions-deploy
+```
 
-**Edge Function `create-payment`** (PIX com split)  
-Para pagamentos funcionarem:  
-`npx supabase functions deploy create-payment`  
+Ou individualmente:
+```bash
+npx supabase functions deploy create-shop --no-verify-jwt
+npx supabase functions deploy create-payment --no-verify-jwt
+npx supabase functions deploy asaas-webhook --no-verify-jwt
+```
 
-O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com `shopId`). A função busca `asaas_wallet_id` e `split_percent` na tabela `shops`. O split só é enviado para a **carteira da loja** (nunca para a própria carteira da plataforma). Se a loja não tiver `asaas_wallet_id`, o pagamento é rejeitado com mensagem clara.
+Configure os secrets em **Settings → Edge Functions → Secrets** no painel do Supabase:
+- **ASAAS_API_KEY** – chave da API Asaas (conta principal, obrigatório)
+- **ASAAS_API_URL** – opcional; use `https://sandbox.asaas.com/api/v3` para testes
 
-Em **Settings → Edge Functions → Secrets** configure:
-- **ASAAS_API_KEY** – chave da API Asaas (obrigatório)
-- **ASAAS_API_URL** – opcional; use `https://sandbox.asaas.com/api/v3` para testes.
+**create-shop** – Cadastra parceiro e cria subconta Asaas (POST /accounts com loginEmail), aprova no sandbox (approve), gera chave da subconta (accessTokens) e salva `asaas_account_id`, `asaas_wallet_id` e `asaas_api_key` na tabela `shops`. Toda barbearia/salão é cadastrada com subconta; se a subconta não for criada, a loja não é cadastrada.
+
+**create-payment** (PIX com split) – O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com `shopId`). A função busca `asaas_wallet_id` e `split_percent` na tabela `shops`. O split só é enviado para a **carteira da loja** (subconta). Se a loja não tiver `asaas_wallet_id`, o pagamento é rejeitado.
 
 **Documentos e aprovação da subconta (onboarding)**  
 O parceiro envia documentos pela área **Documentos** no menu (parceiro). A rota **GET /api/partner/onboarding** (Vercel) retorna o status da conta e os links para envio (onboardingUrl). O parceiro pode abrir o link, copiar ou enviar por WhatsApp. Para a chave da subconta ser criada automaticamente (ou na primeira vez que o parceiro abre Documentos), é necessário no painel Asaas: (1) **Habilitar** em Integrações → Chaves de API → *Gerenciamento de Chaves de API de Subcontas* (acesso temporário, 2h); (2) **Whitelist de IP**: adicionar os IPs de saída do servidor que chama a API (ex.: no Vercel, usar IP de egress estático ou consultar a documentação do Vercel para IPs de saída). Sem isso, a mensagem “o suporte precisa configurar a chave” aparece e o admin pode configurar `asaas_api_key` na loja manualmente.

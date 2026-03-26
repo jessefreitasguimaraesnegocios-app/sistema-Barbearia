@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { User, AppNotification } from '../types';
 import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
+import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -41,14 +42,12 @@ const Layout: React.FC<LayoutProps> = ({
       {user && (
         <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen sticky top-0 p-6">
           <div className="mb-10 flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg ${
-                user.role === 'SHOP' ? 'bg-[var(--shop-primary)]' : 'bg-indigo-600'
-              }`}
-            >
-              <i className="fas fa-scissors"></i>
-            </div>
-            <h1 className="font-display text-xl font-bold text-gray-800">BeautyHub</h1>
+            <img
+              src={APP_LOGO_SRC}
+              alt=""
+              className="w-10 h-10 rounded-xl object-cover shadow-lg flex-shrink-0 bg-white"
+            />
+            <h1 className="font-display text-xl font-bold text-gray-800 leading-tight">{APP_NAME}</h1>
           </div>
 
           <nav className="flex-1 space-y-2">
@@ -76,6 +75,12 @@ const Layout: React.FC<LayoutProps> = ({
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-dashboard' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
                 >
                   <i className="fas fa-store w-5"></i> Minha Loja
+                </button>
+                <button 
+                  onClick={() => onNavigate('shop-agenda')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-agenda' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <i className="fas fa-calendar-alt w-5"></i> Agenda
                 </button>
                 <button 
                   onClick={() => onNavigate('shop-orders')}
@@ -162,14 +167,12 @@ const Layout: React.FC<LayoutProps> = ({
       {/* Mobile Top Header */}
       <header className="md:hidden bg-white border-b border-gray-100 p-4 sticky top-0 z-50 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <div
-            className={`w-8 h-8 rounded-lg flex items-center justify-center text-white ${
-              user?.role === 'SHOP' ? 'bg-[var(--shop-primary)]' : 'bg-indigo-600'
-            }`}
-          >
-            <i className="fas fa-scissors text-xs"></i>
-          </div>
-          <h1 className="font-display text-lg font-bold text-gray-800">BeautyHub</h1>
+          <img
+            src={APP_LOGO_SRC}
+            alt=""
+            className="w-8 h-8 rounded-lg object-cover shadow-sm flex-shrink-0 bg-white"
+          />
+          <h1 className="font-display text-lg font-bold text-gray-800 leading-tight">{APP_NAME}</h1>
         </div>
         {user && (
           <div className="flex items-center gap-2">
@@ -266,6 +269,10 @@ const Layout: React.FC<LayoutProps> = ({
               <button onClick={() => onNavigate('shop-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'shop-dashboard' ? shopMobileActive : 'text-gray-400'}`}>
                 <i className="fas fa-store text-xl"></i>
                 <span className="text-[10px] mt-1">Painel</span>
+              </button>
+              <button onClick={() => onNavigate('shop-agenda')} className={`flex flex-col items-center p-2 ${currentView === 'shop-agenda' ? shopMobileActive : 'text-gray-400'}`}>
+                <i className="fas fa-calendar-alt text-xl"></i>
+                <span className="text-[10px] mt-1">Agenda</span>
               </button>
               <button onClick={() => onNavigate('shop-wallet')} className={`flex flex-col items-center p-2 ${currentView === 'shop-wallet' ? shopMobileActive : 'text-gray-400'}`}>
                 <i className="fas fa-wallet text-xl"></i>

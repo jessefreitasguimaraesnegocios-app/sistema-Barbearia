@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 
 interface AuthViewProps {
   onLogin: (email: string) => void;
@@ -12,10 +13,12 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
     <div className="flex flex-col items-center justify-center min-h-[80vh]">
       <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-gray-100">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-lg">
-            <i className="fas fa-scissors"></i>
-          </div>
-          <h2 className="font-display text-2xl font-bold text-gray-800">Bem-vindo ao BeautyHub</h2>
+          <img
+            src={APP_LOGO_SRC}
+            alt=""
+            className="w-16 h-16 rounded-2xl object-cover mx-auto mb-4 shadow-lg bg-white"
+          />
+          <h2 className="font-display text-2xl font-bold text-gray-800">Bem-vindo ao {APP_NAME}</h2>
           <p className="text-gray-500 mt-2">Escolha uma conta para testar o sistema</p>
         </div>
 

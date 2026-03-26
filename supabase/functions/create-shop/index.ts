@@ -266,7 +266,7 @@ Deno.serve(async (req: Request) => {
             "Content-Type": "application/json",
             access_token: asaasApiKey,
           },
-          body: JSON.stringify({ name: "BeautyHub App" }),
+          body: JSON.stringify({ name: "Smart Cria App" }),
         });
         const tokenData = tokenRes.ok ? (await tokenRes.json()) as { apiKey?: string } : null;
         const key = tokenData?.apiKey?.trim();

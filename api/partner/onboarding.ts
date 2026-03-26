@@ -111,7 +111,7 @@ export default async function handler(
           'Content-Type': 'application/json',
           access_token: ASAAS_API_KEY,
         },
-        body: JSON.stringify({ name: 'BeautyHub Onboarding' }),
+        body: JSON.stringify({ name: 'Smart Cria Onboarding' }),
       });
       if (tokenRes.ok) {
         const tokenData = (await tokenRes.json()) as { apiKey?: string };

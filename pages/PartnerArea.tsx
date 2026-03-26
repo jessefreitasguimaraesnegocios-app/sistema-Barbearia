@@ -7,9 +7,16 @@ import ShopCustomization from '../views/ShopCustomization';
 import ShopOnboarding from '../views/ShopOnboarding';
 import ShopWallet from '../views/ShopWallet';
 import ShopOrders from '../views/ShopOrders';
+import ShopAgenda, { type AgendaSchedulePayload } from '../views/ShopAgenda';
 import { LoginForm } from '../components/LoginForm';
-import { Shop, Appointment, Order, ShopPartnerOrderRow } from '../types';
+import { Shop, Appointment, Order, ShopPartnerOrderRow, PartnerAgendaAppointment } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
+
+function formatDbTime(v: unknown): string | null {
+  if (v == null || v === '') return null;
+  return String(v).slice(0, 5);
+}
 
 export default function PartnerArea() {
   const { user, loading, signIn, signOut } = useAuth();
@@ -19,8 +26,14 @@ export default function PartnerArea() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [shopPartnerOrderRows, setShopPartnerOrderRows] = useState<ShopPartnerOrderRow[]>([]);
   const [currentView, setCurrentView] = useState<
-    'shop-dashboard' | 'shop-onboarding' | 'shop-wallet' | 'shop-customization' | 'shop-orders'
+    | 'shop-dashboard'
+    | 'shop-agenda'
+    | 'shop-onboarding'
+    | 'shop-wallet'
+    | 'shop-customization'
+    | 'shop-orders'
   >('shop-dashboard');
+  const [agendaAppointments, setAgendaAppointments] = useState<PartnerAgendaAppointment[]>([]);
 
   const dashboardOrders: Order[] = React.useMemo(
     () =>
@@ -124,6 +137,38 @@ export default function PartnerArea() {
     loadAppointmentsAndOrders();
   }, [loadAppointmentsAndOrders]);
 
+  useEffect(() => {
+    if (!myShop?.id) {
+      setAgendaAppointments([]);
+      return;
+    }
+    if (appointments.length === 0) {
+      setAgendaAppointments([]);
+      return;
+    }
+    const clientIds = [...new Set(appointments.map((a) => a.clientId))];
+    let cancelled = false;
+    (async () => {
+      const { data: profs } = await supabase.from('profiles').select('id, full_name, phone').in('id', clientIds);
+      if (cancelled) return;
+      const map = new Map(
+        (profs ?? []).map((p: { id: string; full_name?: string | null; phone?: string | null }) => [String(p.id), p])
+      );
+      const rows: PartnerAgendaAppointment[] = appointments.map((a) => {
+        const pr = map.get(a.clientId);
+        return {
+          ...a,
+          clientDisplayName: pr?.full_name?.trim() || `Cliente #${a.clientId.slice(0, 8)}`,
+          clientPhone: pr?.phone?.trim() || null,
+        };
+      });
+      setAgendaAppointments(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [myShop?.id, appointments]);
+
   const refreshAppointments = React.useCallback(async () => {
     if (!myShop?.id) return;
     const shopId = myShop.id;
@@ -181,6 +226,64 @@ export default function PartnerArea() {
     [myShop?.id, loadAppointmentsAndOrders]
   );
 
+  const saveAgendaSettings = React.useCallback(
+    async (payload: AgendaSchedulePayload) => {
+      if (!myShop?.id) return;
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          workday_start: payload.workdayStart,
+          workday_end: payload.workdayEnd,
+          lunch_start: payload.lunchStart,
+          lunch_end: payload.lunchEnd,
+          agenda_slot_minutes: payload.agendaSlotMinutes,
+        })
+        .eq('id', myShop.id);
+      if (error) throw new Error(error.message);
+      setMyShop((prev) =>
+        prev
+          ? {
+              ...prev,
+              workdayStart: payload.workdayStart,
+              workdayEnd: payload.workdayEnd,
+              lunchStart: payload.lunchStart,
+              lunchEnd: payload.lunchEnd,
+              agendaSlotMinutes: payload.agendaSlotMinutes,
+            }
+          : null
+      );
+    },
+    [myShop?.id]
+  );
+
+  const rescheduleAppointment = React.useCallback(
+    async (appointmentId: string, date: string, timeHHMMSS: string) => {
+      if (!myShop?.id) return;
+      const { error } = await supabase
+        .from('appointments')
+        .update({ date, time: timeHHMMSS })
+        .eq('id', appointmentId)
+        .eq('shop_id', myShop.id);
+      if (error) throw new Error(error.message);
+      await refreshAppointments();
+    },
+    [myShop?.id, refreshAppointments]
+  );
+
+  const cancelAppointmentPartner = React.useCallback(
+    async (appointmentId: string) => {
+      if (!myShop?.id) return;
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'CANCELLED' })
+        .eq('id', appointmentId)
+        .eq('shop_id', myShop.id);
+      if (error) throw new Error(error.message);
+      await refreshAppointments();
+    },
+    [myShop?.id, refreshAppointments]
+  );
+
   function mapShopFromDb(d: any): Shop {
     const rawServices = (d.services || []);
     const rawProfessionals = (d.professionals || []);
@@ -235,6 +338,14 @@ export default function PartnerArea() {
       passFeesToCustomer: d.pass_fees_to_customer === true,
       asaasAccountId: d.asaas_account_id,
       asaasWalletId: d.asaas_wallet_id,
+      workdayStart: formatDbTime(d.workday_start) ?? '08:00',
+      workdayEnd: formatDbTime(d.workday_end) ?? '20:00',
+      lunchStart: formatDbTime(d.lunch_start),
+      lunchEnd: formatDbTime(d.lunch_end),
+      agendaSlotMinutes:
+        d.agenda_slot_minutes != null && Number(d.agenda_slot_minutes) > 0
+          ? Number(d.agenda_slot_minutes)
+          : 30,
       services,
       professionals,
       products,
@@ -270,10 +381,8 @@ export default function PartnerArea() {
         <header className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
           <a href="/" className="text-sm text-gray-500 hover:text-indigo-600">← Voltar (sou cliente)</a>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-              <i className="fas fa-scissors"></i>
-            </div>
-            <span className="font-display text-lg font-bold text-gray-800">BeautyHub</span>
+            <img src={APP_LOGO_SRC} alt="" className="w-10 h-10 rounded-xl object-cover shadow-sm bg-white" />
+            <span className="font-display text-lg font-bold text-gray-800 leading-tight">{APP_NAME}</span>
           </div>
           <div className="w-24" aria-hidden />
         </header>
@@ -487,6 +596,33 @@ export default function PartnerArea() {
           orders={dashboardOrders}
           onMarkAppointmentCompleted={markAppointmentCompleted}
           onGoToOnboarding={() => setCurrentView('shop-onboarding')}
+        />
+      )}
+      {currentView === 'shop-agenda' && (
+        <ShopAgenda
+          shop={myShop}
+          appointments={agendaAppointments}
+          onSaveSchedule={async (p) => {
+            try {
+              await saveAgendaSettings(p);
+            } catch (e) {
+              alert(e instanceof Error ? e.message : 'Erro ao salvar horários.');
+            }
+          }}
+          onReschedule={async (id, date, time) => {
+            try {
+              await rescheduleAppointment(id, date, time);
+            } catch (e) {
+              alert(e instanceof Error ? e.message : 'Erro ao remarcar.');
+            }
+          }}
+          onCancel={async (id) => {
+            try {
+              await cancelAppointmentPartner(id);
+            } catch (e) {
+              alert(e instanceof Error ? e.message : 'Erro ao cancelar.');
+            }
+          }}
         />
       )}
       {currentView === 'shop-onboarding' && <ShopOnboarding shop={myShop} />}

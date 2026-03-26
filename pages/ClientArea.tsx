@@ -10,6 +10,7 @@ import ClientProfile from '../views/ClientProfile';
 import { LoginForm } from '../components/LoginForm';
 import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 
 export default function ClientArea() {
   const { user, loading, signIn, signUp, signInWithGoogle, signOut } = useAuth();
@@ -144,10 +145,8 @@ export default function ClientArea() {
       <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
         <header className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-              <i className="fas fa-scissors"></i>
-            </div>
-            <h1 className="font-display text-xl font-bold text-gray-800">BeautyHub</h1>
+            <img src={APP_LOGO_SRC} alt="" className="w-10 h-10 rounded-xl object-cover shadow-sm bg-white" />
+            <h1 className="font-display text-xl font-bold text-gray-800 leading-tight">{APP_NAME}</h1>
           </div>
           <a href="/parceiros" className="text-sm text-gray-500 hover:text-indigo-600">Sou parceiro</a>
         </header>

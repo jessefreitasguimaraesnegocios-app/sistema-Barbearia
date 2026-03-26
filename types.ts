@@ -70,6 +70,13 @@ export interface Shop {
   email?: string;
   phone?: string;
   pixKey?: string;
+  /** Início do expediente (HH:MM) — agenda parceiro */
+  workdayStart?: string;
+  workdayEnd?: string;
+  lunchStart?: string | null;
+  lunchEnd?: string | null;
+  /** Intervalo entre faixas de horário na grade (minutos) */
+  agendaSlotMinutes?: number;
 }
 
 export interface Appointment {
@@ -83,6 +90,12 @@ export interface Appointment {
   status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED';
   amount: number;
   tip?: number;
+}
+
+/** Agendamento com dados do cliente para a área Agenda (parceiro) */
+export interface PartnerAgendaAppointment extends Appointment {
+  clientDisplayName: string;
+  clientPhone: string | null;
 }
 
 export interface Order {

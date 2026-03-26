@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { APP_NAME } from '../lib/branding';
 
 // Máscara telefone BR: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
 function formatPhone(value: string): string {
@@ -362,7 +363,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       <header className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-display font-bold text-gray-900">Portal do Administrador</h2>
-          <p className="text-gray-500">Gerenciamento global da plataforma BeautyHub.</p>
+          <p className="text-gray-500">Gerenciamento global da plataforma {APP_NAME}.</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)}

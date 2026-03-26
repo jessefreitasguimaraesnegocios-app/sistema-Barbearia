@@ -72,7 +72,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   const [cancelTarget, setCancelTarget] = useState<PartnerAgendaAppointment | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const minAgendaDate = todayLocalISO();
-  const maxAgendaDate = addDaysLocalISO(minAgendaDate, 7);
+  const maxAgendaDate = addDaysLocalISO(minAgendaDate, 15);
 
   useEffect(() => {
     setWorkdayStart(shop.workdayStart ?? '08:00');
@@ -175,7 +175,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   const submitReschedule = async () => {
     if (!rescheduleTarget || !rescheduleDate || !rescheduleTime) return;
     if (rescheduleDate < minAgendaDate || rescheduleDate > maxAgendaDate) {
-      alert('A nova data deve estar entre hoje e os próximos 7 dias.');
+      alert('A nova data deve estar entre hoje e os próximos 15 dias.');
       return;
     }
     const t =

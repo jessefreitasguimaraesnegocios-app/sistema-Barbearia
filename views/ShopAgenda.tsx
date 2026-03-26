@@ -32,6 +32,16 @@ function todayLocalISO(): string {
   return `${y}-${mo}-${da}`;
 }
 
+function addDaysLocalISO(baseIso: string, days: number): string {
+  const [y, m, d] = baseIso.split('-').map((x) => parseInt(x, 10));
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + days);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
 function waLink(phone: string | null | undefined, text: string): string | null {
   if (!phone) return null;
   const d = phone.replace(/\D/g, '');
@@ -61,6 +71,8 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<PartnerAgendaAppointment | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const minAgendaDate = todayLocalISO();
+  const maxAgendaDate = addDaysLocalISO(minAgendaDate, 7);
 
   useEffect(() => {
     setWorkdayStart(shop.workdayStart ?? '08:00');
@@ -162,6 +174,10 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
 
   const submitReschedule = async () => {
     if (!rescheduleTarget || !rescheduleDate || !rescheduleTime) return;
+    if (rescheduleDate < minAgendaDate || rescheduleDate > maxAgendaDate) {
+      alert('A nova data deve estar entre hoje e os próximos 7 dias.');
+      return;
+    }
     const t =
       rescheduleTime.length === 5 ? `${rescheduleTime}:00` : rescheduleTime.length >= 8 ? rescheduleTime : `${rescheduleTime}:00`;
     setRescheduleBusy(true);
@@ -202,7 +218,20 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       </header>
 
       <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
-        <h3 className="text-lg font-bold text-gray-900">Horário de funcionamento</h3>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <h3 className="text-lg font-bold text-gray-900">Horário de funcionamento</h3>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Data da agenda</label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              min={minAgendaDate}
+              max={maxAgendaDate}
+              className="p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+            />
+          </div>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Abre às</label>
@@ -279,22 +308,11 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       </section>
 
       <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">Grade do dia</h3>
-            <p className="text-sm text-gray-500">
-              Faixas livres e ocupadas por agendamentos <strong>pagos</strong> ou <strong>pendentes de pagamento</strong>.
-            </p>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Data</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
-            />
-          </div>
+        <div>
+          <h3 className="text-lg font-bold text-gray-900">Grade do dia</h3>
+          <p className="text-sm text-gray-500">
+            Faixas livres e ocupadas por agendamentos <strong>pagos</strong> ou <strong>pendentes de pagamento</strong>.
+          </p>
         </div>
         {slots.length === 0 ? (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-4">
@@ -420,6 +438,8 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                 type="date"
                 value={rescheduleDate}
                 onChange={(e) => setRescheduleDate(e.target.value)}
+                min={minAgendaDate}
+                max={maxAgendaDate}
                 className="w-full p-3 rounded-xl border border-gray-200"
               />
             </div>

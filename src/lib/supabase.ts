@@ -32,6 +32,5 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     storage,
     persistSession: true,
     lock: (_name, _acquireTimeout, fn) => fn(),
-    lockAcquireTimeout: 5000,
   },
 });

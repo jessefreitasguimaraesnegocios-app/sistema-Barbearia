@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, AppNotification } from '../types';
+import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +11,8 @@ interface LayoutProps {
   currentView: string;
   notifications?: AppNotification[];
   onMarkRead?: () => void;
+  /** Cor da marca da loja (parceiro): ativos do menu usam esta cor */
+  partnerBrandPrimary?: string | null;
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
@@ -19,18 +22,30 @@ const Layout: React.FC<LayoutProps> = ({
   onNavigate, 
   currentView, 
   notifications = [],
-  onMarkRead 
+  onMarkRead,
+  partnerBrandPrimary,
 }) => {
   const [showNotifCenter, setShowNotifCenter] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const shopNavActive =
+    'bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-[var(--shop-primary)] font-semibold';
+  const shopMobileActive = 'text-[var(--shop-primary)]';
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
+    <div
+      className="min-h-screen flex flex-col md:flex-row bg-gray-50"
+      style={user?.role === 'SHOP' ? shopPrimaryStyleVars(partnerBrandPrimary) : undefined}
+    >
       {/* Desktop Sidebar */}
       {user && (
         <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen sticky top-0 p-6">
           <div className="mb-10 flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg ${
+                user.role === 'SHOP' ? 'bg-[var(--shop-primary)]' : 'bg-indigo-600'
+              }`}
+            >
               <i className="fas fa-scissors"></i>
             </div>
             <h1 className="font-display text-xl font-bold text-gray-800">BeautyHub</h1>
@@ -58,25 +73,25 @@ const Layout: React.FC<LayoutProps> = ({
               <>
                 <button 
                   onClick={() => onNavigate('shop-dashboard')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-dashboard' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-dashboard' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
                 >
                   <i className="fas fa-store w-5"></i> Minha Loja
                 </button>
                 <button 
                   onClick={() => onNavigate('shop-orders')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-orders' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-orders' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
                 >
                   <i className="fas fa-shopping-bag w-5"></i> Pedidos
                 </button>
                 <button 
                   onClick={() => onNavigate('shop-wallet')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-wallet' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-wallet' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
                 >
                   <i className="fas fa-wallet w-5"></i> Saque
                 </button>
                 <button 
                   onClick={() => onNavigate('shop-customization')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-customization' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-customization' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
                 >
                   <i className="fas fa-palette w-5"></i> Personalizar
                 </button>
@@ -147,7 +162,11 @@ const Layout: React.FC<LayoutProps> = ({
       {/* Mobile Top Header */}
       <header className="md:hidden bg-white border-b border-gray-100 p-4 sticky top-0 z-50 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
+          <div
+            className={`w-8 h-8 rounded-lg flex items-center justify-center text-white ${
+              user?.role === 'SHOP' ? 'bg-[var(--shop-primary)]' : 'bg-indigo-600'
+            }`}
+          >
             <i className="fas fa-scissors text-xs"></i>
           </div>
           <h1 className="font-display text-lg font-bold text-gray-800">BeautyHub</h1>
@@ -244,19 +263,19 @@ const Layout: React.FC<LayoutProps> = ({
             </>
           ) : user.role === 'SHOP' ? (
             <>
-              <button onClick={() => onNavigate('shop-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'shop-dashboard' ? 'text-indigo-600' : 'text-gray-400'}`}>
+              <button onClick={() => onNavigate('shop-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'shop-dashboard' ? shopMobileActive : 'text-gray-400'}`}>
                 <i className="fas fa-store text-xl"></i>
                 <span className="text-[10px] mt-1">Painel</span>
               </button>
-              <button onClick={() => onNavigate('shop-wallet')} className={`flex flex-col items-center p-2 ${currentView === 'shop-wallet' ? 'text-indigo-600' : 'text-gray-400'}`}>
+              <button onClick={() => onNavigate('shop-wallet')} className={`flex flex-col items-center p-2 ${currentView === 'shop-wallet' ? shopMobileActive : 'text-gray-400'}`}>
                 <i className="fas fa-wallet text-xl"></i>
                 <span className="text-[10px] mt-1">Saque</span>
               </button>
-              <button onClick={() => onNavigate('shop-orders')} className={`flex flex-col items-center p-2 ${currentView === 'shop-orders' ? 'text-indigo-600' : 'text-gray-400'}`}>
+              <button onClick={() => onNavigate('shop-orders')} className={`flex flex-col items-center p-2 ${currentView === 'shop-orders' ? shopMobileActive : 'text-gray-400'}`}>
                 <i className="fas fa-shopping-bag text-xl"></i>
                 <span className="text-[10px] mt-1">Pedidos</span>
               </button>
-              <button onClick={() => onNavigate('shop-customization')} className={`flex flex-col items-center p-2 ${currentView === 'shop-customization' ? 'text-indigo-600' : 'text-gray-400'}`}>
+              <button onClick={() => onNavigate('shop-customization')} className={`flex flex-col items-center p-2 ${currentView === 'shop-customization' ? shopMobileActive : 'text-gray-400'}`}>
                 <i className="fas fa-cog text-xl"></i>
                 <span className="text-[10px] mt-1">Ajustes</span>
               </button>

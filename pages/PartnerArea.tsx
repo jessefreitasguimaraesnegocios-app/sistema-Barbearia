@@ -451,7 +451,15 @@ export default function PartnerArea() {
 
   if (!myShop) {
     return (
-      <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+      <Layout
+        user={user}
+        onLogout={handleLogout}
+        onNavigate={setCurrentView}
+        currentView={currentView}
+        notifications={notifications}
+        onMarkRead={markAllAsRead}
+        partnerBrandPrimary={myShop?.primaryColor}
+      >
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center text-gray-500">
             <i className="fas fa-spinner fa-spin text-4xl mb-4"></i>
@@ -463,7 +471,15 @@ export default function PartnerArea() {
   }
 
   return (
-    <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+    <Layout
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setCurrentView}
+      currentView={currentView}
+      notifications={notifications}
+      onMarkRead={markAllAsRead}
+      partnerBrandPrimary={myShop.primaryColor}
+    >
       {currentView === 'shop-dashboard' && (
         <ShopDashboard
           shop={myShop}

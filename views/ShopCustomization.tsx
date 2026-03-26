@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Shop, Product, Service, Professional } from '../types';
+import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
 
 const ASAAS_FEE = 1.99;
 
@@ -252,7 +253,10 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-24">
+    <div
+      className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-24"
+      style={shopPrimaryStyleVars(formData.primaryColor ?? shop.primaryColor)}
+    >
       {/* Hidden File Input */}
       <input 
         type="file" 
@@ -270,25 +274,25 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
         <div className="flex gap-2 p-1 bg-white rounded-2xl border border-gray-100 overflow-x-auto no-scrollbar max-w-full">
           <button 
             onClick={() => setActiveSection('GENERAL')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'GENERAL' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'GENERAL' ? 'bg-[var(--shop-primary)] text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
           >
             Perfil & Visual
           </button>
           <button 
             onClick={() => setActiveSection('SERVICES')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'SERVICES' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'SERVICES' ? 'bg-[var(--shop-primary)] text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
           >
             Serviços
           </button>
           <button 
             onClick={() => setActiveSection('PROFESSIONALS')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'PROFESSIONALS' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'PROFESSIONALS' ? 'bg-[var(--shop-primary)] text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
           >
             Equipe
           </button>
           <button 
             onClick={() => setActiveSection('INVENTORY')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'INVENTORY' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeSection === 'INVENTORY' ? 'bg-[var(--shop-primary)] text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
           >
             Lojinha & Estoque
           </button>
@@ -306,7 +310,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   type="text" 
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 transition-all" 
+                  className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[var(--shop-primary)] transition-all" 
                 />
               </div>
               <div>
@@ -315,7 +319,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   rows={4}
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 transition-all resize-none" 
+                  className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[var(--shop-primary)] transition-all resize-none" 
                 />
               </div>
             </div>
@@ -358,7 +362,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                       key={color}
                       type="button"
                       onClick={() => setFormData({ ...formData, primaryColor: color })}
-                      className={`w-10 h-10 rounded-full border-2 transition-all flex-shrink-0 ${(formData.primaryColor || shop.primaryColor || '#1a1a1a') === color ? 'border-gray-800 scale-110 ring-2 ring-offset-2 ring-gray-300' : 'border-transparent hover:scale-105'}`}
+                      className={`w-10 h-10 rounded-full border-2 transition-all flex-shrink-0 ${(formData.primaryColor || shop.primaryColor || '#1a1a1a') === color ? 'border-white scale-110 ring-2 ring-offset-2 ring-[var(--shop-primary)]' : 'border-transparent hover:scale-105'}`}
                       style={{ backgroundColor: color }}
                       title={color}
                     />
@@ -382,7 +386,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
             <button 
               onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
               disabled={isSaving}
-              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
+              className="w-full bg-[var(--shop-primary)] text-white py-4 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all disabled:opacity-70"
             >
               {isSaving ? 'Salvando...' : 'Salvar Alterações'}
             </button>
@@ -396,7 +400,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
               <select
                 value={pendingServiceType}
                 onChange={(e) => setPendingServiceType(e.target.value)}
-                className="flex-1 min-w-0 sm:min-w-[220px] bg-indigo-50/80 text-gray-900 px-4 py-2.5 rounded-xl text-sm font-semibold border border-indigo-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+                className="flex-1 min-w-0 sm:min-w-[220px] bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] text-gray-900 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[color-mix(in_srgb,var(--shop-primary)_22%,white)] focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none"
               >
                 <option value="">Escolha o tipo de serviço</option>
                 {standardTypesNotInShop.map((opt) => (
@@ -409,7 +413,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                 type="button"
                 onClick={addServiceFromStandard}
                 disabled={!pendingServiceType}
-                className="text-sm bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none shrink-0"
+                className="text-sm bg-[var(--shop-primary)] text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-95 disabled:opacity-50 disabled:pointer-events-none shrink-0"
               >
                 <i className="fas fa-plus text-xs"></i> Adicionar
               </button>
@@ -426,7 +430,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     type="checkbox"
                     checked={passFees}
                     onChange={() => setFormData({ ...formData, passFeesToCustomer: !passFees })}
-                    className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                    className="w-5 h-5 rounded border-gray-300 accent-[var(--shop-primary)] focus:ring-[var(--shop-primary)]"
                   />
                   <div>
                     <span className="font-semibold text-gray-900">Repassar taxas para os clientes</span>
@@ -462,7 +466,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                       <select
                         value={valueForSelect}
                         onChange={(e) => updateService(service.id, { name: e.target.value })}
-                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-bold text-gray-900"
+                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none font-bold text-gray-900"
                       >
                         {rowOptions.map((opt) => (
                           <option key={`${service.id}-${opt}`} value={opt}>
@@ -478,7 +482,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                         rows={2}
                         value={service.description} 
                         onChange={(e) => updateService(service.id, { description: e.target.value })}
-                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none resize-none"
+                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none resize-none"
                       />
                     </div>
                   </div>
@@ -496,12 +500,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                               const v = parseFloat(e.target.value) || 0;
                               setServiceNetValues(prev => ({ ...prev, [service.id]: v }));
                             }}
-                            className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-bold text-indigo-600"
+                            className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none font-bold text-[var(--shop-primary)]"
                           />
                         </div>
                         <div className="flex flex-col justify-end">
                           <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço mínimo a cobrar</label>
-                          <p className="bg-white p-3 rounded-xl text-sm border border-gray-200 font-bold text-indigo-600">R$ {minPrice.toFixed(2).replace('.', ',')}</p>
+                          <p className="bg-white p-3 rounded-xl text-sm border border-gray-200 font-bold text-[var(--shop-primary)]">R$ {minPrice.toFixed(2).replace('.', ',')}</p>
                         </div>
                       </>
                     ) : (
@@ -511,7 +515,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                           type="number" 
                           value={service.price} 
                           onChange={(e) => updateService(service.id, { price: parseFloat(e.target.value) })}
-                          className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-bold text-indigo-600"
+                          className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none font-bold text-[var(--shop-primary)]"
                         />
                       </div>
                     )}
@@ -521,7 +525,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                         type="number" 
                         value={service.duration} 
                         onChange={(e) => updateService(service.id, { duration: parseInt(e.target.value) })}
-                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none"
                       />
                     </div>
                   </div>
@@ -558,7 +562,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   }
                 }}
                 disabled={isSaving}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
+                className="w-full bg-[var(--shop-primary)] text-white py-4 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all disabled:opacity-70"
               >
                 {isSaving ? 'Salvando...' : 'Salvar Serviços'}
               </button>
@@ -570,7 +574,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
             <h3 className="text-xl font-bold text-gray-900">Gerenciar Equipe</h3>
             <button 
               onClick={addProfessional}
-              className="text-sm bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-100"
+              className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-[var(--shop-primary)] px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)]"
             >
               <i className="fas fa-plus text-xs"></i> Adicionar Funcionário
             </button>
@@ -606,7 +610,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                       type="text" 
                       value={pro.name} 
                       onChange={(e) => updateProfessional(pro.id, { name: e.target.value })}
-                      className="w-full bg-white px-3 py-1.5 rounded-lg text-sm border border-gray-100 focus:ring-2 focus:ring-indigo-600 outline-none font-bold text-gray-900"
+                      className="w-full bg-white px-3 py-1.5 rounded-lg text-sm border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)] outline-none font-bold text-gray-900"
                     />
                    </div>
                    <div>
@@ -615,7 +619,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                       type="text" 
                       value={pro.specialty} 
                       onChange={(e) => updateProfessional(pro.id, { specialty: e.target.value })}
-                      className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-indigo-600 outline-none text-indigo-600 font-medium"
+                      className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)] outline-none text-[var(--shop-primary)] font-medium"
                     />
                    </div>
                 </div>
@@ -627,7 +631,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
              <button
                 onClick={async () => { setIsSaving(true); try { await onSave(formData); } finally { setIsSaving(false); } }}
                 disabled={isSaving}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
+                className="w-full bg-[var(--shop-primary)] text-white py-4 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all disabled:opacity-70"
               >
                 {isSaving ? 'Salvando...' : 'Salvar Alterações na Equipe'}
               </button>
@@ -639,7 +643,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
             <h3 className="text-xl font-bold text-gray-900">Gerenciar Vitrine</h3>
             <button 
               onClick={addProduct}
-              className="text-sm bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-100"
+              className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-[var(--shop-primary)] px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)]"
             >
               <i className="fas fa-plus text-xs"></i> Novo Produto
             </button>
@@ -655,7 +659,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     type="checkbox"
                     checked={passFees}
                     onChange={() => setFormData({ ...formData, passFeesToCustomer: !passFees })}
-                    className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                    className="w-5 h-5 rounded border-gray-300 accent-[var(--shop-primary)] focus:ring-[var(--shop-primary)]"
                   />
                   <div>
                     <span className="font-semibold text-gray-900">Repassar taxas para os clientes</span>
@@ -688,7 +692,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                         value={product.name} 
                         onChange={(e) => updateProduct(product.id, { name: e.target.value })}
                         placeholder="Nome do produto"
-                        className="w-full bg-transparent font-bold text-gray-900 text-lg border-b border-gray-200 focus:outline-none focus:border-indigo-600"
+                        className="w-full bg-transparent font-bold text-gray-900 text-lg border-b border-gray-200 focus:outline-none focus:border-[var(--shop-primary)]"
                       />
                       <div className="flex gap-4 flex-wrap">
                         {passFees ? (
@@ -704,12 +708,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                                   const v = parseFloat(e.target.value) || 0;
                                   setProductNetValues(prev => ({ ...prev, [product.id]: v }));
                                 }}
-                                className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200 font-bold text-indigo-600"
+                                className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200 font-bold text-[var(--shop-primary)]"
                               />
                             </div>
                             <div className="flex-1 min-w-[120px]">
                               <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Preço mínimo a cobrar</label>
-                              <p className="bg-white p-2 rounded-lg text-sm border border-gray-200 font-bold text-indigo-600">R$ {minPrice.toFixed(2).replace('.', ',')}</p>
+                              <p className="bg-white p-2 rounded-lg text-sm border border-gray-200 font-bold text-[var(--shop-primary)]">R$ {minPrice.toFixed(2).replace('.', ',')}</p>
                             </div>
                           </>
                         ) : (
@@ -786,7 +790,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   }
                 }}
                 disabled={isSaving}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-70"
+                className="w-full bg-[var(--shop-primary)] text-white py-4 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all disabled:opacity-70"
               >
                 {isSaving ? 'Salvando...' : 'Salvar Inventário'}
               </button>

@@ -310,7 +310,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                   className={`rounded-xl p-3 text-center text-sm font-semibold border transition-all ${
                     busy
                       ? 'bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] border-[color-mix(in_srgb,var(--shop-primary)_35%,white)] text-gray-900'
-                      : 'bg-gray-50 border-gray-100 text-gray-500'
+                      : 'bg-emerald-50 border-emerald-100 text-emerald-700'
                   }`}
                 >
                   <p className="font-black">{slot}</p>

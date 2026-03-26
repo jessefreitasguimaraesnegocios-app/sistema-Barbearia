@@ -156,16 +156,20 @@ export default async function handler(
 
     let documents: Array<{ id: string; title: string; description?: string; status?: string; onboardingUrl?: string }> = [];
     if (docsRes.ok) {
-      const docsData = (await docsRes.json()) as { data?: Array<{ id?: string; title?: string; description?: string; status?: string; onboardingUrl?: string }> };
-      const list = docsData?.data ?? [];
+      const rawDocs = (await docsRes.json()) as
+        | { data?: Array<Record<string, unknown>> }
+        | Array<Record<string, unknown>>;
+      const list = Array.isArray(rawDocs) ? rawDocs : (rawDocs?.data ?? []);
       documents = list
-        .filter((d) => d?.id)
+        .filter((d) => d && (d.id != null || d.title != null))
         .map((d) => ({
-          id: String(d.id),
-          title: d.title ?? 'Documento',
-          description: d.description ?? undefined,
-          status: d.status ?? 'PENDING',
-          onboardingUrl: d.onboardingUrl ?? undefined,
+          id: String(d.id ?? d.title ?? Math.random().toString(36)),
+          title: String(d.title ?? d.description ?? 'Documento'),
+          description: d.description != null ? String(d.description) : undefined,
+          status: d.status != null ? String(d.status) : 'PENDING',
+          onboardingUrl: (d.onboardingUrl ?? d.onboarding_url) != null
+            ? String(d.onboardingUrl ?? d.onboarding_url).trim()
+            : undefined,
         }));
     }
 

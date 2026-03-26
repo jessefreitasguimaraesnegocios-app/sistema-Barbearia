@@ -254,10 +254,32 @@ const ShopOnboarding: React.FC<ShopOnboardingProps> = ({ shop }) => {
         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center text-gray-500">
           <i className="fas fa-file-alt text-4xl mb-3 opacity-50" />
           <p>Nenhum documento pendente no momento.</p>
+          <p className="text-sm mt-2 text-gray-400">
+            Para aprovar sua conta, complete também os <strong>Dados bancários</strong> no painel Asaas (Subcontas → sua conta). 
+            O link de envio de documentos pode aparecer após isso.
+          </p>
           <button
             type="button"
             onClick={fetchOnboarding}
             className="mt-3 text-sm text-indigo-600 font-semibold hover:underline"
+          >
+            Atualizar
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && data && !hasLink && documents.length > 0 && !data.error && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center text-amber-800">
+          <i className="fas fa-info-circle text-2xl mb-2" />
+          <p className="font-medium">Documentos pendentes, mas o link de envio ainda não está disponível.</p>
+          <p className="text-sm mt-2">
+            Complete os <strong>Dados bancários</strong> no painel Asaas (Subcontas → sua conta). 
+            Depois clique em &quot;Atualizar&quot; para verificar se o link apareceu.
+          </p>
+          <button
+            type="button"
+            onClick={fetchOnboarding}
+            className="mt-3 text-sm text-amber-700 font-semibold hover:underline"
           >
             Atualizar
           </button>

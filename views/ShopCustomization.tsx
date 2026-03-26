@@ -4,6 +4,40 @@ import { Shop, Product, Service, Professional } from '../types';
 
 const ASAAS_FEE = 1.99;
 
+/** Tipos de serviço padronizados (nome exibido e salvo em `Service.name`) */
+const STANDARD_SERVICE_OPTIONS: readonly string[] = [
+  'Corte',
+  'Corte+barba',
+  'Corte+barba+sombrancelha',
+  'Barba completa',
+  'Barba+pezinho',
+  'Barba+sombrancelha',
+  'Barba+sombrancelha+pezinho',
+  'Pezinho',
+  'Pezinho+sombrancelha',
+  'Pintura',
+  'Pintura+corte',
+  'Pintura+barba',
+  'Pintura+barba+pezinho',
+  'Pintura+barba+corte',
+];
+
+function normalizeServiceTypeName(s: string): string {
+  return s.trim().toLowerCase();
+}
+
+function isStandardServiceName(name: string): boolean {
+  const n = normalizeServiceTypeName(name);
+  return STANDARD_SERVICE_OPTIONS.some((opt) => normalizeServiceTypeName(opt) === n);
+}
+
+/** Se o nome for equivalente a um tipo padrão (ex.: "corte" → "Corte"), retorna o rótulo canônico */
+function matchStandardServiceName(name: string): string | null {
+  const n = normalizeServiceTypeName(name);
+  const hit = STANDARD_SERVICE_OPTIONS.find((opt) => normalizeServiceTypeName(opt) === n);
+  return hit ?? null;
+}
+
 /** Arredonda para cima para o próximo múltiplo de R$ 0,50 (ex.: 7,24 → 7,50; 7,65 → 8,00) */
 function roundUpToFiftyCents(value: number): number {
   return Math.ceil(value * 2) / 2;
@@ -24,7 +58,7 @@ function reverseCalcNetReceipt(priceCharged: number, platformFeePct: number): nu
 function dedupeServices(services: Service[]): Service[] {
   const seen = new Set<string>();
   return services.filter((s) => {
-    const k = `${s.name}|${s.price}|${s.duration}`;
+    const k = normalizeServiceTypeName(s.name);
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
@@ -57,7 +91,12 @@ interface ShopCustomizationProps {
 const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) => {
   const [formData, setFormData] = useState<Shop>(() => ({
     ...shop,
-    services: dedupeServices(shop.services || []),
+    services: dedupeServices(
+      (shop.services || []).map((s) => {
+        const std = matchStandardServiceName(s.name);
+        return { ...s, name: std ?? (s.name.trim() || s.name) };
+      })
+    ),
     professionals: dedupeProfessionals(shop.professionals || []),
     products: dedupeProducts(shop.products || []),
     passFeesToCustomer: shop.passFeesToCustomer ?? false,
@@ -71,6 +110,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ type: 'SHOP_PROFILE' | 'SHOP_BANNER' | 'PRO' | 'PRODUCT', id?: string } | null>(null);
+  const [pendingServiceType, setPendingServiceType] = useState<string>('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,15 +175,51 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
     setFormData({ ...formData, services: formData.services.filter(s => s.id !== id) });
   };
 
-  const addService = () => {
+  const addServiceFromStandard = () => {
+    if (!pendingServiceType) return;
     const newService: Service = {
       id: Math.random().toString(36).substr(2, 9),
-      name: 'Novo Serviço',
-      description: 'Breve descrição do que é realizado.',
+      name: pendingServiceType,
+      description: '',
       price: 0,
-      duration: 30
+      duration: 30,
     };
     setFormData({ ...formData, services: [...formData.services, newService] });
+    setPendingServiceType('');
+  };
+
+  const standardTypesNotInShop = STANDARD_SERVICE_OPTIONS.filter(
+    (opt) =>
+      !formData.services.some((s) => normalizeServiceTypeName(s.name) === normalizeServiceTypeName(opt))
+  );
+
+  const serviceTypeOptionsForRow = (serviceId: string): string[] => {
+    const taken = new Set(
+      formData.services
+        .filter((s) => s.id !== serviceId)
+        .map((s) => normalizeServiceTypeName(s.name))
+    );
+    const current = formData.services.find((s) => s.id === serviceId);
+    const currentNorm = current ? normalizeServiceTypeName(current.name) : '';
+    const std = STANDARD_SERVICE_OPTIONS.filter(
+      (opt) => !taken.has(normalizeServiceTypeName(opt)) || normalizeServiceTypeName(opt) === currentNorm
+    );
+    if (current && !isStandardServiceName(current.name) && current.name.trim()) {
+      const legacy = current.name.trim();
+      const legacyNorm = normalizeServiceTypeName(legacy);
+      if (!std.some((o) => normalizeServiceTypeName(o) === legacyNorm)) {
+        return [legacy, ...std];
+      }
+    }
+    const opts = [...std];
+    if (
+      current &&
+      current.name.trim() &&
+      !opts.some((o) => normalizeServiceTypeName(o) === currentNorm)
+    ) {
+      opts.unshift(current.name.trim());
+    }
+    return opts;
   };
 
   const updateService = (id: string, updates: Partial<Service>) => {
@@ -314,14 +390,30 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
         </div>
       ) : activeSection === 'SERVICES' ? (
         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm animate-fade-in">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-8">
             <h3 className="text-xl font-bold text-gray-900">Gerenciar Serviços</h3>
-            <button 
-              onClick={addService}
-              className="text-sm bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-100"
-            >
-              <i className="fas fa-plus text-xs"></i> Novo Serviço
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-stretch w-full sm:w-auto">
+              <select
+                value={pendingServiceType}
+                onChange={(e) => setPendingServiceType(e.target.value)}
+                className="flex-1 min-w-0 sm:min-w-[220px] bg-indigo-50/80 text-gray-900 px-4 py-2.5 rounded-xl text-sm font-semibold border border-indigo-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+              >
+                <option value="">Escolha o tipo de serviço</option>
+                {standardTypesNotInShop.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={addServiceFromStandard}
+                disabled={!pendingServiceType}
+                className="text-sm bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none shrink-0"
+              >
+                <i className="fas fa-plus text-xs"></i> Adicionar
+              </button>
+            </div>
           </div>
 
           {(() => {
@@ -345,7 +437,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                 </label>
 
           <div className="space-y-4">
-            {formData.services.map(service => {
+            {formData.services.map((service) => {
+              const rowOptions = serviceTypeOptionsForRow(service.id);
+              const valueForSelect =
+                rowOptions.find(
+                  (o) => normalizeServiceTypeName(o) === normalizeServiceTypeName(service.name)
+                ) ?? service.name;
               const netFromReverse = passFees ? Math.max(0, reverseCalcNetReceipt(service.price, platformFeePct)) : 0;
               const valorReceber = serviceNetValues[service.id] ?? (passFees ? netFromReverse : service.price);
               const minPrice = passFees ? calcMinPrice(Number(valorReceber) || 0, platformFeePct) : service.price;
@@ -361,13 +458,19 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Nome do Serviço</label>
-                      <input 
-                        type="text" 
-                        value={service.name} 
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Tipo de serviço</label>
+                      <select
+                        value={valueForSelect}
                         onChange={(e) => updateService(service.id, { name: e.target.value })}
                         className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none font-bold text-gray-900"
-                      />
+                      >
+                        {rowOptions.map((opt) => (
+                          <option key={`${service.id}-${opt}`} value={opt}>
+                            {opt}
+                            {!isStandardServiceName(opt) ? ' (personalizado)' : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Descrição</label>

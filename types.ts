@@ -95,6 +95,13 @@ export interface Order {
   date: string;
 }
 
+/** Pedido da lojinha com dados do cliente (área do parceiro). */
+export interface ShopPartnerOrderRow extends Order {
+  createdAtIso: string;
+  clientDisplayName: string;
+  clientAvatarUrl: string | null;
+}
+
 export interface AppNotification {
   id: string;
   title: string;

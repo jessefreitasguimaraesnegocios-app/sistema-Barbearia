@@ -6,8 +6,9 @@ import ShopDashboard from '../views/ShopDashboard';
 import ShopCustomization from '../views/ShopCustomization';
 import ShopOnboarding from '../views/ShopOnboarding';
 import ShopWallet from '../views/ShopWallet';
+import ShopOrders from '../views/ShopOrders';
 import { LoginForm } from '../components/LoginForm';
-import { Shop, Appointment, Order } from '../types';
+import { Shop, Appointment, Order, ShopPartnerOrderRow } from '../types';
 import { supabase } from '../src/lib/supabase';
 
 export default function PartnerArea() {
@@ -16,8 +17,16 @@ export default function PartnerArea() {
   const [shops, setShops] = useState<Shop[]>([]);
   const [myShop, setMyShop] = useState<Shop | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [currentView, setCurrentView] = useState<'shop-dashboard' | 'shop-onboarding' | 'shop-wallet' | 'shop-customization'>('shop-dashboard');
+  const [shopPartnerOrderRows, setShopPartnerOrderRows] = useState<ShopPartnerOrderRow[]>([]);
+  const [currentView, setCurrentView] = useState<
+    'shop-dashboard' | 'shop-onboarding' | 'shop-wallet' | 'shop-customization' | 'shop-orders'
+  >('shop-dashboard');
+
+  const dashboardOrders: Order[] = React.useMemo(
+    () =>
+      shopPartnerOrderRows.map(({ createdAtIso, clientDisplayName, clientAvatarUrl, ...rest }) => rest),
+    [shopPartnerOrderRows]
+  );
   const [customizationRefreshKey, setCustomizationRefreshKey] = useState(0);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
 
@@ -45,53 +54,75 @@ export default function PartnerArea() {
     })();
   }, [user?.shopId]);
 
-  // Carregar agendamentos e pedidos da loja para o dashboard do parceiro
-  useEffect(() => {
+  const loadAppointmentsAndOrders = React.useCallback(async () => {
     if (!myShop?.id) return;
     const shopId = myShop.id;
-    (async () => {
-      const { data: aptRows, error: aptErr } = await supabase
-        .from('appointments')
-        .select('id, client_id, shop_id, service_id, professional_id, date, time, status, amount')
-        .eq('shop_id', shopId)
-        .order('date', { ascending: true })
-        .order('time', { ascending: true });
-      if (!aptErr && aptRows) {
-        const mapped: Appointment[] = aptRows.map((r: Record<string, unknown>) => ({
-          id: String(r.id),
-          clientId: String(r.client_id),
-          shopId: String(r.shop_id),
-          serviceId: String(r.service_id),
-          professionalId: String(r.professional_id),
-          date: typeof r.date === 'string' ? r.date.split('T')[0] : String(r.date),
-          time: typeof r.time === 'string' ? String(r.time).slice(0, 8) : String(r.time),
-          status: (r.status as Appointment['status']) || 'PENDING',
-          amount: Number(r.amount) || 0,
-        }));
-        setAppointments(mapped);
-      }
 
-      const { data: ordRows, error: ordErr } = await supabase
-        .from('orders')
-        .select('id, client_id, shop_id, items, total, status, created_at')
-        .eq('shop_id', shopId)
-        .order('created_at', { ascending: false });
-      if (!ordErr && ordRows) {
-        const mapped: Order[] = ordRows.map((r: Record<string, unknown>) => ({
-          id: String(r.id),
-          clientId: String(r.client_id),
-          shopId: String(r.shop_id),
-          items: Array.isArray(r.items) ? (r.items as Order['items']) : [],
-          total: Number(r.total) || 0,
-          status: (r.status as Order['status']) || 'PENDING',
-          date: r.created_at
-            ? new Date(String(r.created_at)).toLocaleDateString('pt-BR')
-            : new Date().toLocaleDateString('pt-BR'),
-        }));
-        setOrders(mapped);
+    const { data: aptRows, error: aptErr } = await supabase
+      .from('appointments')
+      .select('id, client_id, shop_id, service_id, professional_id, date, time, status, amount')
+      .eq('shop_id', shopId)
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+    if (!aptErr && aptRows) {
+      const mapped: Appointment[] = aptRows.map((r: Record<string, unknown>) => ({
+        id: String(r.id),
+        clientId: String(r.client_id),
+        shopId: String(r.shop_id),
+        serviceId: String(r.service_id),
+        professionalId: String(r.professional_id),
+        date: typeof r.date === 'string' ? r.date.split('T')[0] : String(r.date),
+        time: typeof r.time === 'string' ? String(r.time).slice(0, 8) : String(r.time),
+        status: (r.status as Appointment['status']) || 'PENDING',
+        amount: Number(r.amount) || 0,
+      }));
+      setAppointments(mapped);
+    }
+
+    const { data: ordRows, error: ordErr } = await supabase
+      .from('orders')
+      .select('id, client_id, shop_id, items, total, status, created_at')
+      .eq('shop_id', shopId)
+      .order('created_at', { ascending: false });
+    if (ordErr || !ordRows) {
+      setShopPartnerOrderRows([]);
+      return;
+    }
+
+    const clientIds = [...new Set(ordRows.map((r) => String((r as { client_id: string }).client_id)))];
+    const profById = new Map<string, { full_name?: string | null; avatar_url?: string | null }>();
+    if (clientIds.length > 0) {
+      const { data: profs } = await supabase.from('profiles').select('id, full_name, avatar_url').in('id', clientIds);
+      for (const p of profs ?? []) {
+        const row = p as { id: string; full_name?: string | null; avatar_url?: string | null };
+        profById.set(String(row.id), { full_name: row.full_name, avatar_url: row.avatar_url });
       }
-    })();
+    }
+
+    const rows: ShopPartnerOrderRow[] = ordRows.map((r: Record<string, unknown>) => {
+      const pid = String(r.client_id);
+      const createdRaw = r.created_at ? String(r.created_at) : new Date().toISOString();
+      const prof = profById.get(pid);
+      const nameFromProf = prof?.full_name?.trim();
+      return {
+        id: String(r.id),
+        clientId: pid,
+        shopId: String(r.shop_id),
+        items: Array.isArray(r.items) ? (r.items as Order['items']) : [],
+        total: Number(r.total) || 0,
+        status: (r.status as Order['status']) || 'PENDING',
+        date: new Date(createdRaw).toLocaleDateString('pt-BR'),
+        createdAtIso: createdRaw,
+        clientDisplayName: nameFromProf || `Cliente #${pid.slice(0, 8)}`,
+        clientAvatarUrl: prof?.avatar_url?.trim() || null,
+      };
+    });
+    setShopPartnerOrderRows(rows);
   }, [myShop?.id]);
+
+  useEffect(() => {
+    loadAppointmentsAndOrders();
+  }, [loadAppointmentsAndOrders]);
 
   const refreshAppointments = React.useCallback(async () => {
     if (!myShop?.id) return;
@@ -131,6 +162,24 @@ export default function PartnerArea() {
     }
     await refreshAppointments();
   }, [myShop?.id, refreshAppointments]);
+
+  const markOrderDelivered = React.useCallback(
+    async (orderId: string) => {
+      if (!myShop?.id) return;
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'DELIVERED' })
+        .eq('id', orderId)
+        .eq('shop_id', myShop.id)
+        .eq('status', 'PAID');
+      if (error) {
+        alert('Não foi possível marcar o pedido como entregue. Tente novamente.');
+        return;
+      }
+      await loadAppointmentsAndOrders();
+    },
+    [myShop?.id, loadAppointmentsAndOrders]
+  );
 
   function mapShopFromDb(d: any): Shop {
     const rawServices = (d.services || []);
@@ -419,13 +468,16 @@ export default function PartnerArea() {
         <ShopDashboard
           shop={myShop}
           appointments={appointments}
-          orders={orders}
+          orders={dashboardOrders}
           onMarkAppointmentCompleted={markAppointmentCompleted}
           onGoToOnboarding={() => setCurrentView('shop-onboarding')}
         />
       )}
       {currentView === 'shop-onboarding' && <ShopOnboarding shop={myShop} />}
       {currentView === 'shop-wallet' && <ShopWallet shop={myShop} />}
+      {currentView === 'shop-orders' && (
+        <ShopOrders shop={myShop} orders={shopPartnerOrderRows} onMarkDelivered={markOrderDelivered} />
+      )}
       {currentView === 'shop-customization' && <ShopCustomization key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`} shop={myShop} onSave={updateShop} />}
     </Layout>
   );

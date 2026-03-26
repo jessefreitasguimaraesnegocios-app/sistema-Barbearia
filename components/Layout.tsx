@@ -63,6 +63,12 @@ const Layout: React.FC<LayoutProps> = ({
                   <i className="fas fa-store w-5"></i> Minha Loja
                 </button>
                 <button 
+                  onClick={() => onNavigate('shop-orders')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-orders' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <i className="fas fa-shopping-bag w-5"></i> Pedidos
+                </button>
+                <button 
                   onClick={() => onNavigate('shop-wallet')}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-wallet' ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
                 >
@@ -246,8 +252,8 @@ const Layout: React.FC<LayoutProps> = ({
                 <i className="fas fa-wallet text-xl"></i>
                 <span className="text-[10px] mt-1">Saque</span>
               </button>
-              <button onClick={() => onNavigate('shop-appointments')} className={`flex flex-col items-center p-2 ${currentView === 'shop-appointments' ? 'text-indigo-600' : 'text-gray-400'}`}>
-                <i className="fas fa-list text-xl"></i>
+              <button onClick={() => onNavigate('shop-orders')} className={`flex flex-col items-center p-2 ${currentView === 'shop-orders' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                <i className="fas fa-shopping-bag text-xl"></i>
                 <span className="text-[10px] mt-1">Pedidos</span>
               </button>
               <button onClick={() => onNavigate('shop-customization')} className={`flex flex-col items-center p-2 ${currentView === 'shop-customization' ? 'text-indigo-600' : 'text-gray-400'}`}>

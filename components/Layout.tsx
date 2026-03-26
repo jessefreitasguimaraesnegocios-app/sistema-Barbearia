@@ -31,7 +31,8 @@ const Layout: React.FC<LayoutProps> = ({
 
   const shopNavActive =
     'bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-[var(--shop-primary)] font-semibold';
-  const shopMobileActive = 'text-[var(--shop-primary)]';
+  const shopMobileActive =
+    'text-[var(--shop-primary)] bg-[color-mix(in_srgb,var(--shop-primary)_14%,white)] rounded-xl';
 
   return (
     <div

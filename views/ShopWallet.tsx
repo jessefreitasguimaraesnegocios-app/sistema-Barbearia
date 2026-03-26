@@ -194,7 +194,7 @@ const ShopWallet: React.FC<ShopWalletProps> = () => {
           <i className="fas fa-exclamation-circle text-red-500 mt-0.5" />
           <div>
             <p className="font-medium">{error}</p>
-            <p className="text-sm mt-1">Verifique se sua conta de pagamentos está aprovada e a chave da subconta configurada (área Documentos).</p>
+            <p className="text-sm mt-1">Verifique se sua conta de pagamentos está aprovada e a chave da subconta configurada. Em <strong>Minha Loja</strong>, use o aviso de aprovação da conta ou fale com o suporte.</p>
             <button type="button" onClick={fetchWallet} className="mt-3 text-sm font-semibold text-red-600 hover:underline">
               Tentar novamente
             </button>

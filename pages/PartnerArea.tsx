@@ -415,7 +415,15 @@ export default function PartnerArea() {
 
   return (
     <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
-      {currentView === 'shop-dashboard' && <ShopDashboard shop={myShop} appointments={appointments} orders={orders} onMarkAppointmentCompleted={markAppointmentCompleted} />}
+      {currentView === 'shop-dashboard' && (
+        <ShopDashboard
+          shop={myShop}
+          appointments={appointments}
+          orders={orders}
+          onMarkAppointmentCompleted={markAppointmentCompleted}
+          onGoToOnboarding={() => setCurrentView('shop-onboarding')}
+        />
+      )}
       {currentView === 'shop-onboarding' && <ShopOnboarding shop={myShop} />}
       {currentView === 'shop-wallet' && <ShopWallet shop={myShop} />}
       {currentView === 'shop-customization' && <ShopCustomization key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`} shop={myShop} onSave={updateShop} />}

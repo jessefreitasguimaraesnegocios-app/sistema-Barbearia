@@ -21,8 +21,6 @@ export interface Service {
   description: string;
   price: number;
   duration: number; // in minutes
-  /** Com repasse de taxas: valor líquido que o parceiro quer receber (persistido no banco) */
-  desiredNetReceipt?: number;
 }
 
 export interface Professional {
@@ -41,8 +39,6 @@ export interface Product {
   category: string;
   image: string;
   stock: number;
-  /** Com repasse de taxas: valor líquido que o parceiro quer receber (persistido no banco) */
-  desiredNetReceipt?: number;
 }
 
 export interface Shop {
@@ -62,7 +58,7 @@ export interface Shop {
   subscriptionActive: boolean;
   subscriptionAmount?: number;
   splitPercent?: number;
-  /** Se true, na edição de serviços o parceiro informa "valor a receber" e o app calcula o preço mínimo a cobrar (taxa + Asaas), arredondado em R$ 0,50 */
+  /** Se true, na edição de serviços o parceiro informa "valor a receber" e o app calcula o preço mínimo a cobrar (taxa + Asaas), com arredondamento ,50 / próximo real */
   passFeesToCustomer?: boolean;
   rating: number;
   asaasWalletId?: string;

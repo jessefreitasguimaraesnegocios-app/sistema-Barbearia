@@ -305,7 +305,6 @@ export default function PartnerArea() {
       description: s.description || '',
       price: Number(s.price),
       duration: Number(s.duration),
-      desiredNetReceipt: s.desired_net_receipt != null ? Number(s.desired_net_receipt) : undefined,
     }));
     const professionals = dedupeByKey(rawProfessionals, (p: any) => `${(p.name || '').trim()}|${(p.specialty || '').trim()}`).map((p: any) => ({
       id: p.id,
@@ -322,7 +321,6 @@ export default function PartnerArea() {
       category: p.category || 'Geral',
       image: p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974',
       stock: Number(p.stock) || 0,
-      desiredNetReceipt: p.desired_net_receipt != null ? Number(p.desired_net_receipt) : undefined,
     }));
     return {
       ...d,
@@ -443,10 +441,7 @@ export default function PartnerArea() {
           description: s.description ?? null,
           price: Number(s.price),
           duration: Number(s.duration),
-          desired_net_receipt:
-            updated.passFeesToCustomer === true && s.desiredNetReceipt != null
-              ? Number(s.desiredNetReceipt)
-              : null,
+          desired_net_receipt: null,
         }).match({ id: s.id, shop_id: shopId });
         if (e) throw new Error(`Serviços: ${e.message}`);
       } else {
@@ -456,10 +451,7 @@ export default function PartnerArea() {
           description: s.description ?? null,
           price: Number(s.price),
           duration: Number(s.duration),
-          desired_net_receipt:
-            updated.passFeesToCustomer === true && s.desiredNetReceipt != null
-              ? Number(s.desiredNetReceipt)
-              : null,
+          desired_net_receipt: null,
         });
         if (e) throw new Error(`Serviços: ${e.message}`);
       }
@@ -494,10 +486,7 @@ export default function PartnerArea() {
           category: p.category ?? 'Geral',
           image: p.image ?? null,
           stock: Number(p.stock) || 0,
-          desired_net_receipt:
-            updated.passFeesToCustomer === true && p.desiredNetReceipt != null
-              ? Number(p.desiredNetReceipt)
-              : null,
+          desired_net_receipt: null,
         }).match({ id: p.id, shop_id: shopId });
         if (e) throw new Error(`Produtos: ${e.message}`);
       } else {
@@ -510,10 +499,7 @@ export default function PartnerArea() {
           category: p.category ?? 'Geral',
           image: p.image ?? null,
           stock: Number(p.stock) || 0,
-          desired_net_receipt:
-            updated.passFeesToCustomer === true && p.desiredNetReceipt != null
-              ? Number(p.desiredNetReceipt)
-              : null,
+          desired_net_receipt: null,
         });
         if (e) throw new Error(`Produtos: ${e.message}`);
       }

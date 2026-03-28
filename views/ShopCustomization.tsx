@@ -57,15 +57,23 @@ function formatServiceDurationLabel(minutes: number): string {
   return `${h} h ${m}`;
 }
 
-/** Arredonda para cima para o próximo múltiplo de R$ 0,50 (ex.: 7,24 → 7,50; 7,65 → 8,00) */
-function roundUpToFiftyCents(value: number): number {
-  return Math.ceil(value * 2) / 2;
+/**
+ * Preço ao cliente: centavos abaixo de ,50 → sobe para ,50 no mesmo real (ex. 106,30 → 106,50);
+ * de ,50 a ,99 → próximo real inteiro (ex. 106,99 → 107).
+ */
+function roundCustomerChargeBRL(value: number): number {
+  const x = Math.round(value * 100) / 100;
+  const intPart = Math.trunc(x);
+  const frac = x - intPart;
+  if (frac <= 1e-9) return intPart;
+  if (frac < 0.5 - 1e-9) return intPart + 0.5;
+  return intPart + 1;
 }
 
-/** Calcula o preço mínimo a cobrar: valor que o parceiro quer receber + taxa plataforma (%) + R$ 1,99 Asaas, arredondado para cima em R$ 0,50 */
+/** Calcula o preço mínimo a cobrar: líquido desejado + taxa plataforma (%) + R$ 1,99 Asaas, com arredondamento para o cliente (regra ,50 / próximo real) */
 function calcMinPrice(valorReceber: number, platformFeePct: number): number {
   const raw = valorReceber * (1 + platformFeePct / 100) + ASAAS_FEE;
-  return roundUpToFiftyCents(raw);
+  return roundCustomerChargeBRL(raw);
 }
 
 /** Reverso: a partir do preço final (já arredondado), estima o "valor a receber" para exibição quando não temos o valor digitado */
@@ -457,7 +465,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   <div>
                     <span className="font-semibold text-gray-900">Repassar taxas para os clientes</span>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Ative para informar o valor que você quer receber; o app calcula o preço mínimo a cobrar (sua taxa + R$ 1,99 Asaas), arredondado em R$ 0,50.
+                      Ative para informar o valor que você vai receber; o app calcula o preço mínimo a cobrar (sua taxa + R$ 1,99 Asaas): centavos abaixo de ,50 viram ,50; de ,50 a ,99 sobe para o próximo real.
                     </p>
                   </div>
                 </label>
@@ -470,15 +478,10 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   (o) => normalizeServiceTypeName(o) === normalizeServiceTypeName(service.name)
                 ) ?? service.name;
               const netFromReverse = passFees ? Math.max(0, reverseCalcNetReceipt(service.price, platformFeePct)) : 0;
-              const valorReceber =
-                serviceNetValues[service.id] ??
-                (passFees ? (service.desiredNetReceipt ?? netFromReverse) : service.price);
+              const valorReceber = serviceNetValues[service.id] ?? (passFees ? netFromReverse : service.price);
               const minPrice = passFees ? calcMinPrice(Number(valorReceber) || 0, platformFeePct) : service.price;
               const showEmptyNetInput =
-                passFees &&
-                valorReceber === 0 &&
-                !(service.id in serviceNetValues) &&
-                service.desiredNetReceipt == null;
+                passFees && valorReceber === 0 && !(service.id in serviceNetValues);
               return (
               <div key={service.id} className="p-6 rounded-2xl bg-gray-50 border border-gray-100 space-y-4 group relative">
                 <button 
@@ -519,7 +522,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     {passFees ? (
                       <>
                         <div>
-                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Valor que você quer receber (R$)</label>
+                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Valor que você vai receber (R$)</label>
                           <input 
                             type="number"
                             step="0.01"
@@ -583,25 +586,18 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     const dataToSave = passFees
                       ? {
                           ...formData,
-                          services: formData.services.map((s) => {
-                            const netUsed = Math.max(
-                              0,
-                              serviceNetValues[s.id] ??
-                                s.desiredNetReceipt ??
-                                reverseCalcNetReceipt(s.price, platformFeePct)
-                            );
-                            const roundedNet = Math.round(netUsed * 100) / 100;
-                            return {
-                              ...s,
-                              price: calcMinPrice(roundedNet, platformFeePct),
-                              desiredNetReceipt: roundedNet,
-                            };
-                          }),
+                          services: formData.services.map((s) => ({
+                            ...s,
+                            price: calcMinPrice(
+                              Math.max(
+                                0,
+                                serviceNetValues[s.id] ?? reverseCalcNetReceipt(s.price, platformFeePct)
+                              ),
+                              platformFeePct
+                            ),
+                          })),
                         }
-                      : {
-                          ...formData,
-                          services: formData.services.map(({ desiredNetReceipt: _dn, ...s }) => ({ ...s })),
-                        };
+                      : formData;
                     await onSave(dataToSave);
                   } finally {
                     setIsSaving(false);
@@ -710,7 +706,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   <div>
                     <span className="font-semibold text-gray-900">Repassar taxas para os clientes</span>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Ative para informar o valor que você quer receber por produto; o app calcula o preço mínimo a cobrar (sua taxa + R$ 1,99 Asaas), arredondado em R$ 0,50.
+                      Ative para informar o valor que você vai receber por produto; o app calcula o preço mínimo a cobrar (sua taxa + R$ 1,99 Asaas): centavos abaixo de ,50 viram ,50; de ,50 a ,99 sobe para o próximo real.
                     </p>
                   </div>
                 </label>
@@ -718,15 +714,10 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
           <div className="space-y-4">
             {formData.products.map(product => {
               const netFromReverse = passFees ? Math.max(0, reverseCalcNetReceipt(product.price, platformFeePct)) : 0;
-              const valorReceber =
-                productNetValues[product.id] ??
-                (passFees ? (product.desiredNetReceipt ?? netFromReverse) : product.price);
+              const valorReceber = productNetValues[product.id] ?? (passFees ? netFromReverse : product.price);
               const minPrice = passFees ? calcMinPrice(Number(valorReceber) || 0, platformFeePct) : product.price;
               const showEmptyProductNetInput =
-                passFees &&
-                valorReceber === 0 &&
-                !(product.id in productNetValues) &&
-                product.desiredNetReceipt == null;
+                passFees && valorReceber === 0 && !(product.id in productNetValues);
               return (
               <div key={product.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col md:flex-row gap-6">
                  <div 
@@ -751,7 +742,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                         {passFees ? (
                           <>
                             <div className="flex-1 min-w-[120px]">
-                              <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Valor que você quer receber (R$)</label>
+                              <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Valor que você vai receber (R$)</label>
                               <input 
                                 type="number"
                                 step="0.01"
@@ -828,25 +819,18 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     const dataToSave = passFees
                       ? {
                           ...formData,
-                          products: formData.products.map((p) => {
-                            const netUsed = Math.max(
-                              0,
-                              productNetValues[p.id] ??
-                                p.desiredNetReceipt ??
-                                reverseCalcNetReceipt(p.price, platformFeePct)
-                            );
-                            const roundedNet = Math.round(netUsed * 100) / 100;
-                            return {
-                              ...p,
-                              price: calcMinPrice(roundedNet, platformFeePct),
-                              desiredNetReceipt: roundedNet,
-                            };
-                          }),
+                          products: formData.products.map((p) => ({
+                            ...p,
+                            price: calcMinPrice(
+                              Math.max(
+                                0,
+                                productNetValues[p.id] ?? reverseCalcNetReceipt(p.price, platformFeePct)
+                              ),
+                              platformFeePct
+                            ),
+                          })),
                         }
-                      : {
-                          ...formData,
-                          products: formData.products.map(({ desiredNetReceipt: _dn, ...p }) => ({ ...p })),
-                        };
+                      : formData;
                     await onSave(dataToSave);
                   } finally {
                     setIsSaving(false);

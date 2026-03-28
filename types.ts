@@ -21,6 +21,8 @@ export interface Service {
   description: string;
   price: number;
   duration: number; // in minutes
+  /** Com repasse de taxas: valor líquido que o parceiro quer receber (persistido no banco) */
+  desiredNetReceipt?: number;
 }
 
 export interface Professional {
@@ -39,6 +41,8 @@ export interface Product {
   category: string;
   image: string;
   stock: number;
+  /** Com repasse de taxas: valor líquido que o parceiro quer receber (persistido no banco) */
+  desiredNetReceipt?: number;
 }
 
 export interface Shop {

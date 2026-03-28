@@ -142,7 +142,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         data = (await apiRes.json().catch(() => ({}))) as Record<string, unknown>;
       }
 
-      console.log('[create-shop] response:', { status: responseStatus, data });
+      if (import.meta.env.DEV) {
+        console.log('[create-shop] response:', { status: responseStatus, data });
+      }
 
       if (!responseOk) {
         const msg = (data?.error as string) || (responseStatus === 401 ? 'Sessão expirada. Faça login novamente.' : 'Erro ao cadastrar barbearia.');

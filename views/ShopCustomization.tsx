@@ -39,6 +39,24 @@ function matchStandardServiceName(name: string): string | null {
   return hit ?? null;
 }
 
+/** 15 min até 3 h, de 15 em 15 */
+const SERVICE_DURATION_MINUTES: readonly number[] = Array.from({ length: 12 }, (_, i) => (i + 1) * 15);
+
+function snapServiceDurationToSlot(minutes: number): number {
+  const n = Number(minutes);
+  if (!Number.isFinite(n) || n <= 0) return 30;
+  const clamped = Math.min(180, Math.max(15, n));
+  return Math.round(clamped / 15) * 15;
+}
+
+function formatServiceDurationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (m === 0) return h === 1 ? '1 h' : `${h} h`;
+  return `${h} h ${m}`;
+}
+
 /** Arredonda para cima para o próximo múltiplo de R$ 0,50 (ex.: 7,24 → 7,50; 7,65 → 8,00) */
 function roundUpToFiftyCents(value: number): number {
   return Math.ceil(value * 2) / 2;
@@ -95,7 +113,11 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
     services: dedupeServices(
       (shop.services || []).map((s) => {
         const std = matchStandardServiceName(s.name);
-        return { ...s, name: std ?? (s.name.trim() || s.name) };
+        return {
+          ...s,
+          name: std ?? (s.name.trim() || s.name),
+          duration: snapServiceDurationToSlot(Number(s.duration)),
+        };
       })
     ),
     professionals: dedupeProfessionals(shop.professionals || []),
@@ -448,8 +470,15 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                   (o) => normalizeServiceTypeName(o) === normalizeServiceTypeName(service.name)
                 ) ?? service.name;
               const netFromReverse = passFees ? Math.max(0, reverseCalcNetReceipt(service.price, platformFeePct)) : 0;
-              const valorReceber = serviceNetValues[service.id] ?? (passFees ? netFromReverse : service.price);
+              const valorReceber =
+                serviceNetValues[service.id] ??
+                (passFees ? (service.desiredNetReceipt ?? netFromReverse) : service.price);
               const minPrice = passFees ? calcMinPrice(Number(valorReceber) || 0, platformFeePct) : service.price;
+              const showEmptyNetInput =
+                passFees &&
+                valorReceber === 0 &&
+                !(service.id in serviceNetValues) &&
+                service.desiredNetReceipt == null;
               return (
               <div key={service.id} className="p-6 rounded-2xl bg-gray-50 border border-gray-100 space-y-4 group relative">
                 <button 
@@ -495,7 +524,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                             type="number"
                             step="0.01"
                             min="0"
-                            value={valorReceber === 0 && !(service.id in serviceNetValues) ? '' : valorReceber}
+                            value={showEmptyNetInput ? '' : valorReceber}
                             onChange={(e) => {
                               const v = parseFloat(e.target.value) || 0;
                               setServiceNetValues(prev => ({ ...prev, [service.id]: v }));
@@ -520,13 +549,20 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                       </div>
                     )}
                     <div className={passFees ? 'col-span-2' : ''}>
-                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Duração (min)</label>
-                      <input 
-                        type="number" 
-                        value={service.duration} 
-                        onChange={(e) => updateService(service.id, { duration: parseInt(e.target.value) })}
-                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none"
-                      />
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Duração</label>
+                      <select
+                        value={service.duration}
+                        onChange={(e) =>
+                          updateService(service.id, { duration: Number(e.target.value) })
+                        }
+                        className="w-full bg-white p-3 rounded-xl text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--shop-primary)] focus:border-transparent outline-none font-bold text-gray-900"
+                      >
+                        {SERVICE_DURATION_MINUTES.map((m) => (
+                          <option key={m} value={m}>
+                            {formatServiceDurationLabel(m)}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -547,15 +583,25 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     const dataToSave = passFees
                       ? {
                           ...formData,
-                          services: formData.services.map(s => ({
-                            ...s,
-                            price: calcMinPrice(
-                              Math.max(0, serviceNetValues[s.id] ?? reverseCalcNetReceipt(s.price, platformFeePct)),
-                              platformFeePct
-                            ),
-                          })),
+                          services: formData.services.map((s) => {
+                            const netUsed = Math.max(
+                              0,
+                              serviceNetValues[s.id] ??
+                                s.desiredNetReceipt ??
+                                reverseCalcNetReceipt(s.price, platformFeePct)
+                            );
+                            const roundedNet = Math.round(netUsed * 100) / 100;
+                            return {
+                              ...s,
+                              price: calcMinPrice(roundedNet, platformFeePct),
+                              desiredNetReceipt: roundedNet,
+                            };
+                          }),
                         }
-                      : formData;
+                      : {
+                          ...formData,
+                          services: formData.services.map(({ desiredNetReceipt: _dn, ...s }) => ({ ...s })),
+                        };
                     await onSave(dataToSave);
                   } finally {
                     setIsSaving(false);
@@ -672,8 +718,15 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
           <div className="space-y-4">
             {formData.products.map(product => {
               const netFromReverse = passFees ? Math.max(0, reverseCalcNetReceipt(product.price, platformFeePct)) : 0;
-              const valorReceber = productNetValues[product.id] ?? (passFees ? netFromReverse : product.price);
+              const valorReceber =
+                productNetValues[product.id] ??
+                (passFees ? (product.desiredNetReceipt ?? netFromReverse) : product.price);
               const minPrice = passFees ? calcMinPrice(Number(valorReceber) || 0, platformFeePct) : product.price;
+              const showEmptyProductNetInput =
+                passFees &&
+                valorReceber === 0 &&
+                !(product.id in productNetValues) &&
+                product.desiredNetReceipt == null;
               return (
               <div key={product.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col md:flex-row gap-6">
                  <div 
@@ -703,7 +756,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                value={valorReceber === 0 && !(product.id in productNetValues) ? '' : valorReceber}
+                                value={showEmptyProductNetInput ? '' : valorReceber}
                                 onChange={(e) => {
                                   const v = parseFloat(e.target.value) || 0;
                                   setProductNetValues(prev => ({ ...prev, [product.id]: v }));
@@ -775,15 +828,25 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                     const dataToSave = passFees
                       ? {
                           ...formData,
-                          products: formData.products.map(p => ({
-                            ...p,
-                            price: calcMinPrice(
-                              Math.max(0, productNetValues[p.id] ?? reverseCalcNetReceipt(p.price, platformFeePct)),
-                              platformFeePct
-                            ),
-                          })),
+                          products: formData.products.map((p) => {
+                            const netUsed = Math.max(
+                              0,
+                              productNetValues[p.id] ??
+                                p.desiredNetReceipt ??
+                                reverseCalcNetReceipt(p.price, platformFeePct)
+                            );
+                            const roundedNet = Math.round(netUsed * 100) / 100;
+                            return {
+                              ...p,
+                              price: calcMinPrice(roundedNet, platformFeePct),
+                              desiredNetReceipt: roundedNet,
+                            };
+                          }),
                         }
-                      : formData;
+                      : {
+                          ...formData,
+                          products: formData.products.map(({ desiredNetReceipt: _dn, ...p }) => ({ ...p })),
+                        };
                     await onSave(dataToSave);
                   } finally {
                     setIsSaving(false);

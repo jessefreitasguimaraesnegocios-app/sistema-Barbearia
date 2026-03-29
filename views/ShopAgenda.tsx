@@ -3,9 +3,10 @@ import { Shop, PartnerAgendaAppointment } from '../types';
 import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
 import {
   generateAgendaSlots,
-  intervalsOccupied,
-  slotOverlapsOccupied,
   timeToMinutes,
+  type BookingBlock,
+  isSlotFullyBookedByTeam,
+  countTeamProsBusyInSlot,
 } from '../lib/agendaSlots';
 
 export interface AgendaSchedulePayload {
@@ -111,8 +112,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       .filter(
         (a) =>
           a.date === selectedDate &&
-          a.status !== 'CANCELLED' &&
-          (a.status === 'PAID' || a.status === 'PENDING')
+          a.status !== 'CANCELLED' && a.status === 'PAID'
       )
       .map((a) => ({
         time: a.time,
@@ -121,29 +121,41 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       }));
   }, [appointments, selectedDate, shop.services]);
 
-  const occupiedIntervals = useMemo(
+  const bookingBlocks: BookingBlock[] = useMemo(
     () =>
-      intervalsOccupied(
-        blockingForDay.map((b) => ({ time: b.time, durationMinutes: b.durationMinutes }))
-      ),
+      blockingForDay.map((b) => ({
+        time: b.time,
+        durationMinutes: b.durationMinutes,
+        professionalId: b.apt.professionalId,
+      })),
     [blockingForDay]
   );
 
+  const teamProIds = useMemo(() => shop.professionals.map((p) => p.id), [shop.professionals]);
+
+  /** Totalmente ocupado só quando todos os profissionais da equipe têm agendamento sobreposto ao slot */
   const slotLabel = (slot: string) => {
     const m = timeToMinutes(slot);
-    const busy = slotOverlapsOccupied(m, slotMinutes, occupiedIntervals);
+    const slotEnd = m + slotMinutes;
     const owners = blockingForDay.filter((b) => {
       const st = timeToMinutes(b.time);
       const en = st + b.durationMinutes;
-      return m < en && m + slotMinutes > st;
+      return m < en && slotEnd > st;
     });
-    return { busy, owners };
+    const hasOverlap = owners.length > 0;
+    const fullyBooked = isSlotFullyBookedByTeam(slot, slotMinutes, bookingBlocks, teamProIds);
+    const busyProsCount = countTeamProsBusyInSlot(slot, slotMinutes, bookingBlocks, teamProIds);
+    const freeProsHint =
+      hasOverlap && !fullyBooked && teamProIds.length > 0
+        ? Math.max(0, teamProIds.length - busyProsCount)
+        : 0;
+    return { fullyBooked, owners, freeProsHint };
   };
 
   const upcomingList = useMemo(() => {
     const t = todayLocalISO();
     return [...appointments]
-      .filter((a) => a.status !== 'CANCELLED' && a.status !== 'COMPLETED')
+      .filter((a) => a.status === 'PAID')
       .filter((a) => a.date >= t)
       .sort((a, b) => {
         const c = a.date.localeCompare(b.date);
@@ -213,7 +225,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       <header>
         <h2 className="text-3xl font-display font-bold text-gray-900">Agenda</h2>
         <p className="text-gray-500 mt-1">
-          Defina seu horário de atendimento, veja a grade do dia e gerencie agendamentos pagos ou pendentes.
+          Defina seu horário de atendimento, veja a grade do dia e gerencie agendamentos confirmados (pagos).
         </p>
       </header>
 
@@ -311,7 +323,9 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         <div>
           <h3 className="text-lg font-bold text-gray-900">Grade do dia</h3>
           <p className="text-sm text-gray-500">
-            Faixas livres e ocupadas por agendamentos <strong>pagos</strong> ou <strong>pendentes de pagamento</strong>.
+            Cada faixa só fica <strong>totalmente ocupada</strong> quando <strong>todos</strong> os profissionais da
+            equipe já têm agendamento naquele horário; se ainda houver alguém livre, a faixa aparece como disponível.
+            Considera apenas agendamentos <strong>pagos</strong> (marcação após confirmação do pagamento).
           </p>
         </div>
         {slots.length === 0 ? (
@@ -321,23 +335,30 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {slots.map((slot) => {
-              const { busy, owners } = slotLabel(slot);
+              const { fullyBooked, owners, freeProsHint } = slotLabel(slot);
               return (
                 <div
                   key={slot}
                   className={`rounded-xl p-3 text-center text-sm font-semibold border transition-all ${
-                    busy
+                    fullyBooked
                       ? 'bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] border-[color-mix(in_srgb,var(--shop-primary)_35%,white)] text-gray-900'
                       : 'bg-emerald-50 border-emerald-100 text-emerald-700'
                   }`}
                 >
                   <p className="font-black">{slot}</p>
-                  {busy && owners[0] && (
+                  {fullyBooked && owners[0] && (
                     <p className="text-[10px] font-medium text-gray-600 mt-1 truncate" title={owners[0].apt.clientDisplayName}>
                       {owners[0].apt.clientDisplayName}
+                      {owners.length > 1 ? ` +${owners.length - 1}` : ''}
                     </p>
                   )}
-                  {!busy && <p className="text-[9px] text-gray-400 mt-1">Livre</p>}
+                  {!fullyBooked && freeProsHint > 0 && (
+                    <p className="text-[9px] text-emerald-600/90 mt-1 font-medium">
+                      Livre — {freeProsHint}{' '}
+                      {freeProsHint === 1 ? 'profissional' : 'profissionais'}
+                    </p>
+                  )}
+                  {!fullyBooked && freeProsHint === 0 && <p className="text-[9px] text-gray-400 mt-1">Livre</p>}
                 </div>
               );
             })}
@@ -356,10 +377,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
               const pro = shop.professionals.find((p) => p.id === a.professionalId);
               const wa = waLink(a.clientPhone, `Olá ${a.clientDisplayName}!`);
               const waReminder = waLink(a.clientPhone, reminder15Text(a));
-              const statusClass =
-                a.status === 'PAID'
-                  ? 'bg-emerald-50 text-emerald-800'
-                  : 'bg-amber-50 text-amber-800';
+              const statusClass = 'bg-emerald-50 text-emerald-800';
               return (
                 <li
                   key={a.id}
@@ -369,7 +387,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-gray-900">{a.clientDisplayName}</p>
                       <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg ${statusClass}`}>
-                        {a.status === 'PAID' ? 'Pago' : 'Pendente'}
+                        Pago
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">

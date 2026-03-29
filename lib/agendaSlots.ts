@@ -63,3 +63,71 @@ export function slotOverlapsOccupied(
   const slotEnd = slotStartMin + slotDurationMin;
   return occupied.some((o) => slotStartMin < o.end && slotEnd > o.start);
 }
+
+/** Bloco ocupado (alinhado ao retorno de get_shop_booking_blocks) */
+export interface BookingBlock {
+  time: string;
+  durationMinutes: number;
+  professionalId: string;
+}
+
+export function getSlotOverlappingBlocks(
+  slotStartLabel: string,
+  slotDurationMin: number,
+  blocks: BookingBlock[]
+): BookingBlock[] {
+  const m = timeToMinutes(slotStartLabel);
+  const slotEnd = m + slotDurationMin;
+  return blocks.filter((b) => {
+    const st = timeToMinutes(b.time);
+    const en = st + Math.max(15, b.durationMinutes);
+    return m < en && slotEnd > st;
+  });
+}
+
+/** Todos os profissionais da equipe ocupados neste slot (mesma regra da agenda do parceiro). */
+export function isSlotFullyBookedByTeam(
+  slotStartLabel: string,
+  slotDurationMin: number,
+  blocks: BookingBlock[],
+  teamProIds: string[]
+): boolean {
+  const owners = getSlotOverlappingBlocks(slotStartLabel, slotDurationMin, blocks);
+  const hasOverlap = owners.length > 0;
+  if (!hasOverlap) return false;
+  if (teamProIds.length === 0) return true;
+  const teamSet = new Set(teamProIds);
+  if (owners.some((o) => !teamSet.has(o.professionalId))) return true;
+  const busyPros = new Set(owners.map((o) => o.professionalId));
+  return teamProIds.every((id) => busyPros.has(id));
+}
+
+/** Quantos profissionais da equipe distintos estão ocupados neste slot (ignora desconhecidos se não houver unknown overlap). */
+export function countTeamProsBusyInSlot(
+  slotStartLabel: string,
+  slotDurationMin: number,
+  blocks: BookingBlock[],
+  teamProIds: string[]
+): number {
+  const owners = getSlotOverlappingBlocks(slotStartLabel, slotDurationMin, blocks);
+  if (owners.length === 0) return 0;
+  const teamSet = new Set(teamProIds);
+  if (owners.some((o) => !teamSet.has(o.professionalId))) return teamProIds.length;
+  return new Set(owners.map((o) => o.professionalId)).size;
+}
+
+/** Estado para o cliente: esgotado (toda equipe) vs profissional escolhido ocupado. */
+export function slotClientSelectionState(
+  slotStartLabel: string,
+  slotDurationMin: number,
+  blocks: BookingBlock[],
+  teamProIds: string[],
+  selectedProfessionalId: string
+): { fullyBooked: boolean; selectedProBusy: boolean } {
+  const fullyBooked = isSlotFullyBookedByTeam(slotStartLabel, slotDurationMin, blocks, teamProIds);
+  const owners = getSlotOverlappingBlocks(slotStartLabel, slotDurationMin, blocks);
+  const hasOverlap = owners.length > 0;
+  const selectedProBusy =
+    hasOverlap && owners.some((o) => o.professionalId === selectedProfessionalId);
+  return { fullyBooked, selectedProBusy };
+}

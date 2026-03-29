@@ -38,24 +38,24 @@ Certifique-se de ter um `.env` com `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, 
 
 As migrations ficam em `supabase/migrations/` (incluindo schema inicial e `asaas_customer_id`). Para aplicá-las no banco remoto:
 
-**Opção 1 – usando connection string (recomendado)**
-
-1. No [Dashboard do Supabase](https://supabase.com/dashboard) → seu projeto → **Settings** → **Database** → **Connection string** → copie a **URI** (modo Session ou Transaction).
-2. No projeto, crie ou edite o `.env` e defina:
-   ```bash
-   SUPABASE_DB_URL=postgresql://postgres.[ref]:[SENHA]@aws-0-[região].pooler.supabase.com:6543/postgres
-   ```
-3. Rode:
-   ```bash
-   npm run db:push
-   ```
-   (ou `node scripts/apply-migrations.js`)
-
-**Opção 2 – usando link do projeto**
+**Opção 1 – CLI com `npx` (padrão: `npm run db:push`)**
 
 1. Faça login: `npx supabase login`
-2. Linke o projeto (use a senha do banco quando pedida): `npm run supabase:link`
-3. Aplique as migrations: `npm run supabase:db-push`
+2. Linke o projeto: `npm run supabase:link` (ref em `package.json`; use a **senha do banco** se o CLI pedir)
+3. Se `db push` mostrar **403** em `Initialising login role`, coloque no `.env` (não commitar):
+   ```bash
+   SUPABASE_DB_PASSWORD=<senha em Dashboard → Database → Database password>
+   ```
+   O comando `npm run db:push` carrega o `.env` e repassa essa variável ao CLI.
+4. Aplique as migrations: `npm run db:push`
+
+Alternativa: conta com papel **Owner** no projeto na organização Supabase, conforme [access control](https://supabase.com/docs/guides/platform/access-control).
+
+**Opção 2 – connection string no `.env` (sem link)**
+
+1. No [Dashboard](https://supabase.com/dashboard) → **Settings** → **Database** → **Connection string** → URI (prefira **Session pooler**, porta **6543**).
+2. No `.env`: `SUPABASE_DB_URL=postgresql://...`
+3. Rode: `npm run db:push:url`
 
 **Edge Functions (create-shop, create-payment, asaas-webhook)**  
 Depois do link (ou com projeto configurado), para fazer deploy de todas de uma vez:

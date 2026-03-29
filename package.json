@@ -10,10 +10,11 @@
     "build": "vite build",
     "lint": "tsc --noEmit",
     "preview": "vite preview",
-    "supabase:link": "supabase link --project-ref wevcqosziiwfbxbmjqln",
-    "supabase:db-push": "supabase db push",
-    "supabase:functions-deploy": "supabase functions deploy create-shop && supabase functions deploy create-payment && supabase functions deploy asaas-webhook",
-    "db:push": "node scripts/apply-migrations.js"
+    "supabase:link": "npx supabase link --project-ref wevcqosziiwfbxbmjqln",
+    "supabase:db-push": "npx supabase db push",
+    "supabase:functions-deploy": "npx supabase functions deploy create-shop && npx supabase functions deploy create-payment && npx supabase functions deploy asaas-webhook",
+    "db:push": "node scripts/supabase-db-push.js",
+    "db:push:url": "node scripts/apply-migrations.js"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",

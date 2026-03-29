@@ -1,6 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Shop, Service, Professional, Appointment, User, Product, Order } from '../types';
+import { supabase } from '../src/lib/supabase';
+import {
+  generateAgendaSlots,
+  slotClientSelectionState,
+  type BookingBlock,
+} from '../lib/agendaSlots';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -54,7 +60,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
 
-  const allTimes = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
+  const [bookingBlocks, setBookingBlocks] = useState<BookingBlock[]>([]);
+  const [loadingBookingBlocks, setLoadingBookingBlocks] = useState(false);
 
   const isProfileComplete = !!(
     user.name && user.email && user.cpfCnpj &&
@@ -69,13 +76,86 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     d.setDate(d.getDate() + i);
     return d.toISOString().slice(0, 10);
   });
-  const availableTimes = !selectedDate
-    ? allTimes
-    : selectedDate < todayStr
-      ? []
-      : selectedDate > todayStr
-        ? allTimes
-        : allTimes.filter((t) => new Date(selectedDate + 'T' + t) > today);
+
+  const agendaSlotMinutes = shop.agendaSlotMinutes ?? 30;
+  const hasShopLunch = Boolean(shop.lunchStart && shop.lunchEnd);
+  const daySlotList = useMemo(
+    () =>
+      generateAgendaSlots({
+        workStart: shop.workdayStart ?? '08:00',
+        workEnd: shop.workdayEnd ?? '20:00',
+        lunchStart: hasShopLunch ? shop.lunchStart : null,
+        lunchEnd: hasShopLunch ? shop.lunchEnd : null,
+        slotMinutes: agendaSlotMinutes,
+      }),
+    [
+      shop.workdayStart,
+      shop.workdayEnd,
+      shop.lunchStart,
+      shop.lunchEnd,
+      hasShopLunch,
+      agendaSlotMinutes,
+    ]
+  );
+
+  const availableTimes = useMemo(() => {
+    const now = new Date();
+    if (!selectedDate) return daySlotList;
+    if (selectedDate < todayStr) return [];
+    if (selectedDate > todayStr) return daySlotList;
+    return daySlotList.filter((t) => new Date(`${selectedDate}T${t}:00`) > now);
+  }, [selectedDate, daySlotList, todayStr]);
+
+  const teamProIds = useMemo(() => shop.professionals.map((p) => p.id), [shop.professionals]);
+
+  useEffect(() => {
+    if (!selectedDate || !shop?.id) {
+      setBookingBlocks([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingBookingBlocks(true);
+    (async () => {
+      const { data, error } = await supabase.rpc('get_shop_booking_blocks', {
+        p_shop_id: shop.id,
+        p_date: selectedDate,
+      });
+      if (cancelled) return;
+      setLoadingBookingBlocks(false);
+      if (error) {
+        console.error('[ShopDetails] get_shop_booking_blocks', error);
+        setBookingBlocks([]);
+        return;
+      }
+      const rows = (data || []) as {
+        time_text: string;
+        duration_minutes: number;
+        professional_id: string;
+      }[];
+      setBookingBlocks(
+        rows.map((r) => ({
+          time: (r.time_text && r.time_text.length >= 5 ? r.time_text : r.time_text || '00:00').slice(0, 5),
+          durationMinutes: Math.max(15, Number(r.duration_minutes) || 30),
+          professionalId: String(r.professional_id),
+        }))
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shop.id, selectedDate]);
+
+  useEffect(() => {
+    if (!selectedTime || !selectedPro) return;
+    const { fullyBooked, selectedProBusy } = slotClientSelectionState(
+      selectedTime,
+      agendaSlotMinutes,
+      bookingBlocks,
+      teamProIds,
+      selectedPro.id
+    );
+    if (fullyBooked || selectedProBusy) setSelectedTime('');
+  }, [selectedTime, selectedPro?.id, bookingBlocks, agendaSlotMinutes, teamProIds]);
 
   const handleBooking = async () => {
     if (!selectedService || !selectedPro || !selectedDate || !selectedTime || !selectedPaymentMethod) return;
@@ -115,7 +195,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             serviceId: selectedService.id,
             professionalId: selectedPro.id,
             date: selectedDate,
-            time: selectedTime,
+            time: selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime,
             amount: totalAmount,
             tip: tipAmount > 0 ? tipAmount : undefined,
           },
@@ -147,7 +227,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         serviceId: selectedService.id,
         professionalId: selectedPro.id,
         date: selectedDate,
-        time: selectedTime,
+        time: selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime,
         status: 'PENDING',
         amount: totalAmount,
         tip: tipAmount > 0 ? tipAmount : undefined
@@ -498,16 +578,64 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                       </div>
 
                       {selectedDate && (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                          {availableTimes.map(t => (
-                            <button 
-                              key={t}
-                              onClick={() => setSelectedTime(t)}
-                              className={`py-2 md:py-3 rounded-xl border-2 text-xs md:text-sm font-bold transition-all ${selectedTime === t ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-100 text-gray-500 hover:border-indigo-200'}`}
-                            >
-                              {t}
-                            </button>
-                          ))}
+                        <div className="space-y-2">
+                          <p className="text-[11px] text-gray-500">
+                            Horários conforme a loja (só contam horários já <strong>pagos</strong>).{' '}
+                            <strong>Esgotado</strong> = todos os profissionais ocupados;{' '}
+                            <strong>Indisponível</strong> = seu profissional já tem horário nesse horário.
+                          </p>
+                          {loadingBookingBlocks ? (
+                            <p className="text-sm text-gray-400 py-6 text-center">Carregando horários…</p>
+                          ) : availableTimes.length === 0 ? (
+                            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-4">
+                              Não há horários disponíveis nesta data.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                              {availableTimes.map((t) => {
+                                const { fullyBooked, selectedProBusy } = selectedPro
+                                  ? slotClientSelectionState(
+                                      t,
+                                      agendaSlotMinutes,
+                                      bookingBlocks,
+                                      teamProIds,
+                                      selectedPro.id
+                                    )
+                                  : { fullyBooked: false, selectedProBusy: false };
+                                const disabled = Boolean(selectedPro && (fullyBooked || selectedProBusy));
+                                const selected = selectedTime === t && !disabled;
+                                return (
+                                  <button
+                                    key={t}
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => {
+                                      if (!disabled) setSelectedTime(t);
+                                    }}
+                                    className={`py-2 md:py-3 rounded-xl border-2 text-xs md:text-sm font-bold transition-all flex flex-col items-center justify-center min-h-[3.25rem] ${
+                                      selected
+                                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                                        : disabled
+                                          ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed opacity-80'
+                                          : 'bg-white border-gray-100 text-gray-500 hover:border-indigo-200'
+                                    }`}
+                                  >
+                                    <span>{t}</span>
+                                    {fullyBooked && (
+                                      <span className="text-[9px] font-semibold uppercase tracking-wide mt-0.5">
+                                        Esgotado
+                                      </span>
+                                    )}
+                                    {selectedProBusy && !fullyBooked && (
+                                      <span className="text-[9px] font-semibold uppercase tracking-wide mt-0.5">
+                                        Indisponível
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

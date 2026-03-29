@@ -90,6 +90,14 @@ export default function ClientArea() {
         subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
         asaasAccountId: s.asaas_account_id,
         asaasWalletId: s.asaas_wallet_id,
+        workdayStart: s.workday_start != null ? String(s.workday_start).slice(0, 5) : '08:00',
+        workdayEnd: s.workday_end != null ? String(s.workday_end).slice(0, 5) : '20:00',
+        lunchStart: s.lunch_start != null && String(s.lunch_start).trim() !== '' ? String(s.lunch_start).slice(0, 5) : undefined,
+        lunchEnd: s.lunch_end != null && String(s.lunch_end).trim() !== '' ? String(s.lunch_end).slice(0, 5) : undefined,
+        agendaSlotMinutes:
+          s.agenda_slot_minutes != null && Number(s.agenda_slot_minutes) > 0
+            ? Number(s.agenda_slot_minutes)
+            : 30,
         services: (s.services || []).map((sv: any) => ({
           id: sv.id,
           name: sv.name,

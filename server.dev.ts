@@ -7,6 +7,7 @@ import 'dotenv/config';
 import express from 'express';
 import onboardingHandler from './api/partner/onboarding.ts';
 import walletHandler from './api/partner/wallet.ts';
+import processShopFinanceHandler from './api/admin/process-shop-finance.ts';
 
 const app = express();
 app.use(express.json());
@@ -46,6 +47,20 @@ app.post('/api/partner/wallet', async (req, res) => {
     await walletHandler(req as any, res);
   } catch (e) {
     console.error('[dev-api] wallet POST', e);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: e instanceof Error ? e.message : 'Erro interno na API.',
+      });
+    }
+  }
+});
+
+app.post('/api/admin/process-shop-finance', async (req, res) => {
+  try {
+    await processShopFinanceHandler(req as any, res as any);
+  } catch (e) {
+    console.error('[dev-api] process-shop-finance', e);
     if (!res.headersSent) {
       res.status(500).json({
         success: false,

@@ -111,6 +111,23 @@ export default async function handler(
       return res.status(403).json({ success: false, error: 'Não autorizado para criar pagamento deste cliente.' });
     }
 
+    const rateShopId = bodyBooking?.shopId || bodyOrder?.shopId || 'no-shop';
+    const { data: allowedByRateLimit, error: rateErr } = await supabase.rpc('security_check_rate_limit', {
+      p_route: 'create-payment',
+      p_subject: `create-payment:${authUserId}:${rateShopId}`,
+      p_limit: 12,
+      p_window_seconds: 60,
+    });
+    if (rateErr) {
+      return res.status(500).json({ success: false, error: `Falha no rate limit: ${rateErr.message}` });
+    }
+    if (allowedByRateLimit === false) {
+      return res.status(429).json({
+        success: false,
+        error: 'Muitas tentativas de pagamento. Aguarde 1 minuto e tente novamente.',
+      });
+    }
+
     if (!amount || amount <= 0 || !customerName || !customerEmail) {
       return res.status(400).json({
         success: false,

@@ -74,6 +74,9 @@ export interface Shop {
   asaasApiKey?: string;
   /** Apenas para exibição no admin: true se a loja tem chave da subconta configurada (não envia a chave ao cliente) */
   asaasApiKeyConfigured?: boolean;
+  /** Provisionamento Asaas: pending | processing | awaiting_callback | active | failed */
+  financeProvisionStatus?: 'pending' | 'processing' | 'awaiting_callback' | 'active' | 'failed';
+  financeProvisionLastError?: string | null;
   cnpjOrCpf?: string;
   email?: string;
   phone?: string;

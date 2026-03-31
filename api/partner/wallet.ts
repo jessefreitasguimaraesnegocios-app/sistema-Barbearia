@@ -2,13 +2,14 @@
 // Usa a chave da subconta (asaas_api_key) para GET /v3/finance/balance, GET /v3/financialTransactions e POST /v3/transfers.
 
 import { createClient } from '@supabase/supabase-js';
+import { insertFinancialAudit } from '../lib/financial-audit';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 
-async function getPartnerShopId(token: string): Promise<{ shopId: string } | { error: string; status: number }> {
+async function getPartnerShopId(token: string): Promise<{ shopId: string; userId: string } | { error: string; status: number }> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return { error: 'Configuração indisponível.', status: 500 };
   }
@@ -37,13 +38,33 @@ async function getPartnerShopId(token: string): Promise<{ shopId: string } | { e
   if (role !== 'barbearia' || !shopId) {
     return { error: 'Acesso apenas para parceiros (lojas).', status: 403 };
   }
-  return { shopId };
+  return { shopId, userId };
+}
+
+function getClientMeta(req: { headers?: Record<string, string | string[] | undefined> }): { ip: string | null; userAgent: string | null } {
+  const h = req.headers;
+  if (!h) return { ip: null, userAgent: null };
+  const xf = h['x-forwarded-for'];
+  const first =
+    typeof xf === 'string'
+      ? xf.split(',')[0]?.trim() || null
+      : Array.isArray(xf)
+        ? xf[0]?.trim() || null
+        : null;
+  const real = h['x-real-ip'];
+  const ip =
+    first ||
+    (typeof real === 'string' ? real : Array.isArray(real) ? real[0] : null) ||
+    null;
+  const ua = h['user-agent'];
+  const userAgent = typeof ua === 'string' ? ua : Array.isArray(ua) ? ua[0] : null;
+  return { ip, userAgent };
 }
 
 export default async function handler(
   req: {
     method?: string;
-    headers?: { authorization?: string };
+    headers?: Record<string, string | string[] | undefined>;
     query?: { limit?: string; offset?: string; startDate?: string; finishDate?: string };
     body?: {
       value?: number;
@@ -79,7 +100,8 @@ export default async function handler(
     return res.status(405).json({ success: false, error: 'Método não permitido. Use GET ou POST.' });
   }
 
-  const authHeader = req.headers?.authorization;
+  const authRaw = req.headers?.authorization;
+  const authHeader = typeof authRaw === 'string' ? authRaw : Array.isArray(authRaw) ? authRaw[0] : '';
   const token = authHeader?.replace(/^Bearer\s+/i, '').trim();
   if (!token) {
     return res.status(401).json({ success: false, error: 'Token não enviado. Faça login novamente.' });
@@ -89,6 +111,8 @@ export default async function handler(
   if ('error' in partner) {
     return res.status(partner.status).json({ success: false, error: partner.error });
   }
+  const { shopId, userId } = partner;
+  const clientMeta = getClientMeta(req);
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return res.status(500).json({ success: false, error: 'Configuração do servidor indisponível.' });
@@ -98,7 +122,7 @@ export default async function handler(
   const { data: shop, error: shopError } = await supabase
     .from('shops')
     .select('id, asaas_api_key, asaas_account_id')
-    .eq('id', partner.shopId)
+    .eq('id', shopId)
     .single();
 
   if (shopError || !shop) {
@@ -247,8 +271,30 @@ export default async function handler(
     };
     if (!transferRes.ok) {
       const msg = transferData?.errors?.[0]?.description || transferData?.errors?.[0]?.code || 'Erro ao solicitar saque.';
+      await insertFinancialAudit(supabase, {
+        shop_id: shopId,
+        actor_user_id: userId,
+        action: 'WALLET_TRANSFER',
+        amount: payload.value as number,
+        result: 'failure',
+        error_message: msg,
+        metadata: { operationType: payload.operationType },
+        ip: clientMeta.ip,
+        user_agent: clientMeta.userAgent,
+      });
       return res.status(transferRes.status).json({ success: false, error: msg });
     }
+    await insertFinancialAudit(supabase, {
+      shop_id: shopId,
+      actor_user_id: userId,
+      action: 'WALLET_TRANSFER',
+      amount: transferData.value ?? (payload.value as number),
+      result: 'success',
+      asaas_transfer_id: transferData.id != null ? String(transferData.id) : null,
+      metadata: { status: transferData.status, type: transferData.type, operationType: payload.operationType },
+      ip: clientMeta.ip,
+      user_agent: clientMeta.userAgent,
+    });
     return res.status(200).json({
       success: true,
       transfer: {
@@ -261,9 +307,20 @@ export default async function handler(
     });
   } catch (e) {
     console.error('[api/partner/wallet] POST', e);
+    const errMsg = e instanceof Error ? e.message : 'Erro ao solicitar saque. Tente novamente.';
+    await insertFinancialAudit(supabase, {
+      shop_id: shopId,
+      actor_user_id: userId,
+      action: 'WALLET_TRANSFER',
+      amount: value,
+      result: 'failure',
+      error_message: errMsg,
+      ip: clientMeta.ip,
+      user_agent: clientMeta.userAgent,
+    });
     return res.status(500).json({
       success: false,
-      error: e instanceof Error ? e.message : 'Erro ao solicitar saque. Tente novamente.',
+      error: errMsg,
     });
   }
 }

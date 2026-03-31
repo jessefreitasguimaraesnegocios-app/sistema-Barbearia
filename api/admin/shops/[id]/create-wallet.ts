@@ -165,6 +165,9 @@ export default async function handler(
     const updates: Record<string, unknown> = {
       asaas_wallet_id: walletId,
       asaas_account_id: asaasAccountId,
+      finance_provision_status: 'active',
+      finance_provision_last_error: null,
+      finance_provision_updated_at: new Date().toISOString(),
     };
     if (asaasApiKeySub) updates.asaas_api_key = asaasApiKeySub;
 

@@ -33,11 +33,15 @@ Deno.serve(async (req: Request) => {
 
   // Validação do token do webhook Asaas (header asaas-access-token)
   const webhookToken = Deno.env.get("ASAAS_WEBHOOK_TOKEN");
-  if (webhookToken && String(webhookToken).trim() !== "") {
-    const receivedToken = req.headers.get("asaas-access-token")?.trim() ?? "";
-    if (receivedToken === "" || receivedToken !== webhookToken.trim()) {
-      return unauthorized("Missing or invalid asaas-access-token");
-    }
+  if (!webhookToken || String(webhookToken).trim() === "") {
+    return new Response(JSON.stringify({ code: 500, message: "ASAAS_WEBHOOK_TOKEN not configured" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const receivedToken = req.headers.get("asaas-access-token")?.trim() ?? "";
+  if (receivedToken === "" || receivedToken !== webhookToken.trim()) {
+    return unauthorized("Missing or invalid asaas-access-token");
   }
 
   let payload: { event?: string; payment?: { id?: string } } = {};
@@ -72,6 +76,27 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
+
+  const { data: receiptData, error: receiptErr } = await supabase
+    .from("asaas_webhook_receipts")
+    .upsert(
+      { event: String(event), payment_id: String(paymentId) },
+      { onConflict: "event,payment_id", ignoreDuplicates: true }
+    )
+    .select("event, payment_id");
+  if (receiptErr) {
+    console.error("[asaas-webhook] receipt error:", receiptErr.message);
+    return new Response(JSON.stringify({ received: false, error: "Webhook receipt persistence failed" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (!receiptData || receiptData.length === 0) {
+    return new Response(JSON.stringify({ received: true, duplicate: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   const updatedCount = (rows: unknown[] | null | undefined) => (rows ? rows.length : 0);
 

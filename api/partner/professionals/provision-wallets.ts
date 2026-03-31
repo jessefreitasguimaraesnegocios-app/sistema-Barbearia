@@ -67,6 +67,22 @@ export default async function handler(
     const shopId = req.body?.shopId?.trim();
     if (!shopId) return res.status(400).json({ success: false, error: 'shopId é obrigatório.' });
 
+    const { data: allowedByRateLimit, error: rateErr } = await supabase.rpc('security_check_rate_limit', {
+      p_route: 'provision-wallets',
+      p_subject: `provision-wallets:${authUserId}:${shopId}`,
+      p_limit: 4,
+      p_window_seconds: 60,
+    });
+    if (rateErr) {
+      return res.status(500).json({ success: false, error: `Falha no rate limit: ${rateErr.message}` });
+    }
+    if (allowedByRateLimit === false) {
+      return res.status(429).json({
+        success: false,
+        error: 'Muitas tentativas de provisionamento. Aguarde 1 minuto e tente novamente.',
+      });
+    }
+
     const { data: shop, error: shopErr } = await supabase
       .from('shops')
       .select('id, owner_id, name, email, phone, cnpj_cpf, split_percent, address')

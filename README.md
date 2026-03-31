@@ -57,7 +57,7 @@ Alternativa: conta com papel **Owner** no projeto na organização Supabase, con
 2. No `.env`: `SUPABASE_DB_URL=postgresql://...`
 3. Rode: `npm run db:push:url`
 
-**Edge Functions (create-shop, create-payment, asaas-webhook)**  
+**Edge Functions (create-shop, create-payment, process-shop-finance, shop-finance-webhook, asaas-webhook)**  
 Depois do link (ou com projeto configurado), para fazer deploy de todas de uma vez:
 
 ```bash
@@ -66,16 +66,24 @@ npm run supabase:functions-deploy
 
 Ou individualmente:
 ```bash
-npx supabase functions deploy create-shop --no-verify-jwt
+npx supabase functions deploy create-shop
 npx supabase functions deploy create-payment
+npx supabase functions deploy process-shop-finance
+npx supabase functions deploy shop-finance-webhook --no-verify-jwt
 npx supabase functions deploy asaas-webhook --no-verify-jwt
 ```
 
 Configure os secrets em **Settings → Edge Functions → Secrets** no painel do Supabase:
-- **ASAAS_API_KEY** – chave da API Asaas (conta principal, obrigatório)
+- **ASAAS_API_KEY** – chave da API Asaas (conta principal); obrigatório para `process-shop-finance` (modo interno) e demais integrações
 - **ASAAS_API_URL** – opcional; use `https://sandbox.asaas.com/api/v3` para testes
+- **SHOP_FINANCE_WEBHOOK_SECRET** – segredo compartilhado (Bearer) para a função `shop-finance-webhook` (callback do provisionador externo)
+- Opcional **modo externo (loja)**: `ASAAS_SHOP_PROVISIONER_URL`, `ASAAS_SHOP_PROVISIONER_TOKEN`, `ASAAS_SHOP_PROVISIONER_APP_ID` — quando `ASAAS_SHOP_PROVISIONER_URL` está definido, `process-shop-finance` envia o cadastro ao provisionador e coloca a loja em `awaiting_callback` até o webhook confirmar.
 
-**create-shop** – Cadastra parceiro e cria subconta Asaas (POST /accounts com loginEmail), aprova no sandbox (approve), gera chave da subconta (accessTokens) e salva `asaas_account_id`, `asaas_wallet_id` e `asaas_api_key` na tabela `shops`. Toda barbearia/salão é cadastrada com subconta; se a subconta não for criada, a loja não é cadastrada.
+**create-shop** – Cria a loja no Supabase, usuário dono e perfil `barbearia`. **Não** chama mais o Asaas na hora: `finance_provision_status` nasce como `pending` e os dados extras para subconta ficam em `finance_provision_payload`. No admin, use **«Provisionar Asaas»** (chama `POST /api/admin/process-shop-finance` → Edge `process-shop-finance`) ou o fluxo legado **«Criar carteira»**.
+
+**process-shop-finance** – Worker invocado com `Authorization: Bearer <SERVICE_ROLE_KEY>`. Modo interno: replica o fluxo antigo (customer Asaas → subconta → approve sandbox → accessTokens) e grava `shops` com `finance_provision_status = active`. Modo externo: POST para `ASAAS_SHOP_PROVISIONER_URL` e status `awaiting_callback`.
+
+**shop-finance-webhook** – `POST` com `Authorization: Bearer <SHOP_FINANCE_WEBHOOK_SECRET>` e JSON `{ shopId, asaasWalletId, asaasCustomerId?, asaasAccountId?, asaasApiKey?, error? }`. Idempotente se já `active`. Deploy com `--no-verify-jwt` (token não é JWT do Supabase).
 
 **create-payment** (PIX com split) – O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com `shopId`). A função aplica split por contexto:
 - `booking` (serviço): tenta usar `professionals.asaas_wallet_id` e `professionals.split_percent`; se o profissional não tiver carteira, faz fallback para carteira/percentual da loja.
@@ -90,3 +98,8 @@ Se não houver carteira disponível no contexto, o pagamento é rejeitado.
 
 **Documentos e aprovação da subconta (onboarding)**  
 O parceiro envia documentos pela área **Documentos** no menu (parceiro). A rota **GET /api/partner/onboarding** (Vercel) retorna o status da conta e os links para envio (onboardingUrl). O parceiro pode abrir o link, copiar ou enviar por WhatsApp. Para a chave da subconta ser criada automaticamente (ou na primeira vez que o parceiro abre Documentos), é necessário no painel Asaas: (1) **Habilitar** em Integrações → Chaves de API → *Gerenciamento de Chaves de API de Subcontas* (acesso temporário, 2h); (2) **Whitelist de IP**: adicionar os IPs de saída do servidor que chama a API (ex.: no Vercel, usar IP de egress estático ou consultar a documentação do Vercel para IPs de saída). Sem isso, a mensagem “o suporte precisa configurar a chave” aparece e o admin pode configurar `asaas_api_key` na loja manualmente.
+
+**Hardening aplicado (rate limit e anti-replay)**  
+- `security_check_rate_limit` (RPC no banco) protege `create-shop`, `create-payment` e `provision-wallets` contra abuso em janela curta.
+- `asaas_webhook_receipts` evita replay/duplicação de eventos no webhook.
+- `asaas-webhook` agora é **fail-closed**: se `ASAAS_WEBHOOK_TOKEN` não estiver configurado, responde erro (não processa eventos).

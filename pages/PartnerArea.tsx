@@ -55,7 +55,7 @@ export default function PartnerArea() {
     (async () => {
       const { data: shopRow, error: shopErr } = await supabase
         .from('shops')
-        .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes')
+        .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured')
         .eq('id', shopId)
         .single();
       if (shopErr || !shopRow) return;
@@ -352,6 +352,7 @@ export default function PartnerArea() {
       passFeesToCustomer: d.pass_fees_to_customer === true,
       asaasAccountId: d.asaas_account_id,
       asaasWalletId: d.asaas_wallet_id,
+      asaasApiKeyConfigured: d.asaas_api_key_configured === true,
       workdayStart: formatDbTime(d.workday_start) ?? '08:00',
       workdayEnd: formatDbTime(d.workday_end) ?? '20:00',
       lunchStart: formatDbTime(d.lunch_start),
@@ -558,7 +559,7 @@ export default function PartnerArea() {
 
     const { data: refreshed } = await supabase
       .from('shops')
-      .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes')
+      .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured')
       .eq('id', shopId)
       .single();
     if (refreshed) {
@@ -594,7 +595,7 @@ export default function PartnerArea() {
 
     const { data: refreshedAfterProvision } = await supabase
       .from('shops')
-      .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes')
+      .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured')
       .eq('id', shopId)
       .single();
     if (refreshedAfterProvision) {

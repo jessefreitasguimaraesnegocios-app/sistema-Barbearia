@@ -1,5 +1,5 @@
 // Supabase Edge Function: create-shop
-// Deno - cria loja no Supabase e cliente no Asaas, retorna shopId e asaasCustomerId
+// Cria loja no Supabase + Auth; provisionamento Asaas é assíncrono (process-shop-finance / webhook).
 /// <reference path="./deno.d.ts" />
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -69,90 +69,36 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
-    if (!asaasApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: "ASAAS_API_KEY não configurada" }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey) as ReturnType<typeof createClient>;
 
-    const asaasBaseUrl = (
-      Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3"
-    ).replace(/\/$/, "");
-
-    // 1. Criar cliente no Asaas (API v3 customers)
-    const mobilePhone = String(phone)
-      .replace(/\D/g, "")
-      .slice(0, 11) || "31999999999";
-    const cpfCnpjDigits = bodyCpf != null
-      ? String(bodyCpf).replace(/\D/g, "").slice(0, 14)
-      : "";
-    const asaasRes = await fetch(`${asaasBaseUrl}/customers`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        access_token: asaasApiKey,
-      },
-      body: JSON.stringify({
-        name: String(name),
-        email: String(email),
-        mobilePhone,
-        cpfCnpj: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : "00000000000",
-      }),
+    const sourceIp = (req.headers.get("x-forwarded-for") || "unknown").split(",")[0]?.trim() || "unknown";
+    const rateSubject = `create-shop:${String(email).trim().toLowerCase()}:${sourceIp}`;
+    const { data: allowedByRateLimit, error: rateErr } = await supabase.rpc("security_check_rate_limit", {
+      p_route: "create-shop",
+      p_subject: rateSubject,
+      p_limit: 5,
+      p_window_seconds: 60,
     });
-
-    if (!asaasRes.ok) {
-      const errText = await asaasRes.text();
-      let errMessage = "Falha ao criar cliente Asaas";
-      let details = errText;
-      try {
-        const errJson = JSON.parse(errText);
-        if (errJson?.errors?.[0]?.description) {
-          errMessage = errJson.errors[0].description;
-        } else if (errJson?.error) {
-          errMessage = errJson.error;
-        }
-      } catch (_) {}
-      console.error("Asaas customer error:", errText);
+    if (rateErr) {
+      console.error("[create-shop] rate limit rpc error:", rateErr.message);
+    }
+    if (allowedByRateLimit === false) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: errMessage,
-          details,
+          error: "Muitas tentativas de cadastro. Aguarde 1 minuto e tente novamente.",
         }),
         {
-          status: 200,
+          status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    const asaasCustomer = await asaasRes.json();
-    const asaasCustomerId = asaasCustomer?.id ?? null;
-    if (!asaasCustomerId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Asaas não retornou customer id",
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    let asaasWalletId: string | null = null;
-    const cpfCnpjForAccount = cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : "00000000000";
-    const postalCodeDigits = bodyPostalCode != null ? String(bodyPostalCode).replace(/\D/g, "").slice(0, 8) : "";
-    const postalCode = postalCodeDigits.length === 8 ? postalCodeDigits : "01310100";
-    const birthDate = bodyBirthDate && String(bodyBirthDate).trim() !== "" ? String(bodyBirthDate).trim() : "1994-05-16";
+    const cpfCnpjDigits = bodyCpf != null ? String(bodyCpf).replace(/\D/g, "").slice(0, 14) : "";
     const companyType = bodyCompanyType && String(bodyCompanyType).trim() !== "" ? String(bodyCompanyType).trim() : "MEI";
-    // Asaas aceita apenas MEI, LIMITED, INDIVIDUAL, ASSOCIATION — mapear PF (Autônomo) para INDIVIDUAL
     const asaasCompanyType = companyType === "PF" ? "INDIVIDUAL" : companyType;
 
     if (asaasCompanyType === "INDIVIDUAL" && cpfCnpjDigits.length !== 11) {
@@ -167,126 +113,27 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    const postalCodeDigits = bodyPostalCode != null ? String(bodyPostalCode).replace(/\D/g, "").slice(0, 8) : "";
+    const postalCode = postalCodeDigits.length === 8 ? postalCodeDigits : "01310100";
+    const birthDate = bodyBirthDate && String(bodyBirthDate).trim() !== "" ? String(bodyBirthDate).trim() : "1994-05-16";
     const address = bodyAddress && String(bodyAddress).trim() !== "" ? String(bodyAddress).trim() : "A definir";
     const addressNumber = bodyAddressNumber && String(bodyAddressNumber).trim() !== "" ? String(bodyAddressNumber).trim() : "S/N";
     const complement = bodyComplement != null ? String(bodyComplement).trim() : "";
     const province = bodyProvince && String(bodyProvince).trim() !== "" ? String(bodyProvince).trim() : "Centro";
     const incomeValue = typeof bodyIncomeValue === "number" && bodyIncomeValue > 0 ? bodyIncomeValue : 5000;
 
-    const accountRes = await fetch(`${asaasBaseUrl}/accounts`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        access_token: asaasApiKey,
-      },
-      body: JSON.stringify({
-        name: String(name),
-        email: String(email),
-        loginEmail: String(email),
-        cpfCnpj: cpfCnpjForAccount,
-        birthDate,
-        companyType: asaasCompanyType,
-        phone: String(phone) || null,
-        mobilePhone: mobilePhone,
-        incomeValue,
-        address,
-        addressNumber,
-        ...(complement !== "" && { complement }),
-        province,
-        postalCode,
-      }),
-    });
+    const finance_provision_payload = {
+      birthDate,
+      companyType,
+      postalCode,
+      address,
+      addressNumber,
+      complement,
+      province,
+      incomeValue,
+    };
 
-    if (!accountRes.ok) {
-      const errText = await accountRes.text();
-      let errMessage = "Falha ao criar subconta Asaas (carteira da loja). Toda barbearia/salão precisa de uma carteira para receber o split.";
-      try {
-        const errJson = JSON.parse(errText);
-        if (errJson?.errors?.[0]?.description) {
-          errMessage = errJson.errors[0].description;
-        } else if (errJson?.error) {
-          errMessage = errJson.error;
-        }
-      } catch (_) {}
-      console.error("[create-shop] Asaas subaccount error:", errMessage, "| raw:", errText);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: errMessage,
-          details: errText,
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const accountData = (await accountRes.json()) as { id?: string; accountId?: string; walletId?: string; wallet?: string };
-    asaasWalletId = accountData?.walletId ?? accountData?.wallet ?? null;
-    const asaasAccountId = accountData?.id ?? accountData?.accountId ?? null;
-
-    if (!asaasWalletId || String(asaasWalletId).trim() === "") {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error:
-            "Asaas não retornou a carteira (walletId) da subconta. Não foi possível cadastrar a loja. Tente novamente ou entre em contato com o suporte.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const isSandbox = asaasBaseUrl.toLowerCase().includes("sandbox");
-    if (isSandbox && asaasAccountId && String(asaasAccountId).trim() !== "") {
-      try {
-        const approveRes = await fetch(`${asaasBaseUrl}/accounts/${asaasAccountId}/approve`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", access_token: asaasApiKey },
-        });
-        if (!approveRes.ok) {
-          const errText = await approveRes.text();
-          console.warn("[create-shop] Sandbox approve (opcional):", approveRes.status, errText);
-        }
-      } catch (e) {
-        console.warn("[create-shop] Sandbox approve error:", e);
-      }
-    }
-
-    let asaasApiKeySub: string | null = null;
-    if (asaasAccountId && String(asaasAccountId).trim() !== "") {
-      try {
-        await new Promise((r) => setTimeout(r, 2000));
-        const tokenRes = await fetch(`${asaasBaseUrl}/accounts/${asaasAccountId}/accessTokens`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            access_token: asaasApiKey,
-          },
-          body: JSON.stringify({ name: "Smart Cria App" }),
-        });
-        const tokenData = tokenRes.ok ? (await tokenRes.json()) as { apiKey?: string } : null;
-        const key = tokenData?.apiKey?.trim();
-        if (key) {
-          asaasApiKeySub = key;
-        } else if (!tokenRes.ok) {
-          const errText = await tokenRes.text();
-          console.error("[create-shop] accessTokens falhou:", tokenRes.status, errText);
-        }
-      } catch (e) {
-        console.error("[create-shop] accessTokens error:", e);
-      }
-    }
-
-    // 2. Criar registro na tabela shops no Supabase
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey) as ReturnType<typeof createClient>;
-
-    // Imagens temáticas: barbearia ou salão (Unsplash)
     const isSalon = shopType === "SALON";
     const barberProfiles = [
       "https://images.unsplash.com/photo-1585747860715-2ba9226a93f8?w=400&h=400&fit=crop",
@@ -329,10 +176,6 @@ Deno.serve(async (req: Request) => {
         email: String(email),
         phone: String(phone),
         cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
-        asaas_customer_id: asaasCustomerId,
-        asaas_wallet_id: asaasWalletId,
-        asaas_account_id: asaasAccountId ?? null,
-        ...(asaasApiKeySub && { asaas_api_key: asaasApiKeySub }),
         type: (shopType === "SALON" ? "SALON" : "BARBER"),
         subscription_active: true,
         subscription_amount: 99,
@@ -340,6 +183,9 @@ Deno.serve(async (req: Request) => {
         profile_image,
         banner_image,
         address: [address, addressNumber, complement, province, postalCode].filter(Boolean).join(", ") || address,
+        finance_provision_status: "pending",
+        finance_provision_payload,
+        finance_provision_updated_at: new Date().toISOString(),
       })
       .select("id")
       .single();
@@ -369,7 +215,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Criar usuário no Supabase Auth (dono da loja) para login com email/senha
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: String(email),
       password: ownerPassword,
@@ -406,7 +251,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4. Vincular loja ao dono (owner_id) e garantir perfil barbearia (o trigger já criou perfil cliente; fazemos upsert para sobrescrever)
     const { error: updateOwnerError } = await supabase
       .from("shops")
       .update({ owner_id: ownerId })
@@ -441,11 +285,11 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         shopId,
-        asaasCustomerId,
-        asaasAccountId: asaasAccountId ?? undefined,
-        asaasWalletId: asaasWalletId ?? undefined,
-        asaasApiKeyConfigured: !!asaasApiKeySub,
         ownerCreated: true,
+        financeProvisionStatus: "pending",
+        financePending: true,
+        message:
+          "Loja criada. Ative recebimentos Asaas no admin (botão Provisionar Asaas) ou aguarde o provisionador externo.",
       }),
       {
         status: 200,

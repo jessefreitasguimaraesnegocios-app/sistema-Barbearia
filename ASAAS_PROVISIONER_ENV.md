@@ -34,6 +34,14 @@ ASAAS_PROVISIONER_TOKEN=seu_token_opcional
 ASAAS_PROVISIONER_ENV=sandbox
 ```
 
+## Loja (barbearia) — provisionamento assincrono
+
+Fluxo separado do cadastro de parceiro:
+
+- Edge `process-shop-finance` (secrets: `ASAAS_API_KEY`, `ASAAS_API_URL`; opcional `ASAAS_SHOP_PROVISIONER_URL` / `ASAAS_SHOP_PROVISIONER_TOKEN` / `ASAAS_SHOP_PROVISIONER_APP_ID`).
+- Edge `shop-finance-webhook` com `SHOP_FINANCE_WEBHOOK_SECRET` (deploy com `--no-verify-jwt`).
+- Admin: botao **Provisionar Asaas** chama `POST /api/admin/process-shop-finance` com JWT de admin.
+
 ## Checklist rapido
 
 - Provisionador responde `200` no endpoint `create-subaccount`.

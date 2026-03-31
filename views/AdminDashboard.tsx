@@ -4,6 +4,15 @@ import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME } from '../lib/branding';
 
+async function adminAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  return headers;
+}
+
 // Máscara telefone BR: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -47,6 +56,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [creatingWalletId, setCreatingWalletId] = useState<string | null>(null);
+  const [processingFinanceShopId, setProcessingFinanceShopId] = useState<string | null>(null);
   const [emailSuggestionsOpen, setEmailSuggestionsOpen] = useState(false);
   const [emailSuggestionsFilter, setEmailSuggestionsFilter] = useState('');
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +171,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           postalCode: '', address: '', addressNumber: '', complement: '', province: '',
           incomeValue: 5000, subscriptionAmount: 99
         });
-        alert('Barbearia cadastrada, conta Asaas criada e login do dono ativado! O proprietário pode acessar com o e-mail e a senha definidos.');
+        const pendingFinance = data.financePending === true || data.financeProvisionStatus === 'pending';
+        alert(
+          pendingFinance
+            ? 'Parceiro cadastrado e login do dono ativado. Para habilitar PIX/split e saque, clique em «Provisionar Asaas» na lista (ou use «Criar carteira» se preferir o fluxo manual legado).'
+            : 'Barbearia cadastrada e login do dono ativado! O proprietário pode acessar com o e-mail e a senha definidos.'
+        );
       } else {
         const msg = data?.details || data?.error || 'Erro ao cadastrar barbearia.';
         alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -179,7 +194,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await adminAuthHeaders(),
         body: JSON.stringify({ subscriptionActive: next })
       });
       const data = await response.json();
@@ -280,7 +295,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await adminAuthHeaders(),
         body: JSON.stringify({ subscriptionAmount: newAmount })
       });
       const data = await response.json();
@@ -302,7 +317,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await adminAuthHeaders(),
         body: JSON.stringify({ splitPercent: v })
       });
       const data = await response.json();
@@ -317,19 +332,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     }
   };
 
+  const processShopFinance = async (shop: Shop) => {
+    setProcessingFinanceShopId(shop.id);
+    try {
+      const response = await fetch(`${window.location.origin}/api/admin/process-shop-finance`, {
+        method: 'POST',
+        headers: await adminAuthHeaders(),
+        body: JSON.stringify({ shopId: shop.id }),
+      });
+      const data = await response.json().catch(() => ({}));
+      const results = (data.results as Array<{ shopId: string; ok: boolean; error?: string; status?: string }>) || [];
+      const mine = results.find((r) => r.shopId === shop.id);
+      if (data.success && mine?.ok) {
+        await onShopCreated?.();
+        const msg =
+          mine.status === 'awaiting_callback'
+            ? 'Solicitação enviada ao provisionador externo. Quando o callback for recebido, o status passará a ativo.'
+            : 'Provisionamento Asaas concluído para esta loja.';
+        alert(msg);
+      } else {
+        const err = mine?.error || data.error || 'Falha ao provisionar.';
+        alert(typeof err === 'string' ? err : JSON.stringify(err));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao provisionar Asaas.');
+    } finally {
+      setProcessingFinanceShopId(null);
+    }
+  };
+
   const createWalletForShop = async (shop: Shop) => {
     setCreatingWalletId(shop.id);
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}/create-wallet`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await adminAuthHeaders(),
         body: JSON.stringify({ cpfCnpj: shop.cnpjOrCpf || undefined })
       });
       const data = await response.json();
       if (data.success && data.shop) {
         setShops(shops.map(s =>
           s.id === shop.id
-            ? { ...s, asaasWalletId: data.shop.asaasWalletId, asaasAccountId: data.shop.asaasAccountId }
+            ? {
+                ...s,
+                asaasWalletId: data.shop.asaasWalletId,
+                asaasAccountId: data.shop.asaasAccountId,
+                asaasApiKeyConfigured: data.shop.asaasApiKeyConfigured === true,
+                financeProvisionStatus: 'active',
+                financeProvisionLastError: undefined,
+              }
             : s
         ));
         alert('Carteira Asaas criada e vinculada à loja.');
@@ -347,7 +399,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
   const deleteShop = async (shop: Shop) => {
     if (!window.confirm(`Excluir o estabelecimento "${shop.name}"? Esta ação não pode ser desfeita.`)) return;
     try {
-      const response = await fetch(`/api/admin/shops/${shop.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/admin/shops/${shop.id}`, { method: 'DELETE', headers: await adminAuthHeaders() });
       const data = await response.json();
       if (data.success) {
         setShops(shops.filter(s => s.id !== shop.id));
@@ -476,10 +528,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <span className="text-xs font-mono text-gray-400">{shop.asaasAccountId || (shop.asaasWalletId ? 'OK' : 'Sem carteira')}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-mono text-gray-400">
+                        {shop.asaasAccountId || (shop.asaasWalletId ? 'OK' : '—')}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                        {(() => {
+                          const fin = shop.financeProvisionStatus ?? (shop.asaasWalletId ? 'active' : 'pending');
+                          if (fin === 'active') return 'Financeiro: ativo';
+                          if (fin === 'pending') return 'Financeiro: pendente';
+                          if (fin === 'processing') return 'Financeiro: processando';
+                          if (fin === 'awaiting_callback') return 'Financeiro: aguardando callback';
+                          if (fin === 'failed') return 'Financeiro: falhou';
+                          return `Financeiro: ${fin}`;
+                        })()}
+                      </span>
+                      {shop.financeProvisionLastError && shop.financeProvisionStatus === 'failed' && (
+                        <span className="text-[10px] text-red-500 line-clamp-2" title={shop.financeProvisionLastError}>
+                          {shop.financeProvisionLastError}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <div className="flex items-center justify-end gap-3">
+                    <div className="flex items-center justify-end gap-3 flex-wrap">
+                      {(() => {
+                        const fin = shop.financeProvisionStatus ?? (shop.asaasWalletId ? 'active' : 'pending');
+                        const showProvision =
+                          fin !== 'active' && fin !== 'processing' && fin !== 'awaiting_callback';
+                        return showProvision ? (
+                          <button
+                            type="button"
+                            onClick={() => processShopFinance(shop)}
+                            disabled={!!processingFinanceShopId}
+                            className="text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline disabled:opacity-50"
+                          >
+                            {processingFinanceShopId === shop.id ? 'Provisionando...' : 'Provisionar Asaas'}
+                          </button>
+                        ) : null;
+                      })()}
                       {!shop.asaasWalletId && (
                         <button
                           type="button"
@@ -521,7 +608,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   <i className="fas fa-times"></i>
                 </button>
               </div>
-              <p className="text-gray-500 text-sm mt-1">Preencha os dados para criar a barbearia e a subconta no Asaas.</p>
+              <p className="text-gray-500 text-sm mt-1">Preencha os dados para criar a barbearia. O provisionamento Asaas fica pendente até você usar «Provisionar Asaas» na lista.</p>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-6 pt-4 sm:px-6 sm:pb-8 md:px-8 md:pb-10">
              <form onSubmit={handleAddShop} className="space-y-4">

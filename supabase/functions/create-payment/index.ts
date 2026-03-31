@@ -168,6 +168,26 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const rateShopId = bodyBooking?.shopId || bodyOrder?.shopId || "no-shop";
+    const { data: allowedByRateLimit, error: rateErr } = await supabaseAdmin.rpc("security_check_rate_limit", {
+      p_route: "create-payment",
+      p_subject: `create-payment:${authUserId}:${rateShopId}`,
+      p_limit: 12,
+      p_window_seconds: 60,
+    });
+    if (rateErr) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Falha no rate limit: ${rateErr.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (allowedByRateLimit === false) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Muitas tentativas de pagamento. Aguarde 1 minuto e tente novamente." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (shopId) {
       const { data: shop, error: shopErr } = await supabaseAdmin
         .from("shops")

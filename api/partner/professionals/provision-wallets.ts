@@ -147,7 +147,6 @@ export default async function handler(
         shop_id: shopId,
         asaas_account_id: data.subaccount.asaas_subaccount_id ?? null,
         asaas_wallet_id: data.subaccount.asaas_wallet_id ?? null,
-        asaas_api_key: data.subaccount.api_key ?? null,
         asaas_environment: environment,
         split_percent: payload.splitPercent,
       });

@@ -34,7 +34,6 @@ export interface Professional {
   birthDate?: string;
   asaasAccountId?: string;
   asaasWalletId?: string;
-  asaasApiKey?: string;
   asaasEnvironment?: 'sandbox' | 'production';
   splitPercent?: number;
 }

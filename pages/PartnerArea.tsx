@@ -55,7 +55,7 @@ export default function PartnerArea() {
     (async () => {
       const { data: shopRow, error: shopErr } = await supabase
         .from('shops')
-        .select('*')
+        .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes')
         .eq('id', shopId)
         .single();
       if (shopErr || !shopRow) return;
@@ -323,7 +323,6 @@ export default function PartnerArea() {
       birthDate: p.birth_date || '',
       asaasAccountId: p.asaas_account_id || undefined,
       asaasWalletId: p.asaas_wallet_id || undefined,
-      asaasApiKey: p.asaas_api_key || undefined,
       asaasEnvironment: p.asaas_environment || undefined,
       splitPercent: normalizeSplitPercent(p.split_percent, d.split_percent != null ? Number(d.split_percent) : 95),
     }));
@@ -559,7 +558,7 @@ export default function PartnerArea() {
 
     const { data: refreshed } = await supabase
       .from('shops')
-      .select('*')
+      .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes')
       .eq('id', shopId)
       .single();
     if (refreshed) {
@@ -595,7 +594,7 @@ export default function PartnerArea() {
 
     const { data: refreshedAfterProvision } = await supabase
       .from('shops')
-      .select('*')
+      .select('id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes')
       .eq('id', shopId)
       .single();
     if (refreshedAfterProvision) {

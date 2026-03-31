@@ -67,7 +67,7 @@ npm run supabase:functions-deploy
 Ou individualmente:
 ```bash
 npx supabase functions deploy create-shop --no-verify-jwt
-npx supabase functions deploy create-payment --no-verify-jwt
+npx supabase functions deploy create-payment
 npx supabase functions deploy asaas-webhook --no-verify-jwt
 ```
 

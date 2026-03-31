@@ -12,6 +12,5 @@
 -- 6. Rode este script no Supabase → SQL Editor.
 
 UPDATE public.shops
-SET asaas_api_key = '$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjFjOWNkOGEzLTA2NDUtNDk0MC1hYzViLWVmMzk3ZTc2YjU1Zjo6JGFhY2hfYTcxNjE4NzQtM2ExOS00N2Q4LTk3YzUtNjU3MWYxNmYxMjdm
-'
+SET asaas_api_key = 'COLE_A_CHAVE_DA_SUBCONTA_AQUI'
 WHERE email = 'dk@gmail.com';

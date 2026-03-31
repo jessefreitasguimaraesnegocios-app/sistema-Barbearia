@@ -14,12 +14,26 @@ const PAYMENT_API_URL = SUPABASE_URL
   ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/create-payment`
   : '/api/payments/create';
 
-function getPaymentHeaders(): Record<string, string> {
+async function getPaymentHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
   if (PAYMENT_API_URL.includes('supabase.co') && SUPABASE_ANON_KEY) {
-    headers['Authorization'] = `Bearer ${SUPABASE_ANON_KEY}`;
+    headers['apikey'] = SUPABASE_ANON_KEY;
   }
   return headers;
+}
+
+function buildIdempotencyKey(prefix: 'booking' | 'order', parts: Array<string | number>): string {
+  const raw = `${prefix}|${parts.map((p) => String(p)).join('|')}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+  }
+  return `${prefix}_${hash.toString(36)}`;
 }
 
 interface ShopDetailsProps {
@@ -50,8 +64,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [bookingSuccess, setBookingSuccess] = useState(false);
   
   // Pagamento PIX pendente: exibe link para pagar e botão "Já paguei"
-  type PaymentPendingBooking = { invoiceUrl: string; amount: number; type: 'booking'; pendingBooking: Appointment };
-  type PaymentPendingOrder = { invoiceUrl: string; amount: number; type: 'order'; pendingOrder: Order };
+  type PaymentPendingBooking = { invoiceUrl: string; amount: number; type: 'booking'; pendingBooking: Appointment; isDuplicate?: boolean };
+  type PaymentPendingOrder = { invoiceUrl: string; amount: number; type: 'order'; pendingOrder: Order; isDuplicate?: boolean };
   const [paymentPending, setPaymentPending] = useState<PaymentPendingBooking | PaymentPendingOrder | null>(null);
   
   // Store States
@@ -177,10 +191,21 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     
     try {
       const totalAmount = (selectedService.price + tipAmount);
+      const normalizedTime = selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime;
+      const bookingIdempotencyKey = buildIdempotencyKey('booking', [
+        user.id,
+        shop.id,
+        selectedService.id,
+        selectedPro.id,
+        selectedDate,
+        normalizedTime,
+        totalAmount.toFixed(2),
+      ]);
       const response = await fetch(PAYMENT_API_URL, {
         method: 'POST',
-        headers: getPaymentHeaders(),
+        headers: await getPaymentHeaders(),
         body: JSON.stringify({
+          idempotencyKey: bookingIdempotencyKey,
           amount: totalAmount,
           tip: tipAmount,
           description: `Agendamento: ${selectedService.name} na ${shop.name}${tipAmount > 0 ? ' (inclui gorjeta)' : ''}`,
@@ -195,7 +220,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             serviceId: selectedService.id,
             professionalId: selectedPro.id,
             date: selectedDate,
-            time: selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime,
+            time: normalizedTime,
             amount: totalAmount,
             tip: tipAmount > 0 ? tipAmount : undefined,
           },
@@ -227,7 +252,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         serviceId: selectedService.id,
         professionalId: selectedPro.id,
         date: selectedDate,
-        time: selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime,
+        time: normalizedTime,
         status: 'PENDING',
         amount: totalAmount,
         tip: tipAmount > 0 ? tipAmount : undefined
@@ -238,7 +263,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         invoiceUrl,
         amount: totalAmount,
         type: 'booking',
-        pendingBooking: { ...newApt, status: 'PAID' }
+        pendingBooking: { ...newApt, status: 'PAID' },
+        isDuplicate: Boolean(data?.duplicate),
       });
       onRefetchAppointmentsAndOrders?.();
     } catch (error) {
@@ -288,10 +314,24 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     setIsOrderProcessing(true);
     
     try {
+      const normalizedItems = [...cart]
+        .map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          price: item.product.promoPrice ?? item.product.price,
+        }))
+        .sort((a, b) => a.productId.localeCompare(b.productId));
+      const orderIdempotencyKey = buildIdempotencyKey('order', [
+        user.id,
+        shop.id,
+        cartTotal.toFixed(2),
+        JSON.stringify(normalizedItems),
+      ]);
       const response = await fetch(PAYMENT_API_URL, {
         method: 'POST',
-        headers: getPaymentHeaders(),
+        headers: await getPaymentHeaders(),
         body: JSON.stringify({
+          idempotencyKey: orderIdempotencyKey,
           amount: cartTotal,
           description: `Compra de Produtos na ${shop.name}`,
           customerName,
@@ -302,11 +342,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
           order: {
             shopId: shop.id,
             clientId: user.id,
-            items: cart.map(item => ({
-              productId: item.product.id,
-              quantity: item.quantity,
-              price: item.product.promoPrice ?? item.product.price,
-            })),
+            items: normalizedItems,
             total: cartTotal,
           },
         })
@@ -349,7 +385,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         invoiceUrl,
         amount: cartTotal,
         type: 'order',
-        pendingOrder: newOrder
+        pendingOrder: newOrder,
+        isDuplicate: Boolean(data?.duplicate),
       });
       onRefetchAppointmentsAndOrders?.();
     } catch (error) {
@@ -428,6 +465,13 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
           <p className="text-gray-500 text-sm">
             A cobrança foi gerada. Abra a página abaixo para ver o QR Code ou o código PIX Copia e Cola, pague no app do seu banco e depois clique em &quot;Já paguei&quot;.
           </p>
+          {paymentPending.isDuplicate && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-left">
+              <p className="text-amber-800 text-xs font-semibold">
+                Esta cobrança já existia e foi reaproveitada com segurança. Use o mesmo link PIX abaixo.
+              </p>
+            </div>
+          )}
           <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
             <p className="text-sm text-gray-500 mb-1">Valor a pagar</p>
             <p className="text-3xl font-black text-indigo-600">R$ {paymentPending.amount.toFixed(2).replace('.', ',')}</p>

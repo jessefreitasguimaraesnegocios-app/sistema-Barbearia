@@ -7,11 +7,11 @@ const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ASAAS_WALLET_ID = (process.env.ASAAS_WALLET_ID || '').trim();
 
 interface CreatePaymentBody {
   amount: number;
   tip?: number;
+  idempotencyKey?: string;
   description?: string;
   customerName: string;
   customerEmail: string;
@@ -23,7 +23,7 @@ interface CreatePaymentBody {
 }
 
 export default async function handler(
-  req: { method?: string; body?: CreatePaymentBody },
+  req: { method?: string; body?: CreatePaymentBody; headers?: Record<string, string | string[] | undefined> },
   res: { setHeader: (k: string, v: string) => void; status: (n: number) => { json: (o: object) => void; end: () => void }; end?: (code?: number) => void }
 ) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,12 +43,32 @@ export default async function handler(
       error: 'Configuração do gateway de pagamento indisponível (ASAAS_API_KEY).',
     });
   }
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: 'Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY).',
+    });
+  }
 
   try {
+    const rawAuth = req.headers?.authorization;
+    const authHeader = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Não autorizado: token ausente.' });
+    }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+    const authUserId = authData?.user?.id;
+    if (authErr || !authUserId) {
+      return res.status(401).json({ success: false, error: 'Não autorizado: token inválido.' });
+    }
+
     const body = (req.body || {}) as CreatePaymentBody;
     const {
       amount,
       tip = 0,
+      idempotencyKey: bodyIdempotencyKey,
       description = '',
       customerName,
       customerEmail,
@@ -58,12 +78,22 @@ export default async function handler(
       booking: bodyBooking,
       order: bodyOrder,
     } = body;
+    const idempotencyKey = bodyIdempotencyKey != null ? String(bodyIdempotencyKey).trim() : '';
+    if (recordType === 'booking' && bodyBooking?.clientId && bodyBooking.clientId !== authUserId) {
+      return res.status(403).json({ success: false, error: 'Não autorizado para criar pagamento deste cliente.' });
+    }
+    if (recordType === 'order' && bodyOrder?.clientId && bodyOrder.clientId !== authUserId) {
+      return res.status(403).json({ success: false, error: 'Não autorizado para criar pagamento deste cliente.' });
+    }
 
     if (!amount || amount <= 0 || !customerName || !customerEmail) {
       return res.status(400).json({
         success: false,
         error: 'Campos obrigatórios: amount, customerName, customerEmail.',
       });
+    }
+    if (idempotencyKey.length > 190) {
+      return res.status(400).json({ success: false, error: 'idempotencyKey inválido (máximo 190 caracteres).' });
     }
 
     const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
@@ -72,7 +102,6 @@ export default async function handler(
     let hasShopWallet = false;
 
     if (shopId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       const { data: shop, error: shopErr } = await supabase
         .from('shops')
         .select('asaas_wallet_id, split_percent')
@@ -113,6 +142,71 @@ export default async function handler(
         error:
           'Esta loja ainda não possui carteira Asaas configurada. Não é possível processar pagamento com split. Entre em contato com o suporte.',
       });
+    }
+    if ((recordType === 'booking' || recordType === 'order') && !idempotencyKey) {
+      return res.status(400).json({ success: false, error: 'idempotencyKey é obrigatório para agendamento/pedido.' });
+    }
+
+    if (recordType === 'booking' && bodyBooking?.clientId && bodyBooking?.shopId && idempotencyKey) {
+      const { data: existing } = await supabase
+        .from('appointments')
+        .select('id, asaas_payment_id')
+        .eq('client_id', bodyBooking.clientId)
+        .eq('shop_id', bodyBooking.shopId)
+        .eq('payment_idempotency_key', idempotencyKey)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existing?.asaas_payment_id) {
+        const paymentGetRes = await fetch(`${ASAAS_API_URL}/payments/${existing.asaas_payment_id}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json', access_token: ASAAS_API_KEY },
+        });
+        let existingPaymentData: Record<string, unknown> = {};
+        if (paymentGetRes.ok) {
+          const txt = await paymentGetRes.text();
+          try { existingPaymentData = JSON.parse(txt); } catch (_) {}
+        }
+        return res.status(200).json({
+          success: true,
+          duplicate: true,
+          payment: existingPaymentData,
+          invoiceUrl: (existingPaymentData as { invoiceUrl?: string }).invoiceUrl,
+          id: (existingPaymentData as { id?: string }).id ?? existing.asaas_payment_id,
+          appointmentId: existing.id,
+        });
+      }
+    }
+
+    if (recordType === 'order' && bodyOrder?.clientId && bodyOrder?.shopId && idempotencyKey) {
+      const { data: existing } = await supabase
+        .from('orders')
+        .select('id, asaas_payment_id')
+        .eq('client_id', bodyOrder.clientId)
+        .eq('shop_id', bodyOrder.shopId)
+        .eq('payment_idempotency_key', idempotencyKey)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existing?.asaas_payment_id) {
+        const paymentGetRes = await fetch(`${ASAAS_API_URL}/payments/${existing.asaas_payment_id}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json', access_token: ASAAS_API_KEY },
+        });
+        let existingPaymentData: Record<string, unknown> = {};
+        if (paymentGetRes.ok) {
+          const txt = await paymentGetRes.text();
+          try { existingPaymentData = JSON.parse(txt); } catch (_) {}
+        }
+        return res.status(200).json({
+          success: true,
+          duplicate: true,
+          payment: existingPaymentData,
+          invoiceUrl: (existingPaymentData as { invoiceUrl?: string }).invoiceUrl,
+          id: (existingPaymentData as { id?: string }).id ?? existing.asaas_payment_id,
+          orderId: existing.id,
+        });
+      }
     }
 
     const cpfCnpjDigits =
@@ -220,7 +314,6 @@ export default async function handler(
     let recordId: string | null = null;
 
     if (asaasPaymentId && (recordType === 'booking' || recordType === 'order') && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       if (recordType === 'booking' && bodyBooking && typeof bodyBooking === 'object') {
         const b = bodyBooking;
         if (b.shopId && b.clientId && b.serviceId && b.professionalId && b.date && b.time != null && b.amount != null) {
@@ -236,10 +329,18 @@ export default async function handler(
               amount: Number(b.amount),
               status: 'PENDING',
               asaas_payment_id: asaasPaymentId,
+              payment_idempotency_key: idempotencyKey || null,
             })
             .select('id')
             .single();
-          if (!aptErr && apt?.id) recordId = apt.id;
+          if (aptErr || !apt?.id) {
+            return res.status(500).json({
+              success: false,
+              error: 'Cobrança criada, mas falhou ao registrar o agendamento pendente.',
+              paymentId: asaasPaymentId,
+            });
+          }
+          recordId = apt.id;
         }
       } else if (recordType === 'order' && bodyOrder && typeof bodyOrder === 'object') {
         const o = bodyOrder;
@@ -253,10 +354,18 @@ export default async function handler(
               total: Number(o.total),
               status: 'PENDING',
               asaas_payment_id: asaasPaymentId,
+              payment_idempotency_key: idempotencyKey || null,
             })
             .select('id')
             .single();
-          if (!ordErr && ord?.id) recordId = ord.id;
+          if (ordErr || !ord?.id) {
+            return res.status(500).json({
+              success: false,
+              error: 'Cobrança criada, mas falhou ao registrar o pedido pendente.',
+              paymentId: asaasPaymentId,
+            });
+          }
+          recordId = ord.id;
         }
       }
     }

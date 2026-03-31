@@ -8,6 +8,31 @@ const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/a
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+function normalizeAsaasMobilePhone(rawPhone: unknown): string {
+  const fallback = '11999999999';
+  if (rawPhone == null) return fallback;
+
+  let digits = String(rawPhone).replace(/\D/g, '');
+  if (!digits) return fallback;
+
+  // Usuário pode informar número com DDI (+55). Para o Asaas, enviamos só DDD + número.
+  if (digits.startsWith('55') && digits.length > 11) {
+    digits = digits.slice(2);
+  }
+
+  // Caso venha 10 dígitos (DDD + 8), tenta adaptar para celular adicionando 9.
+  if (digits.length === 10) {
+    digits = `${digits.slice(0, 2)}9${digits.slice(2)}`;
+  }
+
+  // Celular BR esperado: DDD(2) + 9 + 8 dígitos.
+  if (!/^\d{2}9\d{8}$/.test(digits)) {
+    return fallback;
+  }
+
+  return digits;
+}
+
 interface CreatePaymentBody {
   amount: number;
   tip?: number;
@@ -220,10 +245,7 @@ export default async function handler(
       });
     }
 
-    const mobilePhone =
-      bodyPhone != null && String(bodyPhone).trim() !== ''
-        ? String(bodyPhone).replace(/\D/g, '').slice(0, 11) || '11999999999'
-        : '11999999999';
+    const mobilePhone = normalizeAsaasMobilePhone(bodyPhone);
 
     const totalValue = Number(amount) + Number(tip);
     const dueDate = new Date();
@@ -239,7 +261,7 @@ export default async function handler(
       body: JSON.stringify({
         name: String(customerName),
         email: String(customerEmail),
-        mobilePhone: mobilePhone.length >= 10 ? mobilePhone : '11999999999',
+        mobilePhone,
         cpfCnpj: cpfCnpjDigits,
       }),
     });

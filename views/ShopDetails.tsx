@@ -45,7 +45,7 @@ interface ShopDetailsProps {
   onBack: () => void;
 }
 
-type PaymentMethod = 'PIX' | 'CREDIT' | 'DEBIT';
+type PaymentMethod = 'PIX';
 
 const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointmentsAndOrders, onBook, onOrder, onBack }) => {
   const [activeTab, setActiveTab] = useState<'SERVICES' | 'STORE'>('SERVICES');
@@ -54,7 +54,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [selectedPaymentMethod] = useState<PaymentMethod>('PIX');
   const [tipAmount, setTipAmount] = useState<number>(0);
   const [customerCpf, setCustomerCpf] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -172,7 +172,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   }, [selectedTime, selectedPro?.id, bookingBlocks, agendaSlotMinutes, teamProIds]);
 
   const handleBooking = async () => {
-    if (!selectedService || !selectedPro || !selectedDate || !selectedTime || !selectedPaymentMethod) return;
+    if (!selectedService || !selectedPro || !selectedDate || !selectedTime) return;
     const useProfile = isProfileComplete;
     const cpfDigits = useProfile ? (user.cpfCnpj || '').replace(/\D/g, '') : (customerCpf || '').replace(/\D/g, '');
     if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
@@ -834,79 +834,32 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                       </div>
                       )}
 
-                      {/* Lado Direito: Opções de Pagamento */}
+                      {/* Lado Direito: Pagamento PIX (único método disponível) */}
                       <div className="space-y-4">
                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Forma de Pagamento</h4>
-                         <div className="grid grid-cols-1 gap-3">
-                            <button 
-                              onClick={() => setSelectedPaymentMethod('PIX')}
-                              className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${selectedPaymentMethod === 'PIX' ? 'border-indigo-600 bg-indigo-50' : 'border-gray-100 hover:border-indigo-200'}`}
-                            >
-                              <div className="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center">
-                                <i className="fas fa-qrcode"></i>
-                              </div>
-                              <div className="text-left">
-                                <p className="font-bold text-gray-900">PIX</p>
-                                <p className="text-[10px] text-gray-500">Liberação instantânea</p>
-                              </div>
-                              {selectedPaymentMethod === 'PIX' && <i className="fas fa-check-circle ml-auto text-indigo-600"></i>}
-                            </button>
-
-                            <button 
-                              onClick={() => setSelectedPaymentMethod('CREDIT')}
-                              className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${selectedPaymentMethod === 'CREDIT' ? 'border-indigo-600 bg-indigo-50' : 'border-gray-100 hover:border-indigo-200'}`}
-                            >
-                              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
-                                <i className="fas fa-credit-card"></i>
-                              </div>
-                              <div className="text-left">
-                                <p className="font-bold text-gray-900">Cartão de Crédito</p>
-                                <p className="text-[10px] text-gray-500">Em até 3x sem juros</p>
-                              </div>
-                              {selectedPaymentMethod === 'CREDIT' && <i className="fas fa-check-circle ml-auto text-indigo-600"></i>}
-                            </button>
-
-                            <button 
-                              onClick={() => setSelectedPaymentMethod('DEBIT')}
-                              className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${selectedPaymentMethod === 'DEBIT' ? 'border-indigo-600 bg-indigo-50' : 'border-gray-100 hover:border-indigo-200'}`}
-                            >
-                              <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center">
-                                <i className="fas fa-money-check"></i>
-                              </div>
-                              <div className="text-left">
-                                <p className="font-bold text-gray-900">Cartão de Débito</p>
-                                <p className="text-[10px] text-gray-500">Pagamento à vista</p>
-                              </div>
-                              {selectedPaymentMethod === 'DEBIT' && <i className="fas fa-check-circle ml-auto text-indigo-600"></i>}
-                            </button>
+                         <div className="flex items-center gap-4 p-4 rounded-2xl border-2 border-indigo-600 bg-indigo-50">
+                            <div className="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center">
+                              <i className="fas fa-qrcode"></i>
+                            </div>
+                            <div className="text-left">
+                              <p className="font-bold text-gray-900">PIX</p>
+                              <p className="text-[10px] text-gray-500">Único método disponível no momento</p>
+                            </div>
+                            <i className="fas fa-check-circle ml-auto text-indigo-600"></i>
                          </div>
-
-                         {selectedPaymentMethod === 'PIX' && (
-                           <div className="animate-fade-in bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
-                              <div className="w-32 h-32 bg-white border border-gray-100 mx-auto mb-4 p-2 flex items-center justify-center">
-                                <i className="fas fa-qrcode text-6xl text-gray-800"></i>
-                              </div>
-                              <p className="text-[10px] text-gray-400 font-medium mb-3 uppercase">Escaneie o código acima ou use o Copia e Cola</p>
-                              <button className="bg-white border border-indigo-200 text-indigo-600 text-[10px] font-bold py-2 px-4 rounded-lg flex items-center gap-2 mx-auto">
-                                <i className="fas fa-copy"></i> Copiar Código PIX
-                              </button>
-                           </div>
-                         )}
-
-                         {(selectedPaymentMethod === 'CREDIT' || selectedPaymentMethod === 'DEBIT') && (
-                           <div className="animate-fade-in grid grid-cols-1 gap-3">
-                              <input type="text" placeholder="Nome no Cartão" className="w-full p-3 rounded-xl bg-gray-50 border-none text-xs focus:ring-2 focus:ring-indigo-600" />
-                              <div className="grid grid-cols-2 gap-3">
-                                <input type="text" placeholder="MM/AA" className="w-full p-3 rounded-xl bg-gray-50 border-none text-xs focus:ring-2 focus:ring-indigo-600" />
-                                <input type="text" placeholder="CVV" className="w-full p-3 rounded-xl bg-gray-50 border-none text-xs focus:ring-2 focus:ring-indigo-600" />
-                              </div>
-                           </div>
-                         )}
+                         <div className="animate-fade-in bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
+                            <div className="w-32 h-32 bg-white border border-gray-100 mx-auto mb-4 p-2 flex items-center justify-center">
+                              <i className="fas fa-qrcode text-6xl text-gray-800"></i>
+                            </div>
+                            <p className="text-[10px] text-gray-400 font-medium mb-3 uppercase">
+                              O QR Code e o PIX Copia e Cola aparecem após gerar a cobrança.
+                            </p>
+                         </div>
                       </div>
                     </div>
 
                     <button 
-                      disabled={isProcessing || !selectedPaymentMethod || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
+                      disabled={isProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
                       onClick={handleBooking}
                       className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed mt-8"
                     >

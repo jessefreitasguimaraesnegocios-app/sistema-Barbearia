@@ -153,6 +153,7 @@ Deno.serve(async (req: Request) => {
     let effectiveWalletId = "";
     let splitToShop = Math.min(100, Math.max(0, bodySplitPercent != null ? Number(bodySplitPercent) : 95));
     let hasShopWallet = false;
+    let hasProfessionalWallet = false;
 
     if (recordType === "booking" && bodyBooking?.clientId && bodyBooking.clientId !== authUserId) {
       return new Response(
@@ -187,13 +188,48 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Pagamento com loja (agendamento/pedido) exige carteira da loja para split
-      if ((recordType === "booking" || recordType === "order") && !hasShopWallet) {
+      if (recordType === "booking" && bodyBooking?.professionalId) {
+        const { data: professional } = await supabaseAdmin
+          .from("professionals")
+          .select("asaas_wallet_id, split_percent")
+          .eq("id", bodyBooking.professionalId)
+          .eq("shop_id", shopId)
+          .maybeSingle();
+        const professionalWallet = (
+          professional?.asaas_wallet_id != null && String(professional.asaas_wallet_id).trim() !== ""
+        )
+          ? String(professional.asaas_wallet_id).trim()
+          : "";
+        if (professionalWallet) {
+          effectiveWalletId = professionalWallet;
+          hasProfessionalWallet = true;
+        }
+        if (professional?.split_percent != null) {
+          const pct = Number(professional.split_percent);
+          if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
+        }
+      }
+
+      // Pedido exige carteira da loja. Serviço aceita fallback para carteira da loja.
+      if (recordType === "order" && !hasShopWallet) {
         return new Response(
           JSON.stringify({
             success: false,
             error:
               "Esta loja ainda não possui carteira Asaas configurada. Não é possível processar pagamento com split. Entre em contato com o suporte.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+      if (recordType === "booking" && !hasProfessionalWallet && !hasShopWallet) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error:
+              "Este profissional e esta loja ainda não possuem carteira Asaas configurada. Não é possível processar pagamento com split.",
           }),
           {
             status: 400,

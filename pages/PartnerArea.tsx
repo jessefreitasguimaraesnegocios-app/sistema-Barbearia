@@ -18,6 +18,12 @@ function formatDbTime(v: unknown): string | null {
   return String(v).slice(0, 5);
 }
 
+function normalizeSplitPercent(value: unknown, fallback = 95): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(100, Math.max(0, n));
+}
+
 export default function PartnerArea() {
   const { user, loading, signIn, signOut } = useAuth();
   const navigate = useNavigate();
@@ -311,6 +317,15 @@ export default function PartnerArea() {
       name: p.name,
       specialty: p.specialty || '',
       avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}`,
+      email: p.email || '',
+      phone: p.phone || '',
+      cpfCnpj: p.cpf_cnpj || '',
+      birthDate: p.birth_date || '',
+      asaasAccountId: p.asaas_account_id || undefined,
+      asaasWalletId: p.asaas_wallet_id || undefined,
+      asaasApiKey: p.asaas_api_key || undefined,
+      asaasEnvironment: p.asaas_environment || undefined,
+      splitPercent: normalizeSplitPercent(p.split_percent, d.split_percent != null ? Number(d.split_percent) : 95),
     }));
     const products = dedupeByKey(rawProducts, (p: any) => `${(p.name || '').trim()}|${Number(p.price)}|${(p.category || 'Geral').trim()}`).map((p: any) => ({
       id: p.id,
@@ -463,6 +478,11 @@ export default function PartnerArea() {
           name: p.name,
           specialty: p.specialty ?? null,
           avatar: p.avatar ?? null,
+          email: p.email?.trim() || null,
+          phone: p.phone?.trim() || null,
+          cpf_cnpj: p.cpfCnpj?.replace(/\D/g, '') || null,
+          birth_date: p.birthDate?.trim() || null,
+          split_percent: normalizeSplitPercent(p.splitPercent, updated.splitPercent ?? 95),
         }).match({ id: p.id, shop_id: shopId });
         if (e) throw new Error(`Equipe: ${e.message}`);
       } else {
@@ -471,6 +491,11 @@ export default function PartnerArea() {
           name: p.name,
           specialty: p.specialty ?? null,
           avatar: p.avatar ?? null,
+          email: p.email?.trim() || null,
+          phone: p.phone?.trim() || null,
+          cpf_cnpj: p.cpfCnpj?.replace(/\D/g, '') || null,
+          birth_date: p.birthDate?.trim() || null,
+          split_percent: normalizeSplitPercent(p.splitPercent, updated.splitPercent ?? 95),
         });
         if (e) throw new Error(`Equipe: ${e.message}`);
       }
@@ -543,6 +568,42 @@ export default function PartnerArea() {
       const { data: prodData } = await supabase.from('products').select('*').eq('shop_id', shopId);
       const full = mapShopFromDb({
         ...refreshed,
+        services: sData || [],
+        professionals: pData || [],
+        products: prodData || [],
+      });
+      setMyShop(full);
+      setShops([full]);
+    }
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (token) {
+        await fetch('/api/partner/professionals/provision-wallets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ shopId }),
+        });
+      }
+    } catch {
+      // Provisionamento de subconta é best-effort; não bloqueia salvamento.
+    }
+
+    const { data: refreshedAfterProvision } = await supabase
+      .from('shops')
+      .select('*')
+      .eq('id', shopId)
+      .single();
+    if (refreshedAfterProvision) {
+      const { data: sData } = await supabase.from('services').select('*').eq('shop_id', shopId);
+      const { data: pData } = await supabase.from('professionals').select('*').eq('shop_id', shopId);
+      const { data: prodData } = await supabase.from('products').select('*').eq('shop_id', shopId);
+      const full = mapShopFromDb({
+        ...refreshedAfterProvision,
         services: sData || [],
         professionals: pData || [],
         products: prodData || [],

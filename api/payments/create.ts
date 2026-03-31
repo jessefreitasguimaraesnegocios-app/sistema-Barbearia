@@ -125,6 +125,7 @@ export default async function handler(
     let effectiveWalletId = '';
     let splitToShop = 95;
     let hasShopWallet = false;
+    let hasProfessionalWallet = false;
 
     if (shopId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       const { data: shop, error: shopErr } = await supabase
@@ -146,11 +147,38 @@ export default async function handler(
           if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
         }
       }
-      if ((recordType === 'booking' || recordType === 'order') && !hasShopWallet) {
+      if (recordType === 'booking' && bodyBooking?.professionalId) {
+        const { data: professional } = await supabase
+          .from('professionals')
+          .select('asaas_wallet_id, split_percent')
+          .eq('id', bodyBooking.professionalId)
+          .eq('shop_id', shopId)
+          .maybeSingle();
+        const professionalWallet =
+          professional?.asaas_wallet_id != null && String(professional.asaas_wallet_id).trim() !== ''
+            ? String(professional.asaas_wallet_id).trim()
+            : '';
+        if (professionalWallet) {
+          effectiveWalletId = professionalWallet;
+          hasProfessionalWallet = true;
+        }
+        if (professional?.split_percent != null) {
+          const pct = Number(professional.split_percent);
+          if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
+        }
+      }
+      if (recordType === 'order' && !hasShopWallet) {
         return res.status(400).json({
           success: false,
           error:
             'Esta loja ainda não possui carteira Asaas configurada. Não é possível processar pagamento com split. Entre em contato com o suporte.',
+        });
+      }
+      if (recordType === 'booking' && !hasProfessionalWallet && !hasShopWallet) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Este profissional e esta loja ainda não possuem carteira Asaas configurada. Não é possível processar pagamento com split.',
         });
       }
     } else if (shopId && (recordType === 'booking' || recordType === 'order')) {
@@ -161,7 +189,7 @@ export default async function handler(
       });
     }
 
-    if ((recordType === 'booking' || recordType === 'order') && !effectiveWalletId) {
+    if (recordType === 'order' && !effectiveWalletId) {
       return res.status(400).json({
         success: false,
         error:

@@ -28,6 +28,15 @@ export interface Professional {
   name: string;
   specialty: string;
   avatar: string;
+  email?: string;
+  phone?: string;
+  cpfCnpj?: string;
+  birthDate?: string;
+  asaasAccountId?: string;
+  asaasWalletId?: string;
+  asaasApiKey?: string;
+  asaasEnvironment?: 'sandbox' | 'production';
+  splitPercent?: number;
 }
 
 export interface Product {

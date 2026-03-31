@@ -77,7 +77,16 @@ Configure os secrets em **Settings → Edge Functions → Secrets** no painel do
 
 **create-shop** – Cadastra parceiro e cria subconta Asaas (POST /accounts com loginEmail), aprova no sandbox (approve), gera chave da subconta (accessTokens) e salva `asaas_account_id`, `asaas_wallet_id` e `asaas_api_key` na tabela `shops`. Toda barbearia/salão é cadastrada com subconta; se a subconta não for criada, a loja não é cadastrada.
 
-**create-payment** (PIX com split) – O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com `shopId`). A função busca `asaas_wallet_id` e `split_percent` na tabela `shops`. O split só é enviado para a **carteira da loja** (subconta). Se a loja não tiver `asaas_wallet_id`, o pagamento é rejeitado.
+**create-payment** (PIX com split) – O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com `shopId`). A função aplica split por contexto:
+- `booking` (serviço): tenta usar `professionals.asaas_wallet_id` e `professionals.split_percent`; se o profissional não tiver carteira, faz fallback para carteira/percentual da loja.
+- `order` (lojinha): usa `shops.asaas_wallet_id` e `shops.split_percent`.
+Se não houver carteira disponível no contexto, o pagamento é rejeitado.
+
+**Provisionamento de subcontas por profissional** – A rota `POST /api/partner/professionals/provision-wallets` cria/vincula carteiras dos profissionais sem `asaas_wallet_id`, chamando o provisionador externo já pronto (projeto de subcontas Asaas). Configure:
+- `ASAAS_PROVISIONER_URL` (endpoint HTTP da função `create-subaccount`);
+- `ASAAS_PROVISIONER_APP_ID` (app_id do sistema barbearia no provisionador);
+- `ASAAS_PROVISIONER_TOKEN` (opcional, se seu provisionador exigir bearer token);
+- `ASAAS_PROVISIONER_ENV` (`sandbox` ou `production`, opcional).
 
 **Documentos e aprovação da subconta (onboarding)**  
 O parceiro envia documentos pela área **Documentos** no menu (parceiro). A rota **GET /api/partner/onboarding** (Vercel) retorna o status da conta e os links para envio (onboardingUrl). O parceiro pode abrir o link, copiar ou enviar por WhatsApp. Para a chave da subconta ser criada automaticamente (ou na primeira vez que o parceiro abre Documentos), é necessário no painel Asaas: (1) **Habilitar** em Integrações → Chaves de API → *Gerenciamento de Chaves de API de Subcontas* (acesso temporário, 2h); (2) **Whitelist de IP**: adicionar os IPs de saída do servidor que chama a API (ex.: no Vercel, usar IP de egress estático ou consultar a documentação do Vercel para IPs de saída). Sem isso, a mensagem “o suporte precisa configurar a chave” aparece e o admin pode configurar `asaas_api_key` na loja manualmente.

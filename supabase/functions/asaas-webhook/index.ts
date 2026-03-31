@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PAYMENT_CONFIRMED_EVENTS = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
+const ASAAS_API_URL = (Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3").replace(/\/$/, "");
 
 function unauthorized(message: string) {
   return new Response(JSON.stringify({ code: 401, message }), {
@@ -70,17 +71,59 @@ Deno.serve(async (req: Request) => {
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
+
+  const updatedCount = (rows: unknown[] | null | undefined) => (rows ? rows.length : 0);
 
   try {
     const [aptRes, ordRes] = await Promise.all([
       supabase.from("appointments").update({ status: "PAID" }).eq("asaas_payment_id", paymentId).select("id"),
       supabase.from("orders").update({ status: "PAID" }).eq("asaas_payment_id", paymentId).select("id"),
     ]);
-    if (aptRes.count ?? aptRes.data?.length) {
+    const aptUpdated = updatedCount(aptRes.data as unknown[] | null | undefined);
+    const ordUpdated = updatedCount(ordRes.data as unknown[] | null | undefined);
+    if (aptUpdated) {
       console.log("[asaas-webhook] Appointment(s) marked PAID:", aptRes.data?.map((r: { id: string }) => r.id));
     }
-    if (ordRes.count ?? ordRes.data?.length) {
+    if (ordUpdated) {
       console.log("[asaas-webhook] Order(s) marked PAID:", ordRes.data?.map((r: { id: string }) => r.id));
+    }
+
+    if (!aptUpdated && !ordUpdated && asaasApiKey) {
+      const paymentRes = await fetch(`${ASAAS_API_URL}/payments/${paymentId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", access_token: asaasApiKey },
+      });
+      if (paymentRes.ok) {
+        const payment = (await paymentRes.json()) as { externalReference?: string | null };
+        const extRef = payment?.externalReference != null ? String(payment.externalReference).trim() : "";
+        if (extRef.includes(":")) {
+          const [recordType, ...rest] = extRef.split(":");
+          const idempotencyKey = rest.join(":").trim();
+          if (idempotencyKey) {
+            if (recordType === "booking") {
+              const { data: recApt } = await supabase
+                .from("appointments")
+                .update({ status: "PAID", asaas_payment_id: paymentId })
+                .eq("payment_idempotency_key", idempotencyKey)
+                .neq("status", "CANCELLED")
+                .select("id");
+              if (updatedCount(recApt as unknown[] | null | undefined)) {
+                console.log("[asaas-webhook] Reconciled booking by idempotency:", idempotencyKey);
+              }
+            } else if (recordType === "order") {
+              const { data: recOrd } = await supabase
+                .from("orders")
+                .update({ status: "PAID", asaas_payment_id: paymentId })
+                .eq("payment_idempotency_key", idempotencyKey)
+                .select("id");
+              if (updatedCount(recOrd as unknown[] | null | undefined)) {
+                console.log("[asaas-webhook] Reconciled order by idempotency:", idempotencyKey);
+              }
+            }
+          }
+        }
+      }
     }
   } catch (e) {
     console.error("[asaas-webhook]", e);

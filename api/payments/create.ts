@@ -272,6 +272,9 @@ export default async function handler(
       dueDate: dueDateStr,
       description: String(description).slice(0, 500),
     };
+    if ((recordType === 'booking' || recordType === 'order') && idempotencyKey) {
+      paymentPayload.externalReference = `${recordType}:${idempotencyKey}`;
+    }
     if (effectiveWalletId) {
       paymentPayload.split = [
         {

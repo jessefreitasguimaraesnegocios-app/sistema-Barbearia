@@ -15,6 +15,9 @@ dist-ssr
 # Env (não commitar chaves)
 .env
 
+# Notas locais / rascunho (não versionar)
+api/txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

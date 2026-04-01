@@ -11,9 +11,10 @@ import { LoginForm } from '../components/LoginForm';
 import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
+import { isPartnerOrAdminRole } from '../lib/profileRole';
 
 export default function ClientArea() {
-  const { user, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
+  const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -184,7 +185,7 @@ export default function ClientArea() {
         await supabase.auth.signOut();
         return { error: 'Não foi possível validar seu perfil. Tente de novo ou use «Sou parceiro».' };
       }
-      if (profile?.role === 'barbearia' || profile?.role === 'admin' || profile?.role === 'profissional') {
+      if (isPartnerOrAdminRole(profile?.role)) {
         await supabase.auth.signOut();
         return { error: 'Esta área é só para clientes. Parceiros, equipe e administradores devem usar o link "Sou parceiro" no topo.' };
       }

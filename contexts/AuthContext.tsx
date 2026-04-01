@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User as AppUser, UserRole } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { normalizeProfileRoleFromDb, type DbProfileRole } from '../lib/profileRole';
 
-type ProfileRole = 'admin' | 'barbearia' | 'cliente' | 'profissional';
+type ProfileRole = DbProfileRole;
 
 interface Profile {
   id: string;
@@ -16,9 +17,10 @@ interface Profile {
 }
 
 function mapRole(role: ProfileRole): UserRole {
-  if (role === 'admin') return 'ADMIN';
-  if (role === 'barbearia') return 'SHOP';
-  if (role === 'profissional') return 'STAFF';
+  const r = normalizeProfileRoleFromDb(role);
+  if (r === 'admin') return 'ADMIN';
+  if (r === 'barbearia') return 'SHOP';
+  if (r === 'profissional') return 'STAFF';
   return 'CLIENT';
 }
 
@@ -89,7 +91,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('id', userId)
           .maybeSingle();
         if (!res.error && res.data) {
-          return { ...res.data, professional_id: null } as Profile;
+          return {
+            ...res.data,
+            role: normalizeProfileRoleFromDb((res.data as Profile).role),
+            professional_id: null,
+          } as Profile;
         }
       }
     }
@@ -106,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return {
         id: minimal.data.id,
-        role: minimal.data.role as ProfileRole,
+        role: normalizeProfileRoleFromDb(minimal.data.role),
         shop_id: minimal.data.shop_id,
         professional_id: null,
         full_name: null,
@@ -121,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const row = res.data as Profile & { professional_id?: string | null };
     return {
       ...row,
+      role: normalizeProfileRoleFromDb(row.role),
       professional_id: row.professional_id ?? null,
     } as Profile;
   }, []);

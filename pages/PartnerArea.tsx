@@ -12,6 +12,7 @@ import { LoginForm } from '../components/LoginForm';
 import { Shop, Appointment, Order, ShopPartnerOrderRow, PartnerAgendaAppointment } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
+import { isClientOnlyRole } from '../lib/profileRole';
 
 function formatDbTime(v: unknown): string | null {
   if (v == null || v === '') return null;
@@ -442,9 +443,12 @@ export default function PartnerArea() {
         await supabase.auth.signOut();
         return { error: 'Não foi possível validar seu perfil. Tente de novo; se persistir, contate o suporte.' };
       }
-      if (!profile || profile.role === 'cliente') {
+      if (!profile || isClientOnlyRole(profile.role)) {
         await supabase.auth.signOut();
-        return { error: 'Esta área é só para parceiros, equipe e administradores. Use a página inicial para entrar como cliente.' };
+        return {
+          error:
+            'Este login está como cliente em profiles: o id do seu e-mail (Authentication → User UID) precisa ser o mesmo da linha com role admin ou barbearia. Ajuste com UPDATE em public.profiles ou corrija o role dessa linha.',
+        };
       }
       await refreshProfile();
       return { error: null };

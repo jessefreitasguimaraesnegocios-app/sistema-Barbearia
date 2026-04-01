@@ -2,6 +2,11 @@
 import React, { useState, useRef } from 'react';
 import { Shop, Product, Service, Professional } from '../types';
 import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
+import { supabase } from '../src/lib/supabase';
+
+function isUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
 
 const ASAAS_FEE = 1.99;
 
@@ -113,9 +118,55 @@ function dedupeProducts(products: Product[]): Product[] {
 interface ShopCustomizationProps {
   shop: Shop;
   onSave: (shop: Shop) => void | Promise<void>;
+  /** Após criar login de funcionário, recarrega profissionais (ex.: user_id). */
+  onStaffAccessCreated?: () => void;
 }
 
-const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) => {
+const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onStaffAccessCreated }) => {
+  const [staffLoginEmail, setStaffLoginEmail] = useState<Record<string, string>>({});
+  const [staffLoginPassword, setStaffLoginPassword] = useState<Record<string, string>>({});
+  const [staffCreatingId, setStaffCreatingId] = useState<string | null>(null);
+
+  const createStaffAccess = async (proId: string) => {
+    const email = (staffLoginEmail[proId] || '').trim().toLowerCase();
+    const password = staffLoginPassword[proId] || '';
+    if (!email || !password) {
+      alert('Preencha e-mail e senha inicial para o acesso em Sou parceiro.');
+      return;
+    }
+    if (password.length < 6) {
+      alert('A senha inicial deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    setStaffCreatingId(proId);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        alert('Sessão expirada. Entre novamente.');
+        return;
+      }
+      const res = await fetch(`${window.location.origin}/api/partner/staff/create-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ professionalId: proId, email, password, shopId: shop.id }),
+      });
+      const json = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        alert(json.error || 'Falha ao criar acesso.');
+        return;
+      }
+      alert(json.message || 'Acesso criado com sucesso.');
+      setStaffLoginEmail((prev) => ({ ...prev, [proId]: '' }));
+      setStaffLoginPassword((prev) => ({ ...prev, [proId]: '' }));
+      onStaffAccessCreated?.();
+    } catch {
+      alert('Erro de rede ao criar acesso.');
+    } finally {
+      setStaffCreatingId(null);
+    }
+  };
+
   const [formData, setFormData] = useState<Shop>(() => ({
     ...shop,
     services: dedupeServices(
@@ -717,6 +768,48 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave }) =
                    <p className="text-[10px] text-gray-500">
                     {pro.asaasWalletId ? `Carteira vinculada: ${pro.asaasWalletId}` : 'Carteira Asaas ainda não vinculada.'}
                    </p>
+                   {isUuid(pro.id) && (
+                     <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Acesso Sou parceiro</p>
+                       {pro.authUserId ? (
+                         <p className="text-xs text-emerald-600 font-semibold">Login da equipe ativo para este profissional.</p>
+                       ) : (
+                         <>
+                           <p className="text-[10px] text-gray-500">
+                             Defina e-mail e senha inicial; o barbeiro entra em Sou parceiro com esses dados (recomendamos trocar a senha depois).
+                           </p>
+                           <input
+                             type="email"
+                             autoComplete="off"
+                             placeholder="E-mail do login"
+                             value={staffLoginEmail[pro.id] ?? ''}
+                             onChange={(e) =>
+                               setStaffLoginEmail((prev) => ({ ...prev, [pro.id]: e.target.value }))
+                             }
+                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100"
+                           />
+                           <input
+                             type="password"
+                             autoComplete="new-password"
+                             placeholder="Senha inicial (mín. 6 caracteres)"
+                             value={staffLoginPassword[pro.id] ?? ''}
+                             onChange={(e) =>
+                               setStaffLoginPassword((prev) => ({ ...prev, [pro.id]: e.target.value }))
+                             }
+                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100"
+                           />
+                           <button
+                             type="button"
+                             disabled={staffCreatingId === pro.id}
+                             onClick={() => createStaffAccess(pro.id)}
+                             className="w-full py-2 rounded-xl text-xs font-bold bg-[var(--shop-primary)] text-white hover:brightness-95 disabled:opacity-60"
+                           >
+                             {staffCreatingId === pro.id ? 'Criando…' : 'Criar acesso'}
+                           </button>
+                         </>
+                       )}
+                     </div>
+                   )}
                 </div>
               </div>
             ))}

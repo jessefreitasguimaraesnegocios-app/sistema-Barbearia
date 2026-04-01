@@ -158,14 +158,27 @@ export default async function handler(
         continue;
       }
 
-      updates.push({
+      const sub = data.subaccount as {
+        asaas_subaccount_id?: string;
+        asaas_wallet_id?: string;
+        asaas_api_key?: string;
+        apiKey?: string;
+      };
+      const apiKeyFromProv =
+        (typeof sub.asaas_api_key === 'string' && sub.asaas_api_key.trim()) ||
+        (typeof sub.apiKey === 'string' && sub.apiKey.trim()) ||
+        null;
+
+      const row: Record<string, unknown> = {
         id: p.id,
         shop_id: shopId,
-        asaas_account_id: data.subaccount.asaas_subaccount_id ?? null,
-        asaas_wallet_id: data.subaccount.asaas_wallet_id ?? null,
+        asaas_account_id: sub.asaas_subaccount_id ?? null,
+        asaas_wallet_id: sub.asaas_wallet_id ?? null,
         asaas_environment: environment,
         split_percent: payload.splitPercent,
-      });
+      };
+      if (apiKeyFromProv) row.asaas_api_key = apiKeyFromProv;
+      updates.push(row);
     }
 
     if (updates.length > 0) {

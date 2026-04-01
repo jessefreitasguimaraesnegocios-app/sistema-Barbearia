@@ -20,6 +20,8 @@ export interface AgendaSchedulePayload {
 interface ShopAgendaProps {
   shop: Shop;
   appointments: PartnerAgendaAppointment[];
+  /** Se false (funcionário), não edita horário da loja — só o dono. */
+  allowEditShopSchedule?: boolean;
   onSaveSchedule: (payload: AgendaSchedulePayload) => Promise<void>;
   onReschedule: (appointmentId: string, date: string, timeHHMMSS: string) => Promise<void>;
   onCancel: (appointmentId: string) => Promise<void>;
@@ -54,6 +56,7 @@ function waLink(phone: string | null | undefined, text: string): string | null {
 const ShopAgenda: React.FC<ShopAgendaProps> = ({
   shop,
   appointments,
+  allowEditShopSchedule = true,
   onSaveSchedule,
   onReschedule,
   onCancel,
@@ -225,13 +228,17 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       <header>
         <h2 className="text-3xl font-display font-bold text-gray-900">Agenda</h2>
         <p className="text-gray-500 mt-1">
-          Defina seu horário de atendimento, veja a grade do dia e gerencie agendamentos confirmados (pagos).
+          {allowEditShopSchedule
+            ? 'Defina seu horário de atendimento, veja a grade do dia e gerencie agendamentos confirmados (pagos).'
+            : 'Veja a grade do dia e gerencie seus agendamentos confirmados (pagos). O horário da loja é definido pelo dono.'}
         </p>
       </header>
 
       <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <h3 className="text-lg font-bold text-gray-900">Horário de funcionamento</h3>
+          <h3 className="text-lg font-bold text-gray-900">
+            {allowEditShopSchedule ? 'Horário de funcionamento' : 'Data da agenda'}
+          </h3>
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Data da agenda</label>
             <input
@@ -244,79 +251,95 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
             />
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Abre às</label>
-            <input
-              type="time"
-              value={workdayStart}
-              onChange={(e) => setWorkdayStart(e.target.value)}
-              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha às</label>
-            <input
-              type="time"
-              value={workdayEnd}
-              onChange={(e) => setWorkdayEnd(e.target.value)}
-              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
-            />
-          </div>
-        </div>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={hasLunch}
-            onChange={() => setHasLunch(!hasLunch)}
-            className="w-5 h-5 rounded border-gray-300 accent-[var(--shop-primary)]"
-          />
-          <span className="text-sm font-medium text-gray-700">Intervalo de almoço</span>
-        </label>
-        {hasLunch && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Almoço de</label>
-              <input
-                type="time"
-                value={lunchStart}
-                onChange={(e) => setLunchStart(e.target.value)}
-                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Até</label>
-              <input
-                type="time"
-                value={lunchEnd}
-                onChange={(e) => setLunchEnd(e.target.value)}
-                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
-              />
-            </div>
-          </div>
+        {!allowEditShopSchedule && (
+          <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-4">
+            Funcionamento da loja: <strong>{workdayStart}</strong> às <strong>{workdayEnd}</strong>
+            {hasLunch && lunchStart && lunchEnd ? (
+              <>
+                {' '}
+                (almoço {lunchStart}–{lunchEnd})
+              </>
+            ) : null}
+            . Slots de <strong>{slotMinutes}</strong> min.
+          </p>
         )}
-        <div>
-          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Intervalo na grade (minutos)</label>
-          <select
-            value={slotMinutes}
-            onChange={(e) => setSlotMinutes(Number(e.target.value))}
-            className="w-full sm:w-48 p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
-          >
-            {[15, 20, 30, 45, 60].map((n) => (
-              <option key={n} value={n}>
-                {n} min
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          disabled={savingSchedule}
-          onClick={handleSaveSchedule}
-          className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[var(--shop-primary)] text-white font-bold hover:brightness-95 disabled:opacity-60"
-        >
-          {savingSchedule ? 'Salvando…' : 'Salvar horários'}
-        </button>
+        {allowEditShopSchedule && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Abre às</label>
+                <input
+                  type="time"
+                  value={workdayStart}
+                  onChange={(e) => setWorkdayStart(e.target.value)}
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha às</label>
+                <input
+                  type="time"
+                  value={workdayEnd}
+                  onChange={(e) => setWorkdayEnd(e.target.value)}
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasLunch}
+                onChange={() => setHasLunch(!hasLunch)}
+                className="w-5 h-5 rounded border-gray-300 accent-[var(--shop-primary)]"
+              />
+              <span className="text-sm font-medium text-gray-700">Intervalo de almoço</span>
+            </label>
+            {hasLunch && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Almoço de</label>
+                  <input
+                    type="time"
+                    value={lunchStart}
+                    onChange={(e) => setLunchStart(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Até</label>
+                  <input
+                    type="time"
+                    value={lunchEnd}
+                    onChange={(e) => setLunchEnd(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                  />
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Intervalo na grade (minutos)</label>
+              <select
+                value={slotMinutes}
+                onChange={(e) => setSlotMinutes(Number(e.target.value))}
+                className="w-full sm:w-48 p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+              >
+                {[15, 20, 30, 45, 60].map((n) => (
+                  <option key={n} value={n}>
+                    {n} min
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              disabled={savingSchedule}
+              onClick={handleSaveSchedule}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[var(--shop-primary)] text-white font-bold hover:brightness-95 disabled:opacity-60"
+            >
+              {savingSchedule ? 'Salvando…' : 'Salvar horários'}
+            </button>
+          </>
+        )}
       </section>
 
       <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-4">

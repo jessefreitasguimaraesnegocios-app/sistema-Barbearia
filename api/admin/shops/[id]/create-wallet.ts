@@ -1,10 +1,8 @@
 // Vercel Serverless: POST /api/admin/shops/:id/create-wallet
 // Cria subconta Asaas para loja que ainda não tem asaas_wallet_id (atualiza a loja com walletId)
 
-import { createClient } from '@supabase/supabase-js';
+import { assertAdminFromRequest } from '../../../lib/admin-auth';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 
@@ -18,7 +16,13 @@ function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): s
 }
 
 export default async function handler(
-  req: { method?: string; url?: string; query?: { id?: string }; body?: { cpfCnpj?: string } },
+  req: {
+    method?: string;
+    url?: string;
+    query?: { id?: string };
+    body?: { cpfCnpj?: string };
+    headers?: Record<string, string | string[] | undefined>;
+  },
   res: { setHeader: (k: string, v: string) => void; status: (n: number) => { json: (o: object) => void; end: () => void }; end?: (code?: number) => void }
 ) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -37,15 +41,17 @@ export default async function handler(
     return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: 'Configuração do Supabase indisponível.' });
+  const auth = await assertAdminFromRequest(req);
+  if (auth.success === false) {
+    return res.status(auth.status).json({ success: false, error: auth.error });
   }
+
   if (!ASAAS_API_KEY) {
     return res.status(500).json({ success: false, error: 'ASAAS_API_KEY não configurada.' });
   }
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = auth.supabase;
     const { data: shop, error: shopError } = await supabase
       .from('shops')
       .select('id, name, email, phone, cnpj_cpf, asaas_wallet_id')

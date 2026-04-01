@@ -1,10 +1,7 @@
 // Vercel Serverless: DELETE /api/admin/shops/:id
 // Exclui a loja (e em cascata: services, professionals, products, appointments). Perfis do dono ficam com shop_id null.
 
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import { assertAdminFromRequest } from '../../lib/admin-auth';
 
 function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): string | null {
   const fromQuery = req.query?.id;
@@ -16,7 +13,7 @@ function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): s
 }
 
 export default async function handler(
-  req: { method?: string; url?: string; query?: { id?: string } },
+  req: { method?: string; url?: string; query?: { id?: string }; headers?: Record<string, string | string[] | undefined> },
   res: { setHeader: (k: string, v: string) => void; status: (n: number) => { json: (o: object) => void; end: () => void }; end?: (code?: number) => void }
 ) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -35,15 +32,13 @@ export default async function handler(
     return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({
-      success: false,
-      error: 'Configuração do Supabase indisponível. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Vercel.',
-    });
+  const auth = await assertAdminFromRequest(req);
+  if (auth.success === false) {
+    return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = auth.supabase;
     const { error } = await supabase.from('shops').delete().eq('id', shopId);
 
     if (error) {

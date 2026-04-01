@@ -1,13 +1,14 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User as AppUser, UserRole } from '../types';
 import { supabase } from '../src/lib/supabase';
 
-type ProfileRole = 'admin' | 'barbearia' | 'cliente';
+type ProfileRole = 'admin' | 'barbearia' | 'cliente' | 'profissional';
 
 interface Profile {
   id: string;
   role: ProfileRole;
   shop_id: string | null;
+  professional_id: string | null;
   full_name: string | null;
   avatar_url: string | null;
   cpf_cnpj: string | null;
@@ -17,6 +18,7 @@ interface Profile {
 function mapRole(role: ProfileRole): UserRole {
   if (role === 'admin') return 'ADMIN';
   if (role === 'barbearia') return 'SHOP';
+  if (role === 'profissional') return 'STAFF';
   return 'CLIENT';
 }
 
@@ -29,9 +31,21 @@ function toAppUser(profile: Profile | null, email: string): AppUser | null {
     email,
     role: mapRole(profile.role),
     shopId: profile.shop_id || undefined,
+    professionalId: profile.professional_id || undefined,
     avatar: profile.avatar_url || undefined,
     cpfCnpj: profile.cpf_cnpj || undefined,
     phone: profile.phone || undefined,
+  };
+}
+
+/** Sessão ativa mas linha em profiles não retornou (RLS/erro) — nunca tratar como cliente. */
+function pendingAppUser(id: string, email: string): AppUser {
+  const base = (email?.split('@')[0] || 'Usuário').trim() || 'Usuário';
+  return {
+    id,
+    email: email || '',
+    name: base.charAt(0).toUpperCase() + base.slice(1),
+    role: 'PENDING',
   };
 }
 
@@ -52,11 +66,63 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('id, role, shop_id, full_name, avatar_url, cpf_cnpj, phone').eq('id', userId).single();
-    return data as Profile | null;
+    const full =
+      'id, role, shop_id, professional_id, full_name, avatar_url, cpf_cnpj, phone';
+    let res = await supabase.from('profiles').select(full).eq('id', userId).maybeSingle();
+
+    if (res.error) {
+      const msg = (res.error.message || '').toLowerCase();
+      const code = String(res.error.code || '');
+      const maybeMissingProfessionalId =
+        msg.includes('professional_id') ||
+        (msg.includes('column') && msg.includes('does not exist')) ||
+        code === '42703' ||
+        code === 'PGRST204';
+      if (maybeMissingProfessionalId) {
+        res = await supabase
+          .from('profiles')
+          .select('id, role, shop_id, full_name, avatar_url, cpf_cnpj, phone')
+          .eq('id', userId)
+          .maybeSingle();
+        if (!res.error && res.data) {
+          return { ...res.data, professional_id: null } as Profile;
+        }
+      }
+    }
+
+    if (res.error) {
+      console.error('[AuthContext] fetchProfile', res.error);
+      const minimal = await supabase
+        .from('profiles')
+        .select('id, role, shop_id')
+        .eq('id', userId)
+        .maybeSingle();
+      if (minimal.error || !minimal.data) {
+        return null;
+      }
+      return {
+        id: minimal.data.id,
+        role: minimal.data.role as ProfileRole,
+        shop_id: minimal.data.shop_id,
+        professional_id: null,
+        full_name: null,
+        avatar_url: null,
+        cpf_cnpj: null,
+        phone: null,
+      };
+    }
+
+    if (!res.data) return null;
+
+    const row = res.data as Profile & { professional_id?: string | null };
+    return {
+      ...row,
+      professional_id: row.professional_id ?? null,
+    } as Profile;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -64,11 +130,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       setProfile(null);
       setEmail(null);
+      setSessionUserId(null);
       return;
     }
     setEmail(user.email ?? null);
     const p = await fetchProfile(user.id);
     setProfile(p);
+    setSessionUserId(user.id);
   }, [fetchProfile]);
 
   useEffect(() => {
@@ -85,10 +153,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (session?.user) {
             setEmail(session.user.email ?? null);
             const p = await fetchProfile(session.user.id);
-            if (!cancelled) setProfile(p ?? { id: session.user.id, role: 'cliente', shop_id: null });
+            if (!cancelled) {
+              setProfile(p);
+              setSessionUserId(session.user.id);
+            }
           } else {
             setProfile(null);
             setEmail(null);
+            setSessionUserId(null);
           }
         } finally {
           safeSetLoading(false);
@@ -96,6 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }).catch(() => {
         setProfile(null);
         setEmail(null);
+        setSessionUserId(null);
         safeSetLoading(false);
       });
     } catch (_) {
@@ -106,10 +179,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setEmail(session.user.email ?? null);
         const p = await fetchProfile(session.user.id);
-        setProfile(p ?? { id: session.user.id, role: 'cliente', shop_id: null });
+        setProfile(p);
+        setSessionUserId(session.user.id);
       } else {
         setProfile(null);
         setEmail(null);
+        setSessionUserId(null);
       }
       safeSetLoading(false);
     });
@@ -127,7 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao entrar.' };
       const p = await fetchProfile(data.user.id);
-      setProfile(p ?? { id: data.user.id, role: 'cliente', shop_id: null });
+      setProfile(p);
+      setSessionUserId(data.user.id);
       setEmail(data.user.email ?? null);
       setLoading(false);
       return { error: null };
@@ -142,7 +218,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao criar conta.' };
       const p = await fetchProfile(data.user.id);
-      setProfile(p ?? { id: data.user.id, role: 'cliente', shop_id: null });
+      setProfile(p);
+      setSessionUserId(data.user.id);
       setEmail(data.user.email ?? null);
       setLoading(false);
       return { error: null };
@@ -168,6 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setProfile(null);
     setEmail(null);
+    setSessionUserId(null);
   }, []);
 
   const updateProfile = useCallback(async (data: { full_name?: string; avatar_url?: string; cpf_cnpj?: string; phone?: string }) => {
@@ -179,7 +257,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   }, [profile?.id, refreshProfile]);
 
-  const user = toAppUser(profile, email || '');
+  const user: AppUser | null = useMemo(() => {
+    if (!sessionUserId) return null;
+    if (profile) return toAppUser(profile, email || '');
+    return pendingAppUser(sessionUserId, email || '');
+  }, [sessionUserId, profile, email]);
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile, updateProfile }}>

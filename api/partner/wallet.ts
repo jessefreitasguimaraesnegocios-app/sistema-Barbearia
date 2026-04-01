@@ -9,7 +9,11 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 
-async function getPartnerShopId(token: string): Promise<{ shopId: string; userId: string } | { error: string; status: number }> {
+type WalletPartnerOk =
+  | { mode: 'shop'; shopId: string; userId: string }
+  | { mode: 'professional'; shopId: string; userId: string; professionalId: string };
+
+async function resolveWalletPartner(token: string): Promise<WalletPartnerOk | { error: string; status: number }> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return { error: 'Configuração indisponível.', status: 500 };
   }
@@ -26,7 +30,7 @@ async function getPartnerShopId(token: string): Promise<{ shopId: string; userId
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY!);
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('shop_id, role')
+    .select('shop_id, role, professional_id')
     .eq('id', userId)
     .single();
 
@@ -34,11 +38,16 @@ async function getPartnerShopId(token: string): Promise<{ shopId: string; userId
     return { error: 'Perfil não encontrado.', status: 403 };
   }
   const role = (profile as { role?: string }).role;
-  const shopId = (profile as { shop_id?: string }).shop_id;
-  if (role !== 'barbearia' || !shopId) {
-    return { error: 'Acesso apenas para parceiros (lojas).', status: 403 };
+  const shopId = (profile as { shop_id?: string | null }).shop_id;
+  const professionalId = (profile as { professional_id?: string | null }).professional_id;
+
+  if (role === 'barbearia' && shopId) {
+    return { mode: 'shop', shopId, userId };
   }
-  return { shopId, userId };
+  if (role === 'profissional' && shopId && professionalId) {
+    return { mode: 'professional', shopId, userId, professionalId };
+  }
+  return { error: 'Acesso apenas para dono da loja ou profissional da equipe.', status: 403 };
 }
 
 function getClientMeta(req: { headers?: Record<string, string | string[] | undefined> }): { ip: string | null; userAgent: string | null } {
@@ -107,7 +116,7 @@ export default async function handler(
     return res.status(401).json({ success: false, error: 'Token não enviado. Faça login novamente.' });
   }
 
-  const partner = await getPartnerShopId(token);
+  const partner = await resolveWalletPartner(token);
   if ('error' in partner) {
     return res.status(partner.status).json({ success: false, error: partner.error });
   }
@@ -119,29 +128,57 @@ export default async function handler(
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data: shop, error: shopError } = await supabase
-    .from('shops')
-    .select('id, asaas_api_key, asaas_account_id')
-    .eq('id', shopId)
-    .single();
 
-  if (shopError || !shop) {
-    return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
-  }
+  let subAccountKey: string | null = null;
+  let expectedSubAccountId: string | null = null;
 
-  const subAccountKey = (shop as { asaas_api_key?: string }).asaas_api_key?.trim() || null;
-  if (!subAccountKey) {
-    return res.status(400).json({
-      success: false,
-      error: 'Sua loja ainda não tem conta de pagamentos configurada para saque. Configure os documentos e a chave da subconta.',
-    });
+  if (partner.mode === 'shop') {
+    const { data: shop, error: shopError } = await supabase
+      .from('shops')
+      .select('id, asaas_api_key, asaas_account_id')
+      .eq('id', shopId)
+      .single();
+
+    if (shopError || !shop) {
+      return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
+    }
+
+    subAccountKey = (shop as { asaas_api_key?: string }).asaas_api_key?.trim() || null;
+    expectedSubAccountId = (shop as { asaas_account_id?: string }).asaas_account_id?.trim() || null;
+    if (!subAccountKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Sua loja ainda não tem conta de pagamentos configurada para saque. Configure os documentos e a chave da subconta.',
+      });
+    }
+  } else {
+    const { data: pro, error: proError } = await supabase
+      .from('professionals')
+      .select('id, shop_id, asaas_api_key, asaas_account_id')
+      .eq('id', partner.professionalId)
+      .single();
+
+    if (proError || !pro) {
+      return res.status(404).json({ success: false, error: 'Profissional não encontrado.' });
+    }
+    if ((pro as { shop_id?: string }).shop_id !== shopId) {
+      return res.status(403).json({ success: false, error: 'Acesso negado à carteira.' });
+    }
+    subAccountKey = (pro as { asaas_api_key?: string }).asaas_api_key?.trim() || null;
+    expectedSubAccountId = (pro as { asaas_account_id?: string }).asaas_account_id?.trim() || null;
+    if (!subAccountKey) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Sua carteira de profissional ainda não tem chave de API da subconta Asaas. Provisione a carteira da equipe ou gere a chave no Asaas (Documentos / Integrações).',
+      });
+    }
   }
 
   const baseUrl = ASAAS_API_URL.startsWith('http') ? ASAAS_API_URL : `https://${ASAAS_API_URL}`;
   const apiHeaders: Record<string, string> = { access_token: subAccountKey };
 
-  // Garantir que a chave usada é da SUBCONTA da loja, não da conta principal Asaas
-  const expectedSubAccountId = (shop as { asaas_account_id?: string }).asaas_account_id?.trim() || null;
+  // Garantir que a chave usada é da SUBCONTA esperada, não da conta principal Asaas
   if (expectedSubAccountId) {
     try {
       const meRes = await fetch(`${baseUrl}/myAccount/status`, { headers: apiHeaders });
@@ -152,7 +189,10 @@ export default async function handler(
         if (keyAccountId && expectedId && keyAccountId !== expectedId) {
           return res.status(400).json({
             success: false,
-            error: 'A chave de API configurada para esta loja pertence à conta principal do Asaas, não à subconta da barbearia. No painel admin, atualize a "Chave API" do parceiro com a chave da subconta (Documentos > gerar chave da subconta no Asaas).',
+            error:
+              partner.mode === 'shop'
+                ? 'A chave de API configurada para esta loja pertence à conta principal do Asaas, não à subconta da barbearia. No painel admin, atualize a "Chave API" do parceiro com a chave da subconta (Documentos > gerar chave da subconta no Asaas).'
+                : 'A chave de API não corresponde à subconta deste profissional no Asaas. Gere a chave da subconta correta em Integrações.',
           });
         }
       }

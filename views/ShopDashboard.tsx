@@ -11,6 +11,8 @@ interface ShopDashboardProps {
   onMarkAppointmentCompleted?: (appointmentId: string) => Promise<void>;
   /** Abre a tela de aprovação da conta (onboarding Asaas); usado pelo aviso no painel. */
   onGoToOnboarding?: () => void;
+  /** Funcionário: agenda já filtrada; esconde filtro por equipe e banner de onboarding da loja. */
+  staffMode?: boolean;
 }
 
 type Period = 'TODAY' | 'WEEK' | 'MONTH';
@@ -21,6 +23,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   orders,
   onMarkAppointmentCompleted,
   onGoToOnboarding,
+  staffMode = false,
 }) => {
   const [filterPro, setFilterPro] = useState<string>('ALL');
   const [period, setPeriod] = useState<Period>('TODAY');
@@ -126,8 +129,14 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
       <header className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-display font-bold text-gray-900">Bom dia, {shop.name}! ✂️</h2>
-            <p className="text-gray-500">Aqui está o controle da sua agenda para hoje.</p>
+            <h2 className="text-3xl font-display font-bold text-gray-900">
+              {staffMode ? `Bom dia! ✂️` : `Bom dia, ${shop.name}! ✂️`}
+            </h2>
+            <p className="text-gray-500">
+              {staffMode
+                ? `Agenda de hoje em ${shop.name}.`
+                : 'Aqui está o controle da sua agenda para hoje.'}
+            </p>
           </div>
           <div className="flex gap-2">
             <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
@@ -266,30 +275,31 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
             </div>
           )}
 
-          {/* Quick Filters */}
-          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-widest">Filtrar Equipe</h3>
-            <div className="space-y-2">
-              <button 
-                onClick={() => setFilterPro('ALL')}
-                className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${filterPro === 'ALL' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'border-gray-50 text-gray-500 hover:bg-gray-50'}`}
-              >
-                <span>Todos</span>
-                <span className="text-xs bg-white px-2 py-0.5 rounded-md shadow-sm">{todayApts.length}</span>
-              </button>
-              {shop.professionals.map(pro => (
+          {!staffMode && (
+            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-widest">Filtrar Equipe</h3>
+              <div className="space-y-2">
                 <button 
-                  key={pro.id}
-                  onClick={() => setFilterPro(pro.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${filterPro === pro.id ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'border-gray-50 text-gray-500 hover:bg-gray-50'}`}
+                  onClick={() => setFilterPro('ALL')}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${filterPro === 'ALL' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'border-gray-50 text-gray-500 hover:bg-gray-50'}`}
                 >
-                  <img src={pro.avatar} className="w-6 h-6 rounded-full object-cover" alt="" />
-                  <span className="flex-1 text-left text-sm">{pro.name}</span>
-                  <span className="text-xs opacity-50">{todayApts.filter(a => a.professionalId === pro.id).length}</span>
+                  <span>Todos</span>
+                  <span className="text-xs bg-white px-2 py-0.5 rounded-md shadow-sm">{todayApts.length}</span>
                 </button>
-              ))}
+                {shop.professionals.map(pro => (
+                  <button 
+                    key={pro.id}
+                    onClick={() => setFilterPro(pro.id)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${filterPro === pro.id ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'border-gray-50 text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <img src={pro.avatar} className="w-6 h-6 rounded-full object-cover" alt="" />
+                    <span className="flex-1 text-left text-sm">{pro.name}</span>
+                    <span className="text-xs opacity-50">{todayApts.filter(a => a.professionalId === pro.id).length}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Coluna da Direita: Timeline do Dia */}

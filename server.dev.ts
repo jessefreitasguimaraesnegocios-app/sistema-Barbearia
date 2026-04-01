@@ -8,6 +8,7 @@ import express from 'express';
 import onboardingHandler from './api/partner/onboarding.ts';
 import walletHandler from './api/partner/wallet.ts';
 import processShopFinanceHandler from './api/admin/process-shop-finance.ts';
+import staffCreateAccessHandler from './api/partner/staff/create-access.ts';
 
 const app = express();
 app.use(express.json());
@@ -47,6 +48,21 @@ app.post('/api/partner/wallet', async (req, res) => {
     await walletHandler(req as any, res);
   } catch (e) {
     console.error('[dev-api] wallet POST', e);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: e instanceof Error ? e.message : 'Erro interno na API.',
+      });
+    }
+  }
+});
+
+app.post('/api/partner/staff/create-access', async (req, res) => {
+  try {
+    (req as { body?: unknown }).body = req.body;
+    await staffCreateAccessHandler(req as never, res as never);
+  } catch (e) {
+    console.error('[dev-api] staff/create-access', e);
     if (!res.headersSent) {
       res.status(500).json({
         success: false,

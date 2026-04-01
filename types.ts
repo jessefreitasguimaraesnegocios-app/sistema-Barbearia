@@ -1,5 +1,5 @@
 
-export type UserRole = 'ADMIN' | 'SHOP' | 'CLIENT';
+export type UserRole = 'ADMIN' | 'SHOP' | 'STAFF' | 'CLIENT' | 'PENDING';
 export type ShopType = 'BARBER' | 'SALON';
 
 export interface User {
@@ -9,6 +9,8 @@ export interface User {
   role: UserRole;
   avatar?: string;
   shopId?: string;
+  /** Quando role STAFF: id em `professionals` */
+  professionalId?: string;
   /** CPF ou CNPJ (somente dígitos) – vindo do perfil para PIX */
   cpfCnpj?: string;
   /** Telefone (somente dígitos) – vindo do perfil para PIX */
@@ -36,6 +38,8 @@ export interface Professional {
   asaasWalletId?: string;
   asaasEnvironment?: 'sandbox' | 'production';
   splitPercent?: number;
+  /** Preenchido quando o profissional já tem usuário em Sou parceiro */
+  authUserId?: string | null;
 }
 
 export interface Product {

@@ -25,7 +25,7 @@ function normalizeSplitPercent(value: unknown, fallback = 95): number {
 }
 
 export default function PartnerArea() {
-  const { user, loading, signIn, signOut } = useAuth();
+  const { user, loading, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [myShop, setMyShop] = useState<Shop | null>(null);
@@ -47,7 +47,12 @@ export default function PartnerArea() {
     [shopPartnerOrderRows]
   );
   const [customizationRefreshKey, setCustomizationRefreshKey] = useState(0);
+  const [shopReloadKey, setShopReloadKey] = useState(0);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
+
+  const isShopOwner = user?.role === 'SHOP';
+  const isStaff = user?.role === 'STAFF';
+  const staffProfessionalId = user?.professionalId;
 
   useEffect(() => {
     if (!user?.shopId) return;
@@ -60,7 +65,10 @@ export default function PartnerArea() {
         .single();
       if (shopErr || !shopRow) return;
       const { data: servicesData } = await supabase.from('services').select('*').eq('shop_id', shopId);
-      const { data: professionalsData } = await supabase.from('professionals').select('*').eq('shop_id', shopId);
+      const { data: professionalsData } = await supabase
+        .from('professionals')
+        .select('id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, user_id')
+        .eq('shop_id', shopId);
       const { data: productsData } = await supabase.from('products').select('*').eq('shop_id', shopId);
       const s = mapShopFromDb({
         ...shopRow,
@@ -71,16 +79,27 @@ export default function PartnerArea() {
       setMyShop(s);
       setShops([s]);
     })();
-  }, [user?.shopId]);
+  }, [user?.shopId, shopReloadKey]);
+
+  useEffect(() => {
+    if (!isStaff) return;
+    if (currentView === 'shop-customization' || currentView === 'shop-onboarding') {
+      setCurrentView('shop-dashboard');
+    }
+  }, [isStaff, currentView]);
 
   const loadAppointmentsAndOrders = React.useCallback(async () => {
     if (!myShop?.id) return;
     const shopId = myShop.id;
 
-    const { data: aptRows, error: aptErr } = await supabase
+    let aptQuery = supabase
       .from('appointments')
       .select('id, client_id, shop_id, service_id, professional_id, date, time, status, amount')
-      .eq('shop_id', shopId)
+      .eq('shop_id', shopId);
+    if (staffProfessionalId) {
+      aptQuery = aptQuery.eq('professional_id', staffProfessionalId);
+    }
+    const { data: aptRows, error: aptErr } = await aptQuery
       .order('date', { ascending: true })
       .order('time', { ascending: true });
     if (!aptErr && aptRows) {
@@ -137,7 +156,7 @@ export default function PartnerArea() {
       };
     });
     setShopPartnerOrderRows(rows);
-  }, [myShop?.id]);
+  }, [myShop?.id, staffProfessionalId]);
 
   useEffect(() => {
     loadAppointmentsAndOrders();
@@ -178,10 +197,12 @@ export default function PartnerArea() {
   const refreshAppointments = React.useCallback(async () => {
     if (!myShop?.id) return;
     const shopId = myShop.id;
-    const { data: aptRows, error: aptErr } = await supabase
+    let q = supabase
       .from('appointments')
       .select('id, client_id, shop_id, service_id, professional_id, date, time, status, amount')
-      .eq('shop_id', shopId)
+      .eq('shop_id', shopId);
+    if (staffProfessionalId) q = q.eq('professional_id', staffProfessionalId);
+    const { data: aptRows, error: aptErr } = await q
       .order('date', { ascending: true })
       .order('time', { ascending: true });
     if (!aptErr && aptRows) {
@@ -198,21 +219,23 @@ export default function PartnerArea() {
       }));
       setAppointments(mapped);
     }
-  }, [myShop?.id]);
+  }, [myShop?.id, staffProfessionalId]);
 
   const markAppointmentCompleted = React.useCallback(async (aptId: string) => {
     if (!myShop?.id) return;
-    const { error } = await supabase
+    let upd = supabase
       .from('appointments')
       .update({ status: 'COMPLETED' })
       .eq('id', aptId)
       .eq('shop_id', myShop.id);
+    if (staffProfessionalId) upd = upd.eq('professional_id', staffProfessionalId);
+    const { error } = await upd;
     if (error) {
       alert('Não foi possível marcar o atendimento como concluído. Tente novamente.');
       return;
     }
     await refreshAppointments();
-  }, [myShop?.id, refreshAppointments]);
+  }, [myShop?.id, staffProfessionalId, refreshAppointments]);
 
   const markOrderDelivered = React.useCallback(
     async (orderId: string) => {
@@ -234,7 +257,7 @@ export default function PartnerArea() {
 
   const saveAgendaSettings = React.useCallback(
     async (payload: AgendaSchedulePayload) => {
-      if (!myShop?.id) return;
+      if (!myShop?.id || !isShopOwner) return;
       const { error } = await supabase
         .from('shops')
         .update({
@@ -259,35 +282,39 @@ export default function PartnerArea() {
           : null
       );
     },
-    [myShop?.id]
+    [myShop?.id, isShopOwner]
   );
 
   const rescheduleAppointment = React.useCallback(
     async (appointmentId: string, date: string, timeHHMMSS: string) => {
       if (!myShop?.id) return;
-      const { error } = await supabase
+      let upd = supabase
         .from('appointments')
         .update({ date, time: timeHHMMSS })
         .eq('id', appointmentId)
         .eq('shop_id', myShop.id);
+      if (staffProfessionalId) upd = upd.eq('professional_id', staffProfessionalId);
+      const { error } = await upd;
       if (error) throw new Error(error.message);
       await refreshAppointments();
     },
-    [myShop?.id, refreshAppointments]
+    [myShop?.id, staffProfessionalId, refreshAppointments]
   );
 
   const cancelAppointmentPartner = React.useCallback(
     async (appointmentId: string) => {
       if (!myShop?.id) return;
-      const { error } = await supabase
+      let upd = supabase
         .from('appointments')
         .update({ status: 'CANCELLED' })
         .eq('id', appointmentId)
         .eq('shop_id', myShop.id);
+      if (staffProfessionalId) upd = upd.eq('professional_id', staffProfessionalId);
+      const { error } = await upd;
       if (error) throw new Error(error.message);
       await refreshAppointments();
     },
-    [myShop?.id, refreshAppointments]
+    [myShop?.id, staffProfessionalId, refreshAppointments]
   );
 
   function mapShopFromDb(d: any): Shop {
@@ -325,6 +352,7 @@ export default function PartnerArea() {
       asaasWalletId: p.asaas_wallet_id || undefined,
       asaasEnvironment: p.asaas_environment || undefined,
       splitPercent: normalizeSplitPercent(p.split_percent, d.split_percent != null ? Number(d.split_percent) : 95),
+      authUserId: p.user_id ?? null,
     }));
     const products = dedupeByKey(rawProducts, (p: any) => `${(p.name || '').trim()}|${Number(p.price)}|${(p.category || 'Geral').trim()}`).map((p: any) => ({
       id: p.id,
@@ -375,6 +403,28 @@ export default function PartnerArea() {
     );
   }
 
+  if (user?.role === 'PENDING') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 gap-4">
+        <p className="text-gray-700 text-center max-w-sm">
+          Sessão ativa, mas o perfil não veio do servidor (RLS ou rede). Tente de novo. Donos de loja com perfil desatualizado: rode a migration «resync shop owner» no Supabase.
+        </p>
+        <div className="flex flex-wrap gap-3 justify-center">
+          <button
+            type="button"
+            onClick={() => void refreshProfile()}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+          >
+            Tentar novamente
+          </button>
+          <button type="button" onClick={() => void signOut()} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100">
+            Sair
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (user && user.role === 'ADMIN') return <Navigate to="/admin" replace />;
   if (user && user.role === 'CLIENT') return <Navigate to="/" replace />;
 
@@ -383,11 +433,20 @@ export default function PartnerArea() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao entrar.' };
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
-      if (profile?.role === 'cliente') {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      if (profileError) {
         await supabase.auth.signOut();
-        return { error: 'Esta área é só para parceiros e administradores. Use a página inicial para entrar como cliente.' };
+        return { error: 'Não foi possível validar seu perfil. Tente de novo; se persistir, contate o suporte.' };
       }
+      if (!profile || profile.role === 'cliente') {
+        await supabase.auth.signOut();
+        return { error: 'Esta área é só para parceiros, equipe e administradores. Use a página inicial para entrar como cliente.' };
+      }
+      await refreshProfile();
       return { error: null };
     };
 
@@ -404,13 +463,13 @@ export default function PartnerArea() {
         <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto min-h-0">
           <LoginForm
             title="Acesso parceiro"
-            subtitle="Barbearias e salões: entre somente com o e-mail e senha do estabelecimento"
+            subtitle="Dono da barbearia ou funcionário: use o e-mail e senha fornecidos pelo estabelecimento"
             onSubmit={handlePartnerAdminLogin}
             submitLabel="Entrar"
             onSuccess={() => {}}
           />
           <p className="mt-4 text-xs text-gray-400 text-center max-w-sm">
-            Área exclusiva para parceiros (estabelecimentos) e administradores. Cliente? Use a página inicial.
+            Área para donos, equipe e administradores. Cliente? Use a página inicial.
           </p>
         </main>
       </div>
@@ -420,7 +479,7 @@ export default function PartnerArea() {
   const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
   const updateShop = async (updated: Shop) => {
-    if (!myShop?.id) return;
+    if (!myShop?.id || !isShopOwner) return;
     const shopId = myShop.id;
 
     try {
@@ -660,13 +719,15 @@ export default function PartnerArea() {
           appointments={appointments}
           orders={dashboardOrders}
           onMarkAppointmentCompleted={markAppointmentCompleted}
-          onGoToOnboarding={() => setCurrentView('shop-onboarding')}
+          onGoToOnboarding={isShopOwner ? () => setCurrentView('shop-onboarding') : undefined}
+          staffMode={isStaff}
         />
       )}
       {currentView === 'shop-agenda' && (
         <ShopAgenda
           shop={myShop}
           appointments={agendaAppointments}
+          allowEditShopSchedule={isShopOwner}
           onSaveSchedule={async (p) => {
             try {
               await saveAgendaSettings(p);
@@ -695,7 +756,14 @@ export default function PartnerArea() {
       {currentView === 'shop-orders' && (
         <ShopOrders shop={myShop} orders={shopPartnerOrderRows} onMarkDelivered={markOrderDelivered} />
       )}
-      {currentView === 'shop-customization' && <ShopCustomization key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`} shop={myShop} onSave={updateShop} />}
+      {currentView === 'shop-customization' && (
+        <ShopCustomization
+          key={`customize-${myShop.id}-${currentView}-${customizationRefreshKey}`}
+          shop={myShop}
+          onSave={updateShop}
+          onStaffAccessCreated={() => setShopReloadKey((k) => k + 1)}
+        />
+      )}
     </Layout>
   );
 }

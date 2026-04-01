@@ -13,7 +13,7 @@ import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 
 export default function ClientArea() {
-  const { user, loading, signIn, signUp, signInWithGoogle, signOut } = useAuth();
+  const { user, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -63,7 +63,7 @@ export default function ClientArea() {
   };
 
   useEffect(() => {
-    if (user?.role === 'ADMIN' || user?.role === 'SHOP') return;
+    if (user?.role === 'ADMIN' || user?.role === 'SHOP' || user?.role === 'STAFF' || user?.role === 'PENDING') return;
     if (!user?.id) return;
     fetchAppointments();
     fetchOrders();
@@ -137,19 +137,58 @@ export default function ClientArea() {
     );
   }
 
-  if (user?.role === 'SHOP') return <Navigate to="/parceiros" replace />;
+  if (user?.role === 'SHOP' || user?.role === 'STAFF') return <Navigate to="/parceiros" replace />;
   if (user?.role === 'ADMIN') return <Navigate to="/admin" replace />;
+
+  if (user?.role === 'PENDING') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 gap-4">
+        <p className="text-gray-700 text-center max-w-sm">Não foi possível carregar seu perfil. Tente novamente ou use «Sou parceiro» se você for dono, equipe ou administrador.</p>
+        <div className="flex flex-wrap gap-3 justify-center">
+          <button
+            type="button"
+            onClick={() => void refreshProfile()}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+          >
+            Tentar novamente
+          </button>
+          <a
+            href="/parceiros"
+            className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 inline-flex items-center"
+          >
+            Sou parceiro
+          </a>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100"
+          >
+            Sair
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     const handleClientLogin = async (email: string, password: string) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao entrar.' };
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
-      if (profile?.role === 'barbearia' || profile?.role === 'admin') {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      if (profileError) {
         await supabase.auth.signOut();
-        return { error: 'Esta área é só para clientes. Parceiros e administradores devem usar o link "Sou parceiro" no topo.' };
+        return { error: 'Não foi possível validar seu perfil. Tente de novo ou use «Sou parceiro».' };
       }
+      if (profile?.role === 'barbearia' || profile?.role === 'admin' || profile?.role === 'profissional') {
+        await supabase.auth.signOut();
+        return { error: 'Esta área é só para clientes. Parceiros, equipe e administradores devem usar o link "Sou parceiro" no topo.' };
+      }
+      await refreshProfile();
       return { error: null };
     };
 

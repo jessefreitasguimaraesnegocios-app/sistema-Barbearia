@@ -37,10 +37,12 @@ const Layout: React.FC<LayoutProps> = ({
   return (
     <div
       className="min-h-screen flex flex-col md:flex-row bg-gray-50"
-      style={user?.role === 'SHOP' ? shopPrimaryStyleVars(partnerBrandPrimary) : undefined}
+      style={
+        user?.role === 'SHOP' || user?.role === 'STAFF' ? shopPrimaryStyleVars(partnerBrandPrimary) : undefined
+      }
     >
       {/* Desktop Sidebar */}
-      {user && (
+      {user && user.role !== 'PENDING' && (
         <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen sticky top-0 p-6">
           <div className="mb-10 flex items-center gap-3">
             <img
@@ -69,13 +71,14 @@ const Layout: React.FC<LayoutProps> = ({
               </>
             )}
             
-            {user.role === 'SHOP' && (
+            {(user.role === 'SHOP' || user.role === 'STAFF') && (
               <>
                 <button 
                   onClick={() => onNavigate('shop-dashboard')}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-dashboard' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
                 >
-                  <i className="fas fa-store w-5"></i> Minha Loja
+                  <i className={`fas ${user.role === 'STAFF' ? 'fa-user-tie' : 'fa-store'} w-5`}></i>{' '}
+                  {user.role === 'STAFF' ? 'Painel' : 'Minha Loja'}
                 </button>
                 <button 
                   onClick={() => onNavigate('shop-agenda')}
@@ -95,12 +98,14 @@ const Layout: React.FC<LayoutProps> = ({
                 >
                   <i className="fas fa-wallet w-5"></i> Saque
                 </button>
-                <button 
-                  onClick={() => onNavigate('shop-customization')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-customization' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <i className="fas fa-palette w-5"></i> Personalizar
-                </button>
+                {user.role === 'SHOP' && (
+                  <button 
+                    onClick={() => onNavigate('shop-customization')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'shop-customization' ? shopNavActive : 'text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <i className="fas fa-palette w-5"></i> Personalizar
+                  </button>
+                )}
               </>
             )}
 
@@ -244,7 +249,7 @@ const Layout: React.FC<LayoutProps> = ({
       )}
 
       {/* Mobile Bottom Navigation */}
-      {user && (
+      {user && user.role !== 'PENDING' && (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around p-2 z-50 shadow-2xl">
           {user.role === 'CLIENT' ? (
             <>
@@ -265,10 +270,10 @@ const Layout: React.FC<LayoutProps> = ({
                 <span className="text-[10px] mt-1">Perfil</span>
               </button>
             </>
-          ) : user.role === 'SHOP' ? (
+          ) : user.role === 'SHOP' || user.role === 'STAFF' ? (
             <>
               <button onClick={() => onNavigate('shop-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'shop-dashboard' ? shopMobileActive : 'text-gray-400'}`}>
-                <i className="fas fa-store text-xl"></i>
+                <i className={`fas ${user.role === 'STAFF' ? 'fa-user-tie' : 'fa-store'} text-xl`}></i>
                 <span className="text-[10px] mt-1">Painel</span>
               </button>
               <button onClick={() => onNavigate('shop-agenda')} className={`flex flex-col items-center p-2 ${currentView === 'shop-agenda' ? shopMobileActive : 'text-gray-400'}`}>
@@ -283,12 +288,14 @@ const Layout: React.FC<LayoutProps> = ({
                 <i className="fas fa-shopping-bag text-xl"></i>
                 <span className="text-[10px] mt-1">Pedidos</span>
               </button>
-              <button onClick={() => onNavigate('shop-customization')} className={`flex flex-col items-center p-2 ${currentView === 'shop-customization' ? shopMobileActive : 'text-gray-400'}`}>
-                <i className="fas fa-cog text-xl"></i>
-                <span className="text-[10px] mt-1">Ajustes</span>
-              </button>
+              {user.role === 'SHOP' && (
+                <button onClick={() => onNavigate('shop-customization')} className={`flex flex-col items-center p-2 ${currentView === 'shop-customization' ? shopMobileActive : 'text-gray-400'}`}>
+                  <i className="fas fa-cog text-xl"></i>
+                  <span className="text-[10px] mt-1">Ajustes</span>
+                </button>
+              )}
             </>
-          ) : (
+          ) : user.role === 'ADMIN' ? (
             <>
               <button onClick={() => onNavigate('admin-dashboard')} className={`flex flex-col items-center p-2 ${currentView === 'admin-dashboard' ? 'text-indigo-600' : 'text-gray-400'}`}>
                 <i className="fas fa-chart-line text-xl"></i>
@@ -299,7 +306,7 @@ const Layout: React.FC<LayoutProps> = ({
                 <span className="text-[10px] mt-1">Saque</span>
               </button>
             </>
-          )}
+          ) : null}
         </nav>
       )}
     </div>

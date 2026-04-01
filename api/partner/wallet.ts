@@ -2,7 +2,7 @@
 // Usa a chave da subconta (asaas_api_key) para GET /v3/finance/balance, GET /v3/financialTransactions e POST /v3/transfers.
 
 import { createClient } from '@supabase/supabase-js';
-import { insertFinancialAudit } from '../lib/financial-audit';
+import { insertFinancialAudit } from '../../lib/server/financial-audit';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

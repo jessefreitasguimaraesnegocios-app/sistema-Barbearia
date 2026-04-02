@@ -6,6 +6,7 @@ import AdminDashboard from '../views/AdminDashboard';
 import AdminWallet from '../views/AdminWallet';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { fetchShopsForAdmin } from '../services/supabase/shops';
 
 export default function AdminArea() {
   const { user, loading, signOut, refreshProfile } = useAuth();
@@ -15,36 +16,8 @@ export default function AdminArea() {
   const [currentView, setCurrentView] = useState<'admin-dashboard' | 'admin-wallet'>('admin-dashboard');
 
   const fetchShops = async () => {
-    const { data } = await supabase
-      .from('shops')
-      .select(
-        'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error'
-      );
-    if (data) {
-      setShops(data.map((s: Record<string, unknown>) => ({
-        ...s,
-        id: s.id,
-        ownerId: s.owner_id,
-        cnpjOrCpf: s.cnpj_cpf,
-        pixKey: s.pix_key,
-        profileImage: s.profile_image,
-        bannerImage: s.banner_image,
-        primaryColor: s.primary_color || '#1a1a1a',
-        theme: s.theme || 'MODERN',
-        subscriptionActive: s.subscription_active,
-        subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
-        splitPercent: s.split_percent != null ? Number(s.split_percent) : 95,
-        passFeesToCustomer: s.pass_fees_to_customer === true,
-        asaasAccountId: s.asaas_account_id,
-        asaasWalletId: s.asaas_wallet_id,
-        asaasApiKeyConfigured: s.asaas_api_key_configured === true,
-        financeProvisionStatus: s.finance_provision_status as Shop['financeProvisionStatus'],
-        financeProvisionLastError: s.finance_provision_last_error != null ? String(s.finance_provision_last_error) : undefined,
-        services: [],
-        professionals: [],
-        products: [],
-      })));
-    }
+    const list = await fetchShopsForAdmin(supabase);
+    setShops(list);
   };
 
   useEffect(() => {

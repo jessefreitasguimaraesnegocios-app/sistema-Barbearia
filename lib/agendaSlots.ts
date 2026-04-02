@@ -20,7 +20,7 @@ export function generateAgendaSlots(params: {
   slotMinutes: number;
 }): string[] {
   const slot = Math.max(10, Math.min(120, params.slotMinutes || 30));
-  let start = timeToMinutes(params.workStart);
+  const start = timeToMinutes(params.workStart);
   const end = timeToMinutes(params.workEnd);
   if (end <= start) return [];
 

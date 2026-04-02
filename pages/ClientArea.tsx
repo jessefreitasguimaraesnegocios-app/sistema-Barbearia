@@ -12,6 +12,7 @@ import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 import { isPartnerOrAdminRole } from '../lib/profileRole';
+import { fetchShopsForClientCatalog } from '../services/supabase/shops';
 
 export default function ClientArea() {
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
@@ -28,27 +29,27 @@ export default function ClientArea() {
     fetchShops();
   }, []);
 
-  const mapAppointment = (a: any): Appointment => ({
-    id: a.id,
-    clientId: a.client_id,
-    shopId: a.shop_id,
-    serviceId: a.service_id,
-    professionalId: a.professional_id,
-    date: a.date,
-    time: a.time,
-    status: a.status || 'PENDING',
+  const mapAppointment = (a: Record<string, unknown>): Appointment => ({
+    id: String(a.id),
+    clientId: String(a.client_id),
+    shopId: String(a.shop_id),
+    serviceId: String(a.service_id),
+    professionalId: String(a.professional_id),
+    date: String(a.date),
+    time: String(a.time),
+    status: (a.status as Appointment['status']) || 'PENDING',
     amount: Number(a.amount),
     tip: a.tip != null ? Number(a.tip) : undefined,
   });
 
-  const mapOrder = (o: any): Order => ({
-    id: o.id,
-    clientId: o.client_id,
-    shopId: o.shop_id,
-    items: Array.isArray(o.items) ? o.items : [],
+  const mapOrder = (o: Record<string, unknown>): Order => ({
+    id: String(o.id),
+    clientId: String(o.client_id),
+    shopId: String(o.shop_id),
+    items: Array.isArray(o.items) ? (o.items as Order['items']) : [],
     total: Number(o.total),
-    status: o.status || 'PENDING',
-    date: o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+    status: (o.status as Order['status']) || 'PENDING',
+    date: o.created_at ? new Date(String(o.created_at)).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
   });
 
   const fetchAppointments = async () => {
@@ -77,57 +78,8 @@ export default function ClientArea() {
   }, [user?.id, user?.role]);
 
   const fetchShops = async () => {
-    const { data } = await supabase
-      .from('shops')
-      .select(
-        'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, services(id, name, description, price, duration), professionals(id, name, specialty, avatar), products(id, name, description, price, promo_price, category, image, stock)'
-      );
-    if (data) {
-      setShops(data.map((s: any) => ({
-        ...s,
-        id: s.id,
-        ownerId: s.owner_id,
-        cnpjOrCpf: s.cnpj_cpf,
-        pixKey: s.pix_key,
-        profileImage: s.profile_image,
-        bannerImage: s.banner_image,
-        subscriptionActive: s.subscription_active,
-        subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
-        asaasAccountId: s.asaas_account_id,
-        asaasWalletId: s.asaas_wallet_id,
-        workdayStart: s.workday_start != null ? String(s.workday_start).slice(0, 5) : '08:00',
-        workdayEnd: s.workday_end != null ? String(s.workday_end).slice(0, 5) : '20:00',
-        lunchStart: s.lunch_start != null && String(s.lunch_start).trim() !== '' ? String(s.lunch_start).slice(0, 5) : undefined,
-        lunchEnd: s.lunch_end != null && String(s.lunch_end).trim() !== '' ? String(s.lunch_end).slice(0, 5) : undefined,
-        agendaSlotMinutes:
-          s.agenda_slot_minutes != null && Number(s.agenda_slot_minutes) > 0
-            ? Number(s.agenda_slot_minutes)
-            : 30,
-        services: (s.services || []).map((sv: any) => ({
-          id: sv.id,
-          name: sv.name,
-          description: sv.description || '',
-          price: Number(sv.price),
-          duration: Number(sv.duration),
-        })),
-        professionals: (s.professionals || []).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          specialty: p.specialty || '',
-          avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}`,
-        })),
-        products: (s.products || []).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description || '',
-          price: Number(p.price),
-          promoPrice: p.promo_price != null ? Number(p.promo_price) : undefined,
-          category: p.category || 'Geral',
-          image: p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974',
-          stock: Number(p.stock) || 0,
-        })),
-      })));
-    }
+    const list = await fetchShopsForClientCatalog(supabase);
+    setShops(list);
   };
 
   if (loading) {

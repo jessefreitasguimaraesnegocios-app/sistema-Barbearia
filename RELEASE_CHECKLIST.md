@@ -1,24 +1,37 @@
 # Checklist de release
 
-Antes de publicar uma versão (produção ou homologação), confirme os itens abaixo.
+Checklist curto antes de soltar **homologação** ou **produção**. Marca os itens e segue o jogo.
 
-## Banco e migrations
+---
 
-- [ ] Migrations aplicadas no ambiente alvo (`supabase db push`, pipeline interno ou fluxo que o time usa).
-- [ ] Nenhuma migration pendente em `supabase/migrations/` em relação ao banco remoto.
+## Banco
 
-## Smoke manual (rápido)
+- [ ] Migrations aplicadas no ambiente certo (`supabase db push`, script do time, etc.).
+- [ ] Nada pendente em `supabase/migrations/` que ainda não tenha ido pro banco alvo.
 
-- [ ] **Cliente** — login/cadastro na home, listagem de lojas, abrir uma loja, fluxo mínimo de agendamento ou navegação sem erro no console.
-- [ ] **Parceiro** — login em «Sou parceiro», dashboard da loja carrega, agenda e pedidos sem erro aparente.
-- [ ] **Admin** — login em `/admin`, lista de lojas e ações principais da dashboard.
-- [ ] **Staff** — login como funcionário, visão restrita (sem onboarding/customização se aplicável), agenda filtrada ao profissional.
+---
 
-## Build e qualidade
+## Smoke manual (15–20 min bem usados)
 
-- [ ] `npm run lint` e `npm test` passando localmente (ou no CI).
-- [ ] `npm run build` conclui sem erros.
+- [ ] **Cliente** — login/cadastro na home, lista lojas, abre uma loja, pelo menos navega agendar/comprar sem erro gritante no console.
+- [ ] **Parceiro** — “Sou parceiro”, dashboard carrega, agenda e pedidos fazem sentido.
+- [ ] **Admin** — entrou como admin, abriu `/admin`, lista de lojas e ações principais ok.
+- [ ] **Staff** — login de funcionário: vê só o que deve (sem painel de dono onde não pode), agenda coerente.
 
-## Opcional
+---
 
-- [ ] Edge functions / webhooks Asaas revisados se houve mudança em pagamentos ou provisionamento.
+## Pipeline local (ou CI)
+
+- [ ] `npm run lint` limpo (ou só warning que o time já aceitou).
+- [ ] `npm test` passando.
+- [ ] `npm run build` sem erro.
+
+---
+
+## Pagamentos / Asaas (se mexeu)
+
+- [ ] Edge functions e webhooks revisados — URL, secrets, token do webhook, `--no-verify-jwt` onde precisa.
+
+---
+
+Boa release.

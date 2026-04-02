@@ -1,105 +1,136 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Beauty Hub — sistema para barbearia & salão
 
-# Run and deploy your AI Studio app
+Hub completo: cliente agenda e paga em **PIX**, parceiro gerencia a loja, admin cuida das contas.  
+Stack: **React + Vite**, **Supabase** (auth, banco, realtime, Edge Functions) e **Asaas**.
 
-This contains everything you need to run your app locally.
+> Quer entender o produto antes de mergulhar no técnico? Lê o **[SOBRE-O-APP.md](./SOBRE-O-APP.md)** (é rápido).
 
-View your app in AI Studio: https://ai.studio/apps/ddeb1908-60ff-49a3-850a-10f354557390
+---
 
-## Run Locally
+## Começar no seu PC
 
-**Prerequisites:**  Node.js
+**Precisa:** Node.js (recomendado 20+).
 
+```bash
+npm install
+```
 
-1. Install dependencies:
-   `npm install`
-## Run Locally
+### Só o front (interface)
 
-**Prerequisites:**  Node.js
+```bash
+npm run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Abre o Vite em `http://localhost:3000` — dá para navegar, mas **rotas `/api/*` não existem** nesse modo.
 
-(O app sobe só com Vite; não há mais backend Express.)
+### Front + API local (recomendado para dev “de verdade”)
 
-Para testar a **área de documentos** (parceiro) em desenvolvimento, as rotas `/api/*` precisam estar ativas. Use um dos modos:
+Documentos do parceiro, onboarding, admin, pagamentos… tudo isso fala com **`/api/*`**. Sobe os dois:
 
-- **`npm run dev:all`** — sobe o Vite e o servidor da API juntos (recomendado).
-- Ou em dois terminais: **`npm run dev`** e **`npm run dev:api`**.
+```bash
+npm run dev:all
+```
 
-Certifique-se de ter um `.env` com `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` e `ASAAS_API_KEY` para a rota `/api/partner/onboarding` responder corretamente.
+Ou em dois terminais: `npm run dev` e `npm run dev:api`.
 
-## Aplicar todos os .sql (migrations) via CLI
+**`.env` na raiz** (não commitar): no mínimo `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e o que a rota precisar (ex.: `ASAAS_API_KEY` para onboarding). Lista completa: **[SECRETS_AND_KEYS.md](./SECRETS_AND_KEYS.md)**.
 
-As migrations ficam em `supabase/migrations/` (incluindo schema inicial e `asaas_customer_id`). Para aplicá-las no banco remoto:
+### Gemini (opcional)
 
-**Opção 1 – CLI com `npx` (padrão: `npm run db:push`)**
+Se usar recursos com IA, coloca `GEMINI_API_KEY` ou `VITE_GEMINI_API_KEY` no `.env` / `.env.local` — como indicado no projeto.
 
-1. Faça login: `npx supabase login`
-2. Linke o projeto: `npm run supabase:link` (ref em `package.json`; use a **senha do banco** se o CLI pedir)
-3. Se `db push` mostrar **403** em `Initialising login role`, coloque no `.env` (não commitar):
-   ```bash
-   SUPABASE_DB_PASSWORD=<senha em Dashboard → Database → Database password>
-   ```
-   O comando `npm run db:push` carrega o `.env` e repassa essa variável ao CLI.
-4. Aplique as migrations: `npm run db:push`
+---
 
-Alternativa: conta com papel **Owner** no projeto na organização Supabase, conforme [access control](https://supabase.com/docs/guides/platform/access-control).
+## Banco: migrations
 
-**Opção 2 – connection string no `.env` (sem link)**
+Tudo em `supabase/migrations/` (schema, `asaas_customer_id`, etc.).
 
-1. No [Dashboard](https://supabase.com/dashboard) → **Settings** → **Database** → **Connection string** → URI (prefira **Session pooler**, porta **6543**).
-2. No `.env`: `SUPABASE_DB_URL=postgresql://...`
-3. Rode: `npm run db:push:url`
+| Caminho | Quando usar |
+|--------|--------------|
+| `npm run db:push` | Projeto já linkado + login no CLI (`npx supabase login` → `npm run supabase:link`) |
+| `npm run db:push:url` | Só connection string no `.env` (`SUPABASE_DB_URL`, pooler porta **6543**) |
 
-**Edge Functions (create-shop, create-payment, process-shop-finance, shop-finance-webhook, asaas-webhook)**  
-Depois do link (ou com projeto configurado), para fazer deploy de todas de uma vez:
+Se o CLI der **403** no “login role”, adiciona `SUPABASE_DB_PASSWORD` (senha do banco no dashboard) no `.env`.  
+Detalhe fino: [access control Supabase](https://supabase.com/docs/guides/platform/access-control).
+
+---
+
+## Edge Functions (deploy)
+
+Script que sobe o pacote inteiro:
 
 ```bash
 npm run supabase:functions-deploy
 ```
 
-Ou individualmente:
-```bash
-npx supabase functions deploy create-shop
-npx supabase functions deploy create-payment
-npx supabase functions deploy process-shop-finance
-npx supabase functions deploy shop-finance-webhook --no-verify-jwt
-npx supabase functions deploy asaas-webhook --no-verify-jwt
-```
+Funções: `create-shop`, `create-payment`, `process-shop-finance`, `shop-finance-webhook` (com `--no-verify-jwt`), `asaas-webhook` (idem).
 
-Configure os secrets em **Settings → Edge Functions → Secrets** no painel do Supabase:
-- **ASAAS_API_KEY** – chave da API Asaas (conta principal); obrigatório para `process-shop-finance` (modo interno) e demais integrações
-- **ASAAS_API_URL** – opcional; use `https://sandbox.asaas.com/api/v3` para testes
-- **SHOP_FINANCE_WEBHOOK_SECRET** – segredo compartilhado (Bearer) para a função `shop-finance-webhook` (callback do provisionador externo)
-- Opcional **modo externo (loja)**: `ASAAS_SHOP_PROVISIONER_URL`, `ASAAS_SHOP_PROVISIONER_TOKEN`, `ASAAS_SHOP_PROVISIONER_APP_ID` — quando `ASAAS_SHOP_PROVISIONER_URL` está definido, `process-shop-finance` envia o cadastro ao provisionador e coloca a loja em `awaiting_callback` até o webhook confirmar.
+**Secrets** no painel: **Project → Edge Functions → Secrets**. O que colocar em cada variável está no **[SECRETS_AND_KEYS.md](./SECRETS_AND_KEYS.md)**.
 
-**create-shop** – Cria a loja no Supabase, usuário dono e perfil `barbearia`. **Não** chama mais o Asaas na hora: `finance_provision_status` nasce como `pending` e os dados extras para subconta ficam em `finance_provision_payload`. No admin, use **«Provisionar Asaas»** (chama `POST /api/admin/process-shop-finance` → Edge `process-shop-finance`) ou o fluxo legado **«Criar carteira»**.
+---
 
-**process-shop-finance** – Worker invocado com `Authorization: Bearer <SERVICE_ROLE_KEY>`. Modo interno: replica o fluxo antigo (customer Asaas → subconta → approve sandbox → accessTokens) e grava `shops` com `finance_provision_status = active`. Modo externo: POST para `ASAAS_SHOP_PROVISIONER_URL` e status `awaiting_callback`.
+## O que cada peça faz
 
-**shop-finance-webhook** – `POST` com `Authorization: Bearer <SHOP_FINANCE_WEBHOOK_SECRET>` e JSON `{ shopId, asaasWalletId, asaasCustomerId?, asaasAccountId?, asaasApiKey?, error? }`. Idempotente se já `active`. Deploy com `--no-verify-jwt` (token não é JWT do Supabase).
+### `create-shop`
 
-**create-payment** (PIX com split) – O front envia `amount`, `customerName`, `customerEmail` e `booking`/`order` (com `shopId`). A função aplica split por contexto:
-- `booking` (serviço): tenta usar `professionals.asaas_wallet_id` e `professionals.split_percent`; se o profissional não tiver carteira, faz fallback para carteira/percentual da loja.
-- `order` (lojinha): usa `shops.asaas_wallet_id` e `shops.split_percent`.
-Se não houver carteira disponível no contexto, o pagamento é rejeitado.
+Cria loja + dono + perfil `barbearia` no Supabase. **Não** dispara Asaas na hora: `finance_provision_status` começa `pending` e dados extras ficam em `finance_provision_payload`.  
+No admin: **Provisionar Asaas** → `POST /api/admin/process-shop-finance` → Edge `process-shop-finance` (ou fluxo legado **Criar carteira**).
 
-**Provisionamento de subcontas por profissional** – A rota `POST /api/partner/professionals/provision-wallets` cria/vincula carteiras dos profissionais sem `asaas_wallet_id`, chamando o provisionador externo já pronto (projeto de subcontas Asaas). Configure:
-- `ASAAS_PROVISIONER_URL` (endpoint HTTP da função `create-subaccount`);
-- `ASAAS_PROVISIONER_APP_ID` (app_id do sistema barbearia no provisionador);
-- `ASAAS_PROVISIONER_TOKEN` (opcional, se seu provisionador exigir bearer token);
-- `ASAAS_PROVISIONER_ENV` (`sandbox` ou `production`, opcional).
+### `process-shop-finance`
 
-**Documentos e aprovação da subconta (onboarding)**  
-O parceiro envia documentos pela área **Documentos** no menu (parceiro). A rota **GET /api/partner/onboarding** (Vercel) retorna o status da conta e os links para envio (onboardingUrl). O parceiro pode abrir o link, copiar ou enviar por WhatsApp. Para a chave da subconta ser criada automaticamente (ou na primeira vez que o parceiro abre Documentos), é necessário no painel Asaas: (1) **Habilitar** em Integrações → Chaves de API → *Gerenciamento de Chaves de API de Subcontas* (acesso temporário, 2h); (2) **Whitelist de IP**: adicionar os IPs de saída do servidor que chama a API (ex.: no Vercel, usar IP de egress estático ou consultar a documentação do Vercel para IPs de saída). Sem isso, a mensagem “o suporte precisa configurar a chave” aparece e o admin pode configurar `asaas_api_key` na loja manualmente.
+Chamada com `Authorization: Bearer <SERVICE_ROLE_KEY>`.
 
-**Hardening aplicado (rate limit e anti-replay)**  
-- `security_check_rate_limit` (RPC no banco) protege `create-shop`, `create-payment` e `provision-wallets` contra abuso em janela curta.
-- `asaas_webhook_receipts` evita replay/duplicação de eventos no webhook.
-- `asaas-webhook` agora é **fail-closed**: se `ASAAS_WEBHOOK_TOKEN` não estiver configurado, responde erro (não processa eventos).
+- **Modo interno:** fluxo Asaas na própria Edge (cliente → subconta → approve sandbox → tokens…), loja vai para `finance_provision_status = active`.
+- **Modo externo:** se existir `ASAAS_SHOP_PROVISIONER_*`, manda o cadastro para o serviço externo e fica `awaiting_callback` até o webhook fechar.
+
+### `shop-finance-webhook`
+
+`POST` com `Authorization: Bearer <SHOP_FINANCE_WEBHOOK_SECRET>` e JSON com `shopId`, `asaasWalletId`, etc. Idempotente se já estiver `active`.  
+Deploy **sempre** com `--no-verify-jwt` (o token não é JWT do Supabase).
+
+### `create-payment` (PIX + split)
+
+Recebe `amount`, `customerName`, `customerEmail` e `booking` ou `order` (com `shopId`).
+
+- **Agendamento:** tenta carteira do **profissional**; se não tiver, cai na **loja**.
+- **Lojinha:** usa carteira da **loja**.
+
+Sem carteira no contexto → pagamento **não** passa.
+
+### Subconta dos **profissionais**
+
+`POST /api/partner/professionals/provision-wallets` fala com o provisionador externo. Variáveis: ver **[ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md)**.
+
+### Documentos (onboarding Asaas)
+
+Área **Documentos** no parceiro. `GET /api/partner/onboarding` devolve status e links (ex.: `onboardingUrl`).  
+No Asaas, para chave de subconta automática: habilitar gerenciamento de chaves de subconta + **whitelist de IP** do servidor que chama a API (Vercel costuma exigir IP fixo de egress se for o caso).
+
+---
+
+## Segurança que já vem no pacote
+
+- RPC **`security_check_rate_limit`** abuso em janela curta (`create-shop`, `create-payment`, `provision-wallets`).
+- **`asaas_webhook_receipts`** evita replay no webhook.
+- **`asaas-webhook`** é **fail-closed**: sem `ASAAS_WEBHOOK_TOKEN` configurado, **não** processa (melhor falhar fechado do que aceitar tudo).
+
+---
+
+## Qualidade e release
+
+- `npm run lint` — TypeScript + ESLint  
+- `npm test` — Vitest  
+- `npm run build` — build de produção  
+
+Antes de soltar versão: **[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)**.
+
+---
+
+## Documentos irmãos
+
+| Arquivo | Pra quê |
+|---------|---------|
+| [SOBRE-O-APP.md](./SOBRE-O-APP.md) | Visão de produto (cliente / parceiro / admin / staff) |
+| [SECRETS_AND_KEYS.md](./SECRETS_AND_KEYS.md) | Onde colocar cada chave sem vazar |
+| [ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md) | Provisionador de subcontas |
+| [supabase/README.md](./supabase/README.md) | Schema rápido (SQL Editor vs CLI) |

@@ -1,50 +1,67 @@
-# Barber & Beauty Hub (BeautyHub)
+# Beauty Hub — o que o app faz
 
-Sistema para barbearias e salões de beleza com três perfis: **cliente**, **parceiro (loja)** e **admin**. Frontend em React + Vite, backend em Supabase (Auth, DB, Realtime, Edge Functions) e integração com Asaas para pagamentos.
+Sistema para **barbearias e salões**: três mundos no mesmo produto — **cliente**, **parceiro (loja + equipe)** e **admin** — com **PIX via Asaas**, agenda, pedidos e painéis.
 
----
-
-## 1. Área do cliente (`/`)
-
-- **Buscar estabelecimentos**: lista de barbearias e salões com filtro (Todos / Barbearias / Salões) e busca por nome.
-- **Ver loja**: ao escolher uma loja, vê detalhes, serviços, profissionais e produtos.
-- **Agendar**: agendamento de serviço (data, horário, profissional), com pagamento via **PIX** (Asaas).
-- **Comprar**: pedido de produtos da loja, também com PIX.
-- **Meus agendamentos**: lista de agendamentos, status (Pendente, Pago, Concluído, Cancelado) e cancelamento (com aviso de reembolso de 50%).
-- **Meus pedidos**: histórico de pedidos e status.
-- **Conta**: login/cadastro (e-mail e senha); visitante pode ver lojas, mas precisa estar logado para agendar/comprar.
+**Stack em uma linha:** React + Vite no front · Supabase (auth, Postgres, Realtime, Edge Functions) no back · Asaas nos pagamentos.
 
 ---
 
-## 2. Área do parceiro (`/parceiros`)
+## Cliente · rota `/`
 
-Para **dono de barbearia/salão**:
-
-- **Login**: acesso com e-mail e senha da loja.
-- **Dashboard da loja**: visão geral do estabelecimento (agendamentos, pedidos, etc.).
-- **Personalização**: editar nome, descrição, imagens (perfil/banner), cores e tema da loja; cadastrar/editar **serviços**, **profissionais** e **produtos**.
-
-Dados da loja e do dono são criados via Edge Function **create-shop**, que também registra o cliente no **Asaas** (para receber pagamentos PIX, etc.).
-
----
-
-## 3. Área admin (`/admin`)
-
-- **Login** em `/admin/login`.
-- **Dashboard**: lista de todas as lojas cadastradas, com possibilidade de criar novas lojas (fluxo que usa a Edge Function `create-shop` e Asaas).
-- Controle de **assinatura** (subscription) e **split** de pagamentos (ex.: 95% para a loja).
+- **Explorar** lojas (filtro barbearia / salão + busca por nome).
+- **Ver loja:** serviços, profissionais, produtos.
+- **Agendar** com data, horário e profissional; paga com **PIX**.
+- **Comprar** produtos da loja — também PIX.
+- **Meus agendamentos:** status (pendente, pago, concluído, cancelado) e cancelamento (com regra de reembolso que o app avisa).
+- **Meus pedidos** e **perfil**.
+- **Visitante** vê catálogo; para agendar/comprar precisa **conta** (e-mail + senha, etc.).
 
 ---
 
-## Stack e integrações
+## Parceiro · rota `/parceiros`
 
-- **Frontend**: React 19, React Router, Tailwind, Recharts.
-- **Backend**: Supabase (Auth, PostgreSQL, Realtime para atualização de agendamentos/pedidos).
-- **Pagamentos**: Asaas (PIX); lojas têm `asaas_account_id` / `asaas_wallet_id` e cliente tem `asaas_customer_id`.
-- **Migrations**: SQL em `supabase/migrations/` (schema, perfis, lojas, agendamentos, pedidos, produtos, integração Asaas).
+Dono da barbearia/salão (e fluxo de login da **equipe**):
+
+- **Login** com o e-mail cadastrado (mesma tela serve contas de loja — quem é admin do sistema também entra por aqui quando o perfil não é “só cliente”).
+- **Dashboard:** resumo de agendamentos e pedidos.
+- **Personalização:** nome, texto, fotos, cores, tema; cadastro de **serviços**, **profissionais** e **produtos**.
+- **Documentos / onboarding Asaas** quando configurado (status e links vêm da API).
+
+**Criar loja nova (fluxo admin):** a Edge Function **`create-shop`** grava loja + dono + perfil `barbearia`.  
+O **Asaas não roda nessa hora** — o financeiro da loja entra depois com **Provisionar Asaas** / `process-shop-finance` (ver README técnico). Assim o cadastro fica desacoplado e mais fácil de operar em produção.
+
+---
+
+## Staff (funcionário)
+
+Quem tem perfil **profissional** vinculado à loja:
+
+- Acessa pela mesma área **`/parceiros`**.
+- Vê o que a regra de negócio permite (ex.: sem telas de onboarding/customização de dono, agenda pode filtrar só os atendimentos **dele**).
+
+---
+
+## Admin · rota `/admin`
+
+- **Quem é:** usuário com role **`admin`** na tabela `profiles` no Supabase.
+- **Como entrar:** faz login em **`/parceiros`** com essa conta; depois abre **`/admin`**.  
+  A URL `/admin/login` **redireciona** para `/parceiros` — não existe tela de login separada só para admin.
+- **Dashboard:** todas as lojas, criar loja (usa `create-shop`), assinatura, split, provisionamento financeiro, etc.
+
+---
+
+## Integrações rápidas
+
+| Peça | O quê |
+|------|--------|
+| **Realtime** | Atualização de agendamentos/pedidos sem refresh na cara do usuário |
+| **PIX / split** | Asaas; carteiras em `shops` / `professionals` conforme o fluxo |
+| **Migrations** | SQL versionado em `supabase/migrations/` |
 
 ---
 
 ## Resumo
 
-O app é um **hub** em que clientes encontram barbearias/salões, agendam serviços e compram produtos com PIX; parceiros gerenciam sua loja e oferta; e o admin gerencia lojas e assinaturas.
+Um **hub** onde o cliente acha loja, agenda e paga; o parceiro (e a equipe) manda no dia a dia; o admin mantém o ecossistema e o financeiro no trilho.
+
+Mais detalhe de deploy e secrets: **[README.md](./README.md)**.

@@ -1,143 +1,129 @@
-# Chaves, secrets e onde configurar
+# Chaves e secrets — onde cada coisa mora
 
-Este guia lista variáveis usadas pelo **sistema-Barbearia**: onde obter cada valor e **onde colocá-lo** (nunca commite valores reais no Git).
+Guia direto: **de onde tira** cada variável do **sistema-Barbearia** e **onde cola** sem vazar no Git.
 
----
-
-## 1. Resumo rápido: três lugares típicos
-
-| Onde | Uso |
-|------|-----|
-| **Arquivo `.env` na raiz (local)** | Vite + `npm run dev:api` / scripts `db:push`. Não versionar. |
-| **Vercel → Project → Settings → Environment Variables** | Rotas em `api/*` em produção (`/api/admin/*`, `/api/partner/*`, `/api/payments/*`). |
-| **Supabase → Project → Edge Functions → Secrets** | Funções: `create-shop`, `create-payment`, `process-shop-finance`, `shop-finance-webhook`, `asaas-webhook`. |
-
-O front (browser) só enxerga variáveis com prefixo **`VITE_`**. Service role e chaves Asaas **não** vão no front.
+> Regra de ouro: **nunca** commitar `.env` com valor real de produção. Se vazou, rotaciona na hora (Asaas + `service_role` são prioridade máxima).
 
 ---
 
-## 2. Supabase (projeto)
+## Três lugares que você vai usar sempre
 
-### Onde conseguir
+| Onde | Pra quê |
+|------|---------|
+| **`.env` na raiz (local)** | Vite + `npm run dev:api` + scripts tipo `db:push`. Só na sua máquina / CI privado. |
+| **Vercel → Settings → Environment Variables** | Rotas `api/*` em produção (`admin`, `partner`, `payments`…). |
+| **Supabase → Edge Functions → Secrets** | `create-shop`, `create-payment`, `process-shop-finance`, webhooks, etc. |
 
-- Dashboard: [https://supabase.com/dashboard](https://supabase.com/dashboard) → seu projeto.
-- **Settings → API**
-  - **Project URL** → `SUPABASE_URL` / `VITE_SUPABASE_URL`
-  - **anon public** → `VITE_SUPABASE_ANON_KEY` / `SUPABASE_ANON_KEY`
-  - **service_role** → `SUPABASE_SERVICE_ROLE_KEY` (secreto; só servidor/Edge)
-- **Settings → Database**
-  - **Database password** → útil para CLI (`SUPABASE_DB_PASSWORD`) ou montar `SUPABASE_DB_URL`
-  - **Connection string** (Session pooler, porta **6543**) → `SUPABASE_DB_URL` para `npm run db:push:url`
+**Browser** só enxerga variável com prefixo **`VITE_`**.  
+Tudo que é **service role**, **ASAAS_API_KEY** ou segredo de webhook fica **no servidor** ou **na Edge** — nunca no bundle do front.
+
+---
+
+## Supabase
+
+### Onde pegar
+
+- [Dashboard](https://supabase.com/dashboard) → seu projeto.
+- **Settings → API:** URL do projeto, **anon**, **service_role**.
+- **Settings → Database:** senha do banco, **connection string** (pooler **6543** ajuda no CLI).
 
 ### Onde colocar
 
-| Variável | Local típico |
-|----------|----------------|
-| `VITE_SUPABASE_URL` | `.env`, Vercel (Preview/Production se o front for buildado lá) |
-| `VITE_SUPABASE_ANON_KEY` | Idem |
-| `SUPABASE_URL` | `.env`, Vercel (API) |
-| `SUPABASE_ANON_KEY` | `.env`, Vercel (API) |
-| `SUPABASE_SERVICE_ROLE_KEY` | `.env`, Vercel (API), **Edge Functions Secrets** |
-| `SUPABASE_DB_PASSWORD` | Só `.env` local (scripts `db:push`) |
-| `SUPABASE_DB_URL` | Só `.env` local (alternativa ao link+password) |
+| Variável | Onde costuma ir |
+|----------|------------------|
+| `VITE_SUPABASE_URL` | `.env`, Vercel (se o front builda lá) |
+| `VITE_SUPABASE_ANON_KEY` | idem |
+| `SUPABASE_URL` | `.env`, Vercel, Secrets das Edges |
+| `SUPABASE_ANON_KEY` | idem |
+| `SUPABASE_SERVICE_ROLE_KEY` | `.env`, Vercel, **Secrets** (é poder total — trata com carinho) |
+| `SUPABASE_DB_PASSWORD` | Só local, para `npm run db:push` quando o CLI pede |
+| `SUPABASE_DB_URL` | Só local, alternativa: `npm run db:push:url` |
 
 ---
 
-## 3. Asaas (pagamentos, subcontas, webhooks)
+## Asaas
 
-### Onde conseguir
+### Onde pegar
 
-- **Sandbox:** [https://sandbox.asaas.com/](https://sandbox.asaas.com/) → Integrações / Minha conta → API.
-- **Produção:** [https://www.asaas.com/](https://www.asaas.com/) → mesma ideia.
-- **Webhook:** no painel Asaas, configure a URL do webhook e defina um **token** compartilhado (você escolhe o valor; o Asaas envia no header configurado).
+- **Sandbox:** [sandbox.asaas.com](https://sandbox.asaas.com/) → API.
+- **Produção:** painel Asaas oficial → mesma ideia.
+- **Webhook:** você escolhe um **token** e configura no painel; o Asaas manda no header combinado.
 
 ### Onde colocar
 
-| Variável | Onde obter | Onde colocar |
-|----------|------------|--------------|
-| `ASAAS_API_KEY` | Painel Asaas (API Key da **conta principal**) | `.env`, Vercel (`api/payments/create`, etc.), **Edge Secrets** (`create-payment`, `process-shop-finance`) |
-| `ASAAS_API_URL` | Documentação Asaas v3 | Ex.: sandbox `https://sandbox.asaas.com/api/v3` · produção `https://api.asaas.com/v3` → `.env`, Vercel, Edge Secrets |
-| `ASAAS_WEBHOOK_TOKEN` | Valor **que você define** e configura no Asaas ao cadastrar o webhook | **Edge Secret** `asaas-webhook` (fail-closed se ausente) |
+| Variável | Uso |
+|----------|-----|
+| `ASAAS_API_KEY` | Conta principal · `.env`, Vercel, Edge (`create-payment`, `process-shop-finance`…) |
+| `ASAAS_API_URL` | Ex.: sandbox `https://sandbox.asaas.com/api/v3` · prod `https://api.asaas.com/v3` |
+| `ASAAS_WEBHOOK_TOKEN` | Edge `asaas-webhook` — se não existir, a função **não processa** (proposital) |
 
-Opcionais citados no `.env.example` (só se o código/projeto usar):
+Opcionais que às vezes aparecem no `.env.example`:
 
-| Variável | Notas |
+| Variável | Nota |
+|----------|------|
+| `ASAAS_DEFAULT_CUSTOMER_ID` | Mais para teste |
+| `ASAAS_WALLET_ID` | Só se o projeto usar split com carteira da plataforma |
+
+---
+
+## Provisionador externo — profissionais (`provision-wallets`)
+
+Vem de **outro projeto** (ex.: plataforma de subcontas): URL do `create-subaccount`, `app_id`, token se existir gate.
+
+| Variável | Onde |
+|----------|------|
+| `ASAAS_PROVISIONER_URL` | `.env`, Vercel |
+| `ASAAS_PROVISIONER_APP_ID` | idem |
+| `ASAAS_PROVISIONER_TOKEN` | idem (opcional) |
+| `ASAAS_PROVISIONER_ENV` | `sandbox` ou `production` |
+
+Mini-guia: **[ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md)**.
+
+---
+
+## Loja — provisionamento assíncrono
+
+| Variável | O quê |
 |----------|--------|
-| `ASAAS_DEFAULT_CUSTOMER_ID` | Cenários de teste; raramente produção. |
-| `ASAAS_WALLET_ID` | Se existir lógica de split com carteira da plataforma. |
+| `SHOP_FINANCE_WEBHOOK_SECRET` | Segredo longo (ex. `openssl rand -hex 32`) · Bearer da Edge `shop-finance-webhook` |
+| `ASAAS_SHOP_PROVISIONER_URL` | Opcional — manda cadastro da loja para serviço externo |
+| `ASAAS_SHOP_PROVISIONER_TOKEN` / `APP_ID` | Opcional, combinando com o URL |
 
----
-
-## 4. Provisionador externo — **profissionais** (`provision-wallets`)
-
-### Onde conseguir
-
-- No **outro projeto** (ex.: plataforma de subcontas): URL da função `create-subaccount`, `app_id` cadastrado lá, token se o gateway exigir.
-
-### Onde colocar
-
-| Variável | Onde colocar |
-|----------|----------------|
-| `ASAAS_PROVISIONER_URL` | `.env`, **Vercel** (rota `api/partner/professionals/provision-wallets`) |
-| `ASAAS_PROVISIONER_APP_ID` | Idem |
-| `ASAAS_PROVISIONER_TOKEN` | Idem (opcional) |
-| `ASAAS_PROVISIONER_ENV` | `sandbox` ou `production` · Idem |
-
----
-
-## 5. Provisionamento assíncrono — **loja** (`process-shop-finance` + `shop-finance-webhook`)
-
-### Onde conseguir
-
-- **`SHOP_FINANCE_WEBHOOK_SECRET`:** gere um segredo longo e aleatório (ex.: `openssl rand -hex 32`). Quem chama a Edge `shop-finance-webhook` envia `Authorization: Bearer <esse_valor>`.
-- **`ASAAS_SHOP_PROVISIONER_*`:** mesma ideia do provisionador de profissionais, mas para o fluxo **da loja** (opcional). Se não usar URL externa, o worker usa só Asaas com `ASAAS_API_KEY`.
-
-### Onde colocar
-
-| Variável | Onde colocar |
-|----------|----------------|
-| `SHOP_FINANCE_WEBHOOK_SECRET` | **Supabase Edge Functions → Secrets** (obrigatório se usar o webhook) |
-| `ASAAS_SHOP_PROVISIONER_URL` | Edge Secrets (opcional) |
-| `ASAAS_SHOP_PROVISIONER_APP_ID` | Edge Secrets (opcional) |
-| `ASAAS_SHOP_PROVISIONER_TOKEN` | Edge Secrets (opcional) |
-
-**URL pública do webhook** (substitua `PROJECT_REF`):
+URL típica da Edge (troque o ref):
 
 `https://<PROJECT_REF>.supabase.co/functions/v1/shop-finance-webhook`
 
-**Corpo esperado (JSON):** `shopId`, `asaasWalletId` (ou `error` para falhar). Ver código em `supabase/functions/shop-finance-webhook/index.ts`.
+Corpo esperado: ver `supabase/functions/shop-finance-webhook/index.ts`.
 
 ---
 
-## 6. Vercel (API serverless)
+## Vercel (API)
 
-1. Projeto no Vercel → **Settings → Environment Variables**.
-2. Adicione as variáveis que as rotas `api/**/*.ts` leem (`process.env.*`).
-3. Mínimo comum: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `ASAAS_API_KEY`, `ASAAS_API_URL`, e as do provisionador de profissionais se usar `provision-wallets`.
+1. Projeto → **Settings → Environment Variables**.
+2. Tudo que `api/**/*.ts` lê em `process.env`.
+3. Mudou variável → **redeploy**.
 
-Redeploy após alterar variáveis.
+Pacote mínimo que quase todo mundo usa:  
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_API_KEY`, `ASAAS_API_URL` (+ provisionador se tiver `provision-wallets`).
 
 ---
 
-## 7. Edge Functions — checklist de secrets (Supabase)
+## Checklist rápido das Edge Functions (Supabase)
 
-No painel: **Edge Functions → Manage secrets** (ou equivalente).
+Sugestão de base:
 
-Sugestão mínima:
-
-- `SUPABASE_URL` (às vezes já injetado; confira na doc atual do Supabase)
+- `SUPABASE_URL` (confere doc atual se já vem injetado)
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `ASAAS_API_KEY`, `ASAAS_API_URL`
-- `SHOP_FINANCE_WEBHOOK_SECRET` (para `shop-finance-webhook`)
-- `ASAAS_WEBHOOK_TOKEN` (para `asaas-webhook`)
+- `SHOP_FINANCE_WEBHOOK_SECRET`
+- `ASAAS_WEBHOOK_TOKEN`
 
-Opcionais: `ASAAS_SHOP_PROVISIONER_URL`, `ASAAS_SHOP_PROVISIONER_TOKEN`, `ASAAS_SHOP_PROVISIONER_APP_ID`.
+Opcionais loja externa: `ASAAS_SHOP_PROVISIONER_*`.
 
 ---
 
-## 8. Boas práticas
+## Boas práticas (sem enrolação)
 
-- **Nunca** commitar `.env` com valores reais.
-- Rotacionar keys se vazarem; `service_role` e `ASAAS_API_KEY` são críticos.
-- Produção e sandbox: use projetos/keys **separados** quando possível.
-- Documentação adicional: [`.env.example`](.env.example), [`README.md`](README.md), [`ASAAS_PROVISIONER_ENV.md`](ASAAS_PROVISIONER_ENV.md).
+- Produção e sandbox **separados** quando der.
+- Nada de print de `.env` no grupo do WhatsApp do cliente 😅
+- Mais contexto: [README.md](./README.md), [ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md), [`.env.example`](./.env.example) se existir no repo.

@@ -274,21 +274,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm">
+        <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
           <p className="text-gray-500 font-medium mb-1">Total de Parceiros</p>
           <p className="text-4xl font-black text-indigo-600">{shops.length}</p>
         </div>
-        <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm">
+        <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
           <p className="text-gray-500 font-medium mb-1">Assinaturas Ativas</p>
           <p className="text-4xl font-black text-green-500">{shops.filter(s => s.subscriptionActive).length}</p>
         </div>
-        <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm">
+        <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
           <p className="text-gray-500 font-medium mb-1">MRR Estimado</p>
-          <p className="text-4xl font-black text-gray-900 text-indigo-900">R$ {activeRevenue.toFixed(2)}</p>
+          <p className="text-4xl font-black text-indigo-900">R$ {activeRevenue.toFixed(2)}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-4xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-8 border-b border-gray-50">
           <h3 className="text-xl font-bold text-gray-900">Lista de Parceiros</h3>
         </div>
@@ -421,11 +421,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
 
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 min-h-screen">
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] min-h-0 flex flex-col rounded-2xl sm:rounded-[2rem] shadow-2xl animate-scale-in overflow-hidden my-auto">
-            <div className="flex-shrink-0 px-4 pt-6 pb-2 sm:p-6 sm:pb-4 md:p-8 md:pb-6 border-b border-gray-100">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] min-h-0 flex flex-col rounded-2xl sm:rounded-4xl shadow-2xl animate-scale-in overflow-hidden my-auto">
+            <div className="shrink-0 px-4 pt-6 pb-2 sm:p-6 sm:pb-4 md:p-8 md:pb-6 border-b border-gray-100">
               <div className="flex justify-between items-center gap-4">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Novo Parceiro</h3>
-                <button type="button" onClick={() => setShowAddModal(false)} className="flex-shrink-0 p-2 rounded-xl text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors" aria-label="Fechar">
+                <button type="button" onClick={() => setShowAddModal(false)} className="shrink-0 p-2 rounded-xl text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors" aria-label="Fechar">
                   <i className="fas fa-times"></i>
                 </button>
               </div>

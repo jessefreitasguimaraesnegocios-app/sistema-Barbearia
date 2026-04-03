@@ -37,6 +37,12 @@ function formatCnpjCpf(value: string): string {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
+function formatCep(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 interface AdminDashboardProps {
   shops: Shop[];
   setShops: (shops: Shop[]) => void;
@@ -46,6 +52,7 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShopCreated }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingCep, setLoadingCep] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     type: 'BARBER',
@@ -53,6 +60,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     email: '',
     phone: '',
     password: '',
+    postalCode: '',
     address: '',
     subscriptionAmount: 99,
   });
@@ -146,6 +154,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           email: '',
           phone: '',
           password: '',
+          postalCode: '',
           address: '',
           subscriptionAmount: 99,
         });
@@ -196,6 +205,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
   const handlePhoneChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 11);
     setFormData(prev => ({ ...prev, phone: formatPhone(digits) }));
+  };
+
+  const fetchAddressByCep = async () => {
+    const cepDigits = formData.postalCode.replace(/\D/g, '');
+    if (cepDigits.length !== 8) return;
+    setLoadingCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
+      const data = (await res.json()) as {
+        erro?: boolean;
+        logradouro?: string;
+        bairro?: string;
+        localidade?: string;
+        uf?: string;
+      };
+      if (data?.erro) {
+        alert('CEP não encontrado.');
+        return;
+      }
+      const streetPart = [data.logradouro, data.bairro].filter(Boolean).join(', ');
+      const cityPart = [data.localidade, data.uf].filter(Boolean).join('/');
+      const composed = [streetPart, cityPart].filter(Boolean).join(' - ');
+      const cepPretty = formatCep(cepDigits);
+      const withCep = composed
+        ? `${composed}${cepPretty ? ` — CEP ${cepPretty}` : ''}`
+        : cepPretty
+          ? `CEP ${cepPretty}`
+          : '';
+      if (withCep) {
+        setFormData((prev) => ({ ...prev, address: withCep }));
+      }
+    } catch {
+      alert('Erro ao buscar CEP. Tente novamente.');
+    } finally {
+      setLoadingCep(false);
+    }
   };
 
   const saveSubscriptionAmount = async (shop: Shop, newAmount: number) => {
@@ -446,31 +491,67 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     onChange={e => setFormData({...formData, name: e.target.value})}
                   />
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Tipo</label>
-                    <select 
-                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 appearance-none"
-                      value={formData.type}
-                      onChange={e => setFormData({...formData, type: e.target.value})}
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase ml-2">Tipo de estabelecimento</p>
+                  <p className="text-xs text-gray-500 ml-2 -mt-1">
+                    Escolhe conforme o negócio: isso define o perfil no catálogo (barbearia ou salão de beleza).
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, type: 'BARBER' })}
+                      aria-pressed={formData.type === 'BARBER'}
+                      className={`flex flex-col items-center gap-2 rounded-2xl p-4 text-center font-bold transition-all border-2 ${
+                        formData.type === 'BARBER'
+                          ? 'border-indigo-600 bg-indigo-50 text-slate-900 shadow-md ring-2 ring-indigo-600/20'
+                          : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200 hover:bg-gray-100'
+                      }`}
                     >
-                      <option value="BARBER">Barbearia</option>
-                      <option value="SALON">Salão</option>
-                    </select>
+                      <span
+                        className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg ${
+                          formData.type === 'BARBER' ? 'bg-slate-900 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}
+                        aria-hidden
+                      >
+                        <i className="fas fa-cut" />
+                      </span>
+                      Barbearia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, type: 'SALON' })}
+                      aria-pressed={formData.type === 'SALON'}
+                      className={`flex flex-col items-center gap-2 rounded-2xl p-4 text-center font-bold transition-all border-2 ${
+                        formData.type === 'SALON'
+                          ? 'border-pink-500 bg-pink-50 text-pink-900 shadow-md ring-2 ring-pink-500/20'
+                          : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span
+                        className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg ${
+                          formData.type === 'SALON' ? 'bg-pink-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}
+                        aria-hidden
+                      >
+                        <i className="fas fa-heart" />
+                      </span>
+                      Salão
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CNPJ ou CPF (opcional)</label>
-                    <input 
-                      type="text" 
-                      inputMode="numeric"
-                      autoComplete="off"
-                      placeholder="Se já tiver, informe aqui" 
-                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                      value={formData.cnpjCpf}
-                      onChange={e => handleCnpjCpfChange(e.target.value)}
-                    />
-                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CNPJ ou CPF (opcional)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Se já tiver, informe aqui"
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                    value={formData.cnpjCpf}
+                    onChange={(e) => handleCnpjCpfChange(e.target.value)}
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -501,15 +582,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   <p className="text-xs text-gray-400 mt-1">O dono entra em «Sou parceiro» com este e-mail e esta senha.</p>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Endereço (opcional)</label>
-                  <input 
-                    type="text" 
-                    placeholder="Uma linha: rua, número, bairro, cidade…" 
-                    className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                    value={formData.address}
-                    onChange={e => setFormData({ ...formData, address: e.target.value })}
-                  />
+                <div className="space-y-3">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2 block">Endereço (opcional)</label>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CEP</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="postal-code"
+                        placeholder="00000-000"
+                        maxLength={9}
+                        className="w-full p-4 pr-12 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                        value={formData.postalCode}
+                        onChange={(e) =>
+                          setFormData({ ...formData, postalCode: formatCep(e.target.value) })
+                        }
+                        onBlur={() => {
+                          void fetchAddressByCep();
+                        }}
+                      />
+                      {loadingCep && (
+                        <span
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                          aria-hidden
+                        >
+                          <i className="fas fa-spinner fa-spin" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Preenche o CEP e sai do campo para buscar rua, bairro e cidade (ViaCEP). Depois podes editar a linha abaixo e acrescentar número, complemento, etc.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Linha de endereço</label>
+                    <input
+                      type="text"
+                      placeholder="Ex.: Rua das Flores, 100, Centro — São Paulo/SP — CEP 01310-100"
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

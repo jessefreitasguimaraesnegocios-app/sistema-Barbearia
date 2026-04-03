@@ -93,6 +93,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         return;
       }
 
+      const subAmt = Number(formData.subscriptionAmount);
       const body = {
         name: formData.name,
         email: formData.email,
@@ -108,6 +109,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         province: formData.province || undefined,
         postalCode: formData.postalCode.replace(/\D/g, '') || undefined,
         incomeValue: formData.incomeValue || 5000,
+        subscriptionAmount: Number.isFinite(subAmt) && subAmt >= 0 ? subAmt : 99,
+        pixKey: formData.pixKey.trim() || undefined,
       };
 
       let responseOk: boolean;
@@ -657,6 +660,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     ref={emailInputRef}
                     required
                     type="email" 
+                    autoComplete="username"
                     placeholder="contato@barbearia.com" 
                     className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
                     value={formData.email}
@@ -817,7 +821,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     value={formData.subscriptionAmount}
                     onChange={e => setFormData({...formData, subscriptionAmount: Math.max(0, Number(e.target.value) || 99)})}
                   />
-                  <p className="text-xs text-gray-400 mt-1">Valor cobrado mensalmente deste parceiro.</p>
+                    <p className="text-xs text-gray-400 mt-1">Valor cobrado mensalmente deste parceiro (gravado na loja).</p>
                 </div>
                 </div>
 
@@ -844,6 +848,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                       value={formData.pixKey}
                       onChange={e => setFormData({...formData, pixKey: e.target.value})}
                     />
+                    <p className="text-xs text-gray-400 mt-1">Fica gravado nos dados da loja ao cadastrar.</p>
                   </div>
                 </div>
 
@@ -853,7 +858,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold mt-4 shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-50"
                 >
                   {isSubmitting ? <i className="fas fa-spinner fa-spin mr-2"></i> : null}
-                  Cadastrar e Criar Subconta Asaas
+                  Cadastrar estabelecimento
                 </button>
              </form>
             </div>

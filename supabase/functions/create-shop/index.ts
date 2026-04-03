@@ -26,6 +26,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const bodyJson = await req.json();
     const {
       name,
       email,
@@ -41,7 +42,9 @@ Deno.serve(async (req: Request) => {
       province: bodyProvince,
       postalCode: bodyPostalCode,
       incomeValue: bodyIncomeValue,
-    } = await req.json();
+      subscriptionAmount: bodySubscriptionAmount,
+      pixKey: bodyPixKey,
+    } = bodyJson as Record<string, unknown>;
 
     if (!name || !email || !phone) {
       return new Response(
@@ -123,6 +126,13 @@ Deno.serve(async (req: Request) => {
     const province = bodyProvince && String(bodyProvince).trim() !== "" ? String(bodyProvince).trim() : "Centro";
     const incomeValue = typeof bodyIncomeValue === "number" && bodyIncomeValue > 0 ? bodyIncomeValue : 5000;
 
+    const subRaw = Number(bodySubscriptionAmount);
+    const subscription_amount =
+      Number.isFinite(subRaw) && subRaw >= 0 ? Math.min(999999, Math.floor(subRaw)) : 99;
+
+    const pixKeyTrim =
+      bodyPixKey != null && String(bodyPixKey).trim() !== "" ? String(bodyPixKey).trim().slice(0, 500) : null;
+
     const finance_provision_payload = {
       birthDate,
       companyType,
@@ -178,7 +188,8 @@ Deno.serve(async (req: Request) => {
         cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
         type: (shopType === "SALON" ? "SALON" : "BARBER"),
         subscription_active: true,
-        subscription_amount: 99,
+        subscription_amount,
+        pix_key: pixKeyTrim,
         rating: 5.0,
         profile_image,
         banner_image,

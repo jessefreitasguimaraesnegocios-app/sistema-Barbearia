@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME } from '../lib/branding';
@@ -37,15 +37,6 @@ function formatCnpjCpf(value: string): string {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
-// Máscara CEP: 00000-000
-function formatCep(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 5) return digits;
-  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-}
-
-const EMAIL_DOMAINS = ['@gmail.com', '@hotmail.com', '@outlook.com', '@yahoo.com.br', '@yahoo.com', '@icloud.com', '@live.com', '@uol.com.br', '@bol.com.br'];
-
 interface AdminDashboardProps {
   shops: Shop[];
   setShops: (shops: Shop[]) => void;
@@ -55,12 +46,6 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShopCreated }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [creatingWalletId, setCreatingWalletId] = useState<string | null>(null);
-  const [processingFinanceShopId, setProcessingFinanceShopId] = useState<string | null>(null);
-  const [emailSuggestionsOpen, setEmailSuggestionsOpen] = useState(false);
-  const [emailSuggestionsFilter, setEmailSuggestionsFilter] = useState('');
-  const emailInputRef = useRef<HTMLInputElement>(null);
-  const emailListRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     type: 'BARBER',
@@ -68,18 +53,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     email: '',
     phone: '',
     password: '',
-    pixKey: '',
-    birthDate: '1994-05-16',
-    companyType: 'MEI',
-    postalCode: '',
     address: '',
-    addressNumber: '',
-    complement: '',
-    province: '',
-    incomeValue: 5000,
-    subscriptionAmount: 99
+    subscriptionAmount: 99,
   });
-  const [loadingCep, setLoadingCep] = useState(false);
 
   const handleAddShop = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,23 +70,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       }
 
       const subAmt = Number(formData.subscriptionAmount);
+      const phoneDigits = formData.phone.replace(/\D/g, '');
       const body = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: phoneDigits.length > 0 ? formData.phone : undefined,
         cpfCnpj: formData.cnpjCpf.replace(/\D/g, '') || undefined,
         password: formData.password,
         type: formData.type,
-        birthDate: formData.birthDate || '1994-05-16',
-        companyType: formData.companyType || 'MEI',
-        address: formData.address || undefined,
-        addressNumber: formData.addressNumber || undefined,
-        complement: formData.complement || undefined,
-        province: formData.province || undefined,
-        postalCode: formData.postalCode.replace(/\D/g, '') || undefined,
-        incomeValue: formData.incomeValue || 5000,
+        address: formData.address.trim() || undefined,
         subscriptionAmount: Number.isFinite(subAmt) && subAmt >= 0 ? subAmt : 99,
-        pixKey: formData.pixKey.trim() || undefined,
       };
 
       let responseOk: boolean;
@@ -139,7 +108,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           if (typeof err.context?.json === 'function') {
             try {
               errBody = (await err.context.json()) as Record<string, unknown>;
-            } catch (_) {}
+            } catch {
+              /* ignore */
+            }
           }
           data = {
             success: false,
@@ -169,16 +140,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         await onShopCreated?.();
         setShowAddModal(false);
         setFormData({
-          name: '', type: 'BARBER', cnpjCpf: '', email: '', phone: '', password: '', pixKey: '',
-          birthDate: '1994-05-16', companyType: 'MEI',
-          postalCode: '', address: '', addressNumber: '', complement: '', province: '',
-          incomeValue: 5000, subscriptionAmount: 99
+          name: '',
+          type: 'BARBER',
+          cnpjCpf: '',
+          email: '',
+          phone: '',
+          password: '',
+          address: '',
+          subscriptionAmount: 99,
         });
-        const pendingFinance = data.financePending === true || data.financeProvisionStatus === 'pending';
         alert(
-          pendingFinance
-            ? 'Parceiro cadastrado e login do dono ativado. Para habilitar PIX/split e saque, clique em «Provisionar Asaas» na lista (ou use «Criar carteira» se preferir o fluxo manual legado).'
-            : 'Barbearia cadastrada e login do dono ativado! O proprietário pode acessar com o e-mail e a senha definidos.'
+          'Estabelecimento cadastrado. O dono já pode entrar com o e-mail e a senha informados. Dados bancários e contas de recebimento cadastre no teu sistema externo.'
         );
       } else {
         const msg = data?.details || data?.error || 'Erro ao cadastrar barbearia.';
@@ -216,23 +188,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     .filter(s => s.subscriptionActive)
     .reduce((sum, s) => sum + (s.subscriptionAmount ?? 99), 0);
 
-  const filteredEmailDomains = EMAIL_DOMAINS.filter(d =>
-    d.toLowerCase().includes(emailSuggestionsFilter.toLowerCase())
-  );
-
-  useEffect(() => {
-    if (!emailSuggestionsOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        emailListRef.current?.contains(e.target as Node) ||
-        emailInputRef.current?.contains(e.target as Node)
-      ) return;
-      setEmailSuggestionsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [emailSuggestionsOpen]);
-
   const handleCnpjCpfChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 14);
     setFormData(prev => ({ ...prev, cnpjCpf: formatCnpjCpf(digits) }));
@@ -241,54 +196,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
   const handlePhoneChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 11);
     setFormData(prev => ({ ...prev, phone: formatPhone(digits) }));
-  };
-
-  const handleEmailChange = (value: string) => {
-    setFormData(prev => ({ ...prev, email: value }));
-    const atIdx = value.indexOf('@');
-    if (atIdx >= 0) {
-      const afterAt = value.slice(atIdx);
-      setEmailSuggestionsFilter(afterAt);
-      setEmailSuggestionsOpen(true);
-    } else {
-      setEmailSuggestionsOpen(false);
-    }
-  };
-
-  const handleEmailSuggestionSelect = (domain: string) => {
-    const current = formData.email;
-    const atIdx = current.indexOf('@');
-    const beforeAt = atIdx >= 0 ? current.slice(0, atIdx) : current;
-    setFormData(prev => ({ ...prev, email: beforeAt + domain }));
-    setEmailSuggestionsOpen(false);
-    emailInputRef.current?.focus();
-  };
-
-  const fetchAddressByCep = async () => {
-    const cepDigits = formData.postalCode.replace(/\D/g, '');
-    if (cepDigits.length !== 8) return;
-    setLoadingCep(true);
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
-      const data = await res.json();
-      if (data?.erro) {
-        alert('CEP não encontrado.');
-        return;
-      }
-      setFormData(prev => ({
-        ...prev,
-        address: data.logradouro || prev.address,
-        province: data.bairro || prev.province,
-      }));
-    } catch {
-      alert('Erro ao buscar CEP. Tente novamente.');
-    } finally {
-      setLoadingCep(false);
-    }
-  };
-
-  const handleCepBlur = () => {
-    fetchAddressByCep();
   };
 
   const saveSubscriptionAmount = async (shop: Shop, newAmount: number) => {
@@ -332,70 +239,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     } catch (e) {
       console.error(e);
       alert('Erro de conexão ao atualizar % split.');
-    }
-  };
-
-  const processShopFinance = async (shop: Shop) => {
-    setProcessingFinanceShopId(shop.id);
-    try {
-      const response = await fetch(`${window.location.origin}/api/admin/process-shop-finance`, {
-        method: 'POST',
-        headers: await adminAuthHeaders(),
-        body: JSON.stringify({ shopId: shop.id }),
-      });
-      const data = await response.json().catch(() => ({}));
-      const results = (data.results as Array<{ shopId: string; ok: boolean; error?: string; status?: string }>) || [];
-      const mine = results.find((r) => r.shopId === shop.id);
-      if (data.success && mine?.ok) {
-        await onShopCreated?.();
-        const msg =
-          mine.status === 'awaiting_callback'
-            ? 'Solicitação enviada ao provisionador externo. Quando o callback for recebido, o status passará a ativo.'
-            : 'Provisionamento Asaas concluído para esta loja.';
-        alert(msg);
-      } else {
-        const err = mine?.error || data.error || 'Falha ao provisionar.';
-        alert(typeof err === 'string' ? err : JSON.stringify(err));
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Erro de conexão ao provisionar Asaas.');
-    } finally {
-      setProcessingFinanceShopId(null);
-    }
-  };
-
-  const createWalletForShop = async (shop: Shop) => {
-    setCreatingWalletId(shop.id);
-    try {
-      const response = await fetch(`/api/admin/shops/${shop.id}/create-wallet`, {
-        method: 'POST',
-        headers: await adminAuthHeaders(),
-        body: JSON.stringify({ cpfCnpj: shop.cnpjOrCpf || undefined })
-      });
-      const data = await response.json();
-      if (data.success && data.shop) {
-        setShops(shops.map(s =>
-          s.id === shop.id
-            ? {
-                ...s,
-                asaasWalletId: data.shop.asaasWalletId,
-                asaasAccountId: data.shop.asaasAccountId,
-                asaasApiKeyConfigured: data.shop.asaasApiKeyConfigured === true,
-                financeProvisionStatus: 'active',
-                financeProvisionLastError: undefined,
-              }
-            : s
-        ));
-        alert('Carteira Asaas criada e vinculada à loja.');
-      } else {
-        alert(data.error || 'Erro ao criar carteira.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Erro de conexão ao criar carteira.');
-    } finally {
-      setCreatingWalletId(null);
     }
   };
 
@@ -555,31 +398,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-3 flex-wrap">
-                      {(() => {
-                        const fin = shop.financeProvisionStatus ?? (shop.asaasWalletId ? 'active' : 'pending');
-                        const showProvision =
-                          fin !== 'active' && fin !== 'processing' && fin !== 'awaiting_callback';
-                        return showProvision ? (
-                          <button
-                            type="button"
-                            onClick={() => processShopFinance(shop)}
-                            disabled={!!processingFinanceShopId}
-                            className="text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline disabled:opacity-50"
-                          >
-                            {processingFinanceShopId === shop.id ? 'Provisionando...' : 'Provisionar Asaas'}
-                          </button>
-                        ) : null;
-                      })()}
-                      {!shop.asaasWalletId && (
-                        <button
-                          type="button"
-                          onClick={() => createWalletForShop(shop)}
-                          disabled={!!creatingWalletId}
-                          className="text-sm font-bold text-amber-600 hover:text-amber-700 hover:underline disabled:opacity-50"
-                        >
-                          {creatingWalletId === shop.id ? 'Criando...' : 'Criar carteira'}
-                        </button>
-                      )}
                       <button 
                         onClick={() => toggleSubscription(shop)}
                         className={`text-sm font-bold ${shop.subscriptionActive ? 'text-red-500' : 'text-green-600'} hover:underline`}
@@ -611,16 +429,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   <i className="fas fa-times"></i>
                 </button>
               </div>
-              <p className="text-gray-500 text-sm mt-1">Preencha os dados para criar a barbearia. O provisionamento Asaas fica pendente até você usar «Provisionar Asaas» na lista.</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Cadastro enxuto: só o necessário para o estabelecimento e o acesso do dono. Dados bancários, PIX e contas de recebimento ficam no teu outro sistema.
+              </p>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-6 pt-4 sm:px-6 sm:pb-8 md:px-8 md:pb-10">
              <form onSubmit={handleAddShop} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Nome do Estabelecimento</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Nome do estabelecimento</label>
                   <input 
                     required
                     type="text" 
-                    placeholder="Ex: Vintage Barber Shop" 
+                    placeholder="Ex.: Vintage Barber Shop" 
                     className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
                     value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
@@ -640,13 +460,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CNPJ ou CPF</label>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CNPJ ou CPF (opcional)</label>
                     <input 
-                      required
                       type="text" 
                       inputMode="numeric"
                       autoComplete="off"
-                      placeholder="000.000.000-00 ou 00.000.000/0000-00" 
+                      placeholder="Se já tiver, informe aqui" 
                       className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
                       value={formData.cnpjCpf}
                       onChange={e => handleCnpjCpfChange(e.target.value)}
@@ -654,40 +473,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   </div>
                 </div>
 
-                <div className="space-y-1 relative">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">E-mail do Proprietário</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">E-mail do dono (login)</label>
                   <input 
-                    ref={emailInputRef}
                     required
                     type="email" 
                     autoComplete="username"
-                    placeholder="contato@barbearia.com" 
+                    placeholder="dono@estabelecimento.com" 
                     className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
                     value={formData.email}
-                    onChange={e => handleEmailChange(e.target.value)}
-                    onFocus={() => formData.email.includes('@') && setEmailSuggestionsOpen(true)}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
                   />
-                  {emailSuggestionsOpen && (
-                    <div
-                      ref={emailListRef}
-                      className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"
-                    >
-                      {filteredEmailDomains.length ? (
-                        filteredEmailDomains.map(domain => (
-                          <button
-                            key={domain}
-                            type="button"
-                            className="w-full text-left px-4 py-3 hover:bg-indigo-50 text-gray-800 text-sm"
-                            onClick={() => handleEmailSuggestionSelect(domain)}
-                          >
-                            {domain}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-4 py-3 text-gray-500 text-sm">Nenhum domínio encontrado</div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -697,139 +493,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     type="password" 
                     minLength={6}
                     autoComplete="new-password"
-                    placeholder="Mínimo 6 caracteres (acesso do proprietário)" 
+                    placeholder="Mínimo 6 caracteres" 
                     className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
                     value={formData.password}
                     onChange={e => setFormData({ ...formData, password: e.target.value })}
                   />
-                  <p className="text-xs text-gray-400 mt-1">O dono usará este e-mail e esta senha para acessar o painel da loja.</p>
+                  <p className="text-xs text-gray-400 mt-1">O dono entra em «Sou parceiro» com este e-mail e esta senha.</p>
                 </div>
 
-                <div className="space-y-3">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2 block">Endereço</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 sm:col-span-1 relative">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CEP</label>
-                      <input 
-                        type="text" 
-                        placeholder="00000-000" 
-                        maxLength={9}
-                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                        value={formData.postalCode}
-                        onChange={e => setFormData({ ...formData, postalCode: formatCep(e.target.value) })}
-                        onBlur={handleCepBlur}
-                      />
-                      {loadingCep && (
-                        <span className="absolute right-4 top-9 text-gray-400"><i className="fas fa-spinner fa-spin"></i></span>
-                      )}
-                      <p className="text-xs text-gray-400 mt-1">Digite o CEP e o endereço será preenchido automaticamente.</p>
-                    </div>
-                    <div className="col-span-2 sm:col-span-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Número</label>
-                      <input 
-                        required
-                        type="text" 
-                        placeholder="Ex: 277" 
-                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                        value={formData.addressNumber}
-                        onChange={e => setFormData({ ...formData, addressNumber: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Logradouro</label>
-                    <input 
-                      type="text" 
-                      placeholder="Rua, Av. (preenchido pelo CEP)" 
-                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                      value={formData.address}
-                      onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Complemento</label>
-                      <input 
-                        type="text" 
-                        placeholder="Sala, andar (opcional)" 
-                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                        value={formData.complement}
-                        onChange={e => setFormData({ ...formData, complement: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Bairro</label>
-                      <input 
-                        type="text" 
-                        placeholder="Preenchido pelo CEP" 
-                        className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                        value={formData.province}
-                        onChange={e => setFormData({ ...formData, province: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Data de nascimento (responsável)</label>
-                    <input 
-                      type="date" 
-                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                      value={formData.birthDate}
-                      onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Tipo de empresa</label>
-                    <select 
-                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 appearance-none"
-                      value={formData.companyType}
-                      onChange={e => setFormData({ ...formData, companyType: e.target.value })}
-                    >
-                      <option value="PF">Autônomo (CPF)</option>
-                      <option value="MEI">MEI</option>
-                      <option value="ME">ME</option>
-                      <option value="EPP">EPP</option>
-                      <option value="LTDA">LTDA</option>
-                      <option value="SA">SA</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Renda/Faturamento (R$)</label>
-                    <input 
-                      type="number" 
-                      min={0}
-                      placeholder="5000" 
-                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                      value={formData.incomeValue}
-                      onChange={e => setFormData({ ...formData, incomeValue: Number(e.target.value) || 5000 })}
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Exigido pelo Asaas para subconta.</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Mensalidade (R$/mês)</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Endereço (opcional)</label>
                   <input 
-                    type="number" 
-                    min={0}
-                    step={1}
-                    placeholder="99" 
+                    type="text" 
+                    placeholder="Uma linha: rua, número, bairro, cidade…" 
                     className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                    value={formData.subscriptionAmount}
-                    onChange={e => setFormData({...formData, subscriptionAmount: Math.max(0, Number(e.target.value) || 99)})}
+                    value={formData.address}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
                   />
-                    <p className="text-xs text-gray-400 mt-1">Valor cobrado mensalmente deste parceiro (gravado na loja).</p>
-                </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Telefone</label>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Telefone (opcional)</label>
                     <input 
-                      required
                       type="tel" 
                       inputMode="numeric"
                       placeholder="(11) 99999-9999" 
@@ -839,16 +525,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Chave PIX</label>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Mensalidade (R$/mês)</label>
                     <input 
-                      required
-                      type="text" 
-                      placeholder="CPF, E-mail ou Aleatória" 
+                      type="number" 
+                      min={0}
+                      step={1}
+                      placeholder="99" 
                       className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
-                      value={formData.pixKey}
-                      onChange={e => setFormData({...formData, pixKey: e.target.value})}
+                      value={formData.subscriptionAmount}
+                      onChange={e => setFormData({...formData, subscriptionAmount: Math.max(0, Number(e.target.value) || 99)})}
                     />
-                    <p className="text-xs text-gray-400 mt-1">Fica gravado nos dados da loja ao cadastrar.</p>
+                    <p className="text-xs text-gray-400 mt-1">Valor de referência na plataforma (podes ajustar depois na tabela).</p>
                   </div>
                 </div>
 

@@ -46,11 +46,11 @@ Deno.serve(async (req: Request) => {
       pixKey: bodyPixKey,
     } = bodyJson as Record<string, unknown>;
 
-    if (!name || !email || !phone) {
+    if (!name || !email) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "name, email e phone são obrigatórios",
+          error: "Nome do estabelecimento e e-mail do dono são obrigatórios.",
         }),
         {
           status: 200,
@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Para Autônomo (CPF) é obrigatório informar um CPF válido com 11 dígitos.",
+          error: "Para pessoa física é obrigatório informar CPF com 11 dígitos.",
         }),
         {
           status: 200,
@@ -133,7 +133,9 @@ Deno.serve(async (req: Request) => {
     const pixKeyTrim =
       bodyPixKey != null && String(bodyPixKey).trim() !== "" ? String(bodyPixKey).trim().slice(0, 500) : null;
 
+    /** Snapshot legado para workers; cadastro admin é mínimo — financeiro preenchido noutro sistema. */
     const finance_provision_payload = {
+      registeredVia: "admin_dashboard_minimal",
       birthDate,
       companyType,
       postalCode,
@@ -179,12 +181,14 @@ Deno.serve(async (req: Request) => {
     const profile_image = profileList[idx];
     const banner_image = bannerList[idx];
 
+    const phoneTrim = phone != null && String(phone).trim() !== "" ? String(phone).trim() : null;
+
     const { data: shop, error: insertError } = await supabase
       .from("shops")
       .insert({
         name: String(name),
         email: String(email),
-        phone: String(phone),
+        phone: phoneTrim,
         cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
         type: (shopType === "SALON" ? "SALON" : "BARBER"),
         subscription_active: true,
@@ -300,7 +304,7 @@ Deno.serve(async (req: Request) => {
         financeProvisionStatus: "pending",
         financePending: true,
         message:
-          "Loja criada. Ative recebimentos Asaas no admin (botão Provisionar Asaas) ou aguarde o provisionador externo.",
+          "Estabelecimento criado. Dados bancários e vínculo Asaas ficam no teu sistema externo.",
       }),
       {
         status: 200,

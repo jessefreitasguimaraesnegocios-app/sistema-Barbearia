@@ -9,27 +9,80 @@ import {
 } from '../lib/agendaSlots';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const PAYMENT_API_URL = SUPABASE_URL
   ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/create-payment`
   : '/api/payments/create';
 
-async function getPaymentHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const { data: sessionData } = await supabase.auth.getSession();
-  let accessToken = sessionData.session?.access_token;
-  if (!accessToken) {
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    accessToken = refreshed.session?.access_token;
+/** Garante access_token fresco (evita POST na Edge sem Bearer → 401). */
+async function ensurePaymentAccessToken(): Promise<string> {
+  const {
+    data: { session: first },
+  } = await supabase.auth.getSession();
+  if (first?.access_token) return first.access_token;
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error || !data.session?.access_token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
   }
-  if (!accessToken) {
-    throw new Error('Sessão expirada. Entre de novo para pagar com PIX.');
+  return data.session.access_token;
+}
+
+async function callCreatePayment(body: object): Promise<Record<string, unknown>> {
+  const accessToken = await ensurePaymentAccessToken();
+  if (PAYMENT_API_URL.startsWith('http')) {
+    const { data, error } = await supabase.functions.invoke('create-payment', {
+      body,
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (error) {
+      let msg = error.message;
+      const errObj = error as { context?: { json?: () => Promise<unknown> } };
+      if (typeof errObj.context?.json === 'function') {
+        try {
+          const j = (await errObj.context.json()) as { error?: string };
+          if (typeof j?.error === 'string' && j.error) msg = j.error;
+        } catch {
+          /* ignore */
+        }
+      }
+      throw new Error(msg || 'Erro ao criar pagamento');
+    }
+    return (data as Record<string, unknown>) ?? {};
   }
-  headers['Authorization'] = `Bearer ${accessToken}`;
-  if (PAYMENT_API_URL.includes('supabase.co') && SUPABASE_ANON_KEY) {
-    headers['apikey'] = SUPABASE_ANON_KEY;
+  const res = await fetch(PAYMENT_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  const contentType = res.headers.get('content-type');
+  const isJson = Boolean(contentType?.includes('application/json'));
+  if (!res.ok) {
+    let message = res.statusText || `Erro ${res.status}`;
+    if (isJson && text) {
+      try {
+        const j = JSON.parse(text) as { error?: string };
+        if (typeof j?.error === 'string' && j.error) message = j.error;
+      } catch {
+        /* ignore */
+      }
+    }
+    throw new Error(message);
   }
-  return headers;
+  return isJson && text ? (JSON.parse(text) as Record<string, unknown>) : {};
+}
+
+function pickInvoiceUrl(data: Record<string, unknown>): string | undefined {
+  const top = data.invoiceUrl;
+  if (typeof top === 'string' && top.trim()) return top.trim();
+  const pay = data.payment;
+  if (pay && typeof pay === 'object' && pay !== null && 'invoiceUrl' in pay) {
+    const u = (pay as { invoiceUrl?: unknown }).invoiceUrl;
+    if (typeof u === 'string' && u.trim()) return u.trim();
+  }
+  return undefined;
 }
 
 function buildIdempotencyKey(prefix: 'booking' | 'order', parts: Array<string | number>): string {
@@ -206,44 +259,30 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         normalizedTime,
         totalAmount.toFixed(2),
       ]);
-      const response = await fetch(PAYMENT_API_URL, {
-        method: 'POST',
-        headers: await getPaymentHeaders(),
-        body: JSON.stringify({
-          idempotencyKey: bookingIdempotencyKey,
+      const data = await callCreatePayment({
+        idempotencyKey: bookingIdempotencyKey,
+        amount: totalAmount,
+        tip: tipAmount,
+        description: `Agendamento: ${selectedService.name} na ${shop.name}${tipAmount > 0 ? ' (inclui gorjeta)' : ''}`,
+        customerName,
+        customerEmail,
+        customerCpfCnpj: cpfDigits,
+        customerPhone: phoneForPayment || undefined,
+        recordType: 'booking',
+        booking: {
+          shopId: shop.id,
+          clientId: user.id,
+          serviceId: selectedService.id,
+          professionalId: selectedPro.id,
+          date: selectedDate,
+          time: normalizedTime,
           amount: totalAmount,
-          tip: tipAmount,
-          description: `Agendamento: ${selectedService.name} na ${shop.name}${tipAmount > 0 ? ' (inclui gorjeta)' : ''}`,
-          customerName,
-          customerEmail,
-          customerCpfCnpj: cpfDigits,
-          customerPhone: phoneForPayment || undefined,
-          recordType: 'booking',
-          booking: {
-            shopId: shop.id,
-            clientId: user.id,
-            serviceId: selectedService.id,
-            professionalId: selectedPro.id,
-            date: selectedDate,
-            time: normalizedTime,
-            amount: totalAmount,
-            tip: tipAmount > 0 ? tipAmount : undefined,
-          },
-        })
+          tip: tipAmount > 0 ? tipAmount : undefined,
+        },
       });
-
-      const text = await response.text();
-      const contentType = response.headers.get('content-type');
-      const isJson = contentType && contentType.includes('application/json');
-      if (!response.ok) {
-        let message = response.statusText || `Erro ${response.status}`;
-        if (isJson && text) try { message = JSON.parse(text).error || message; } catch (_) {}
-        throw new Error(message);
-      }
-      const data = isJson && text ? JSON.parse(text) : {};
       console.log("Asaas Split Payment Response:", data);
 
-      const invoiceUrl = data.invoiceUrl || data.payment?.invoiceUrl;
+      const invoiceUrl = pickInvoiceUrl(data);
       if (!invoiceUrl) {
         setIsProcessing(false);
         alert('Cobrança criada, mas o link de pagamento não foi retornado. Tente novamente ou entre em contato.');
@@ -332,39 +371,25 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         cartTotal.toFixed(2),
         JSON.stringify(normalizedItems),
       ]);
-      const response = await fetch(PAYMENT_API_URL, {
-        method: 'POST',
-        headers: await getPaymentHeaders(),
-        body: JSON.stringify({
-          idempotencyKey: orderIdempotencyKey,
-          amount: cartTotal,
-          description: `Compra de Produtos na ${shop.name}`,
-          customerName,
-          customerEmail,
-          customerCpfCnpj: cpfDigits,
-          customerPhone: phoneForPayment || undefined,
-          recordType: 'order',
-          order: {
-            shopId: shop.id,
-            clientId: user.id,
-            items: normalizedItems,
-            total: cartTotal,
-          },
-        })
+      const data = await callCreatePayment({
+        idempotencyKey: orderIdempotencyKey,
+        amount: cartTotal,
+        description: `Compra de Produtos na ${shop.name}`,
+        customerName,
+        customerEmail,
+        customerCpfCnpj: cpfDigits,
+        customerPhone: phoneForPayment || undefined,
+        recordType: 'order',
+        order: {
+          shopId: shop.id,
+          clientId: user.id,
+          items: normalizedItems,
+          total: cartTotal,
+        },
       });
-
-      const text = await response.text();
-      const contentType = response.headers.get('content-type');
-      const isJson = contentType && contentType.includes('application/json');
-      if (!response.ok) {
-        let message = response.statusText || `Erro ${response.status}`;
-        if (isJson && text) try { message = JSON.parse(text).error || message; } catch (_) {}
-        throw new Error(message);
-      }
-      const data = isJson && text ? JSON.parse(text) : {};
       console.log("Asaas Split Order Response:", data);
 
-      const invoiceUrl = data.invoiceUrl || data.payment?.invoiceUrl;
+      const invoiceUrl = pickInvoiceUrl(data);
       if (!invoiceUrl) {
         setIsOrderProcessing(false);
         alert('Cobrança criada, mas o link de pagamento não foi retornado. Tente novamente ou entre em contato.');

@@ -65,12 +65,23 @@ Deno.serve(async (req: Request) => {
       }
     );
   }
-  if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseServiceKey) {
     return new Response(
       JSON.stringify({
         success: false,
-        error:
-          "Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY).",
+        error: "Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY).",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+  if (!supabaseAnonKey) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Configuração do Supabase indisponível (SUPABASE_ANON_KEY na Edge Function).",
       }),
       {
         status: 500,
@@ -85,30 +96,40 @@ Deno.serve(async (req: Request) => {
 
   try {
     const authHeader = (req.headers.get("Authorization") || req.headers.get("authorization") || "").trim();
-    if (!authHeader || !/^Bearer\s+\S+/i.test(authHeader)) {
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    if (!token) {
       return new Response(
-        JSON.stringify({ success: false, error: "Não autorizado: token ausente." }),
+        JSON.stringify({ success: false, error: "Não autorizado: envie Authorization: Bearer <access_token>." }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    // Validar JWT do utilizador com cliente anon + Authorization (recomendado pela Supabase no Edge).
-    // auth.getUser(jwt) com service role costuma falhar (401) no runtime Deno.
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+
+    /** Valida JWT com GoTrue (anon + Bearer), mais estável que service role auth.getUser(jwt) no Edge. */
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader : `Bearer ${token}`;
+    const authVerify = await fetch(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`, {
+      method: "GET",
+      headers: { Authorization: bearer, apikey: supabaseAnonKey },
     });
-    const { data: authData, error: authErr } = await supabaseUser.auth.getUser();
-    const authUserId = authData?.user?.id;
-    if (authErr || !authUserId) {
+    if (!authVerify.ok) {
+      console.error("[create-payment] auth/v1/user", authVerify.status, await authVerify.text().catch(() => ""));
       return new Response(
         JSON.stringify({
           success: false,
-          error: authErr?.message || "Não autorizado: sessão inválida ou expirada. Faça login novamente.",
+          error: "Não autorizado: sessão inválida ou expirada. Faça login novamente.",
         }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const authJson = (await authVerify.json()) as { user?: { id?: string }; id?: string };
+    const authUserId = authJson?.user?.id ?? authJson?.id;
+    if (!authUserId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Não autorizado: token sem usuário." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();
     const {
       amount,

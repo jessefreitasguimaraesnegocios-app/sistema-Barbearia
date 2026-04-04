@@ -431,7 +431,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   // Success Overlay Animation Component
   if (bookingSuccess) {
     return (
-      <div className="fixed inset-0 z-[120] bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in">
+      <div className="fixed inset-0 z-120 bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in">
         <div className="relative mb-8">
            {/* Decorative background circle */}
            <div className="absolute inset-0 bg-indigo-100 rounded-full scale-[2] opacity-30 animate-pulse"></div>
@@ -486,7 +486,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       }
     };
     return (
-      <div className="fixed inset-0 z-[120] bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-fade-in">
+      <div className="fixed inset-0 z-120 bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-fade-in">
         <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-8 max-w-md w-full text-center space-y-6">
           <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
             <i className="fas fa-qrcode text-3xl text-emerald-600"></i>
@@ -535,11 +535,11 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         <i className="fas fa-arrow-left"></i> Voltar para busca
       </button>
 
-      <div className="bg-white rounded-[2rem] overflow-hidden shadow-2xl border border-gray-100">
+      <div className="bg-white rounded-4xl overflow-hidden shadow-2xl border border-gray-100">
         {/* Banner */}
         <div className="h-48 md:h-64 relative">
           <img src={shop.bannerImage} className="w-full h-full object-cover" alt="banner" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+          <div className="absolute inset-0 bg-linear-to-t from-black/70 to-transparent"></div>
           <div className="absolute bottom-6 left-6 flex items-end gap-4 md:gap-6">
             <img src={shop.profileImage} className="w-16 h-16 md:w-24 md:h-24 rounded-2xl md:rounded-3xl border-4 border-white shadow-xl object-cover" alt="profile" />
             <div className="mb-1 md:mb-2">
@@ -643,7 +643,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                           <button 
                             key={date}
                             onClick={() => { setSelectedDate(date); setSelectedTime(''); }}
-                            className={`flex-shrink-0 w-16 md:w-20 py-3 md:py-4 rounded-2xl border-2 transition-all flex flex-col items-center ${selectedDate === date ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-500'}`}
+                            className={`shrink-0 w-16 md:w-20 py-3 md:py-4 rounded-2xl border-2 transition-all flex flex-col items-center ${selectedDate === date ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-500'}`}
                           >
                             <span className="text-[10px] md:text-xs font-medium uppercase">{new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
                             <span className="text-lg md:text-xl font-bold">{new Date(date + 'T12:00:00').getDate()}</span>
@@ -686,7 +686,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                                     onClick={() => {
                                       if (!disabled) setSelectedTime(t);
                                     }}
-                                    className={`py-2 md:py-3 rounded-xl border-2 text-xs md:text-sm font-bold transition-all flex flex-col items-center justify-center min-h-[3.25rem] ${
+                                    className={`py-2 md:py-3 rounded-xl border-2 text-xs md:text-sm font-bold transition-all flex flex-col items-center justify-center min-h-13 ${
                                       selected
                                         ? 'bg-indigo-600 border-indigo-600 text-white'
                                         : disabled
@@ -954,7 +954,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
       {/* Cart Summary Drawer / Modal */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex justify-end animate-fade-in">
+        <div className="fixed inset-0 z-100 bg-black/40 backdrop-blur-sm flex justify-end animate-fade-in">
           <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-left">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
@@ -1099,7 +1099,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
       {/* Floating Cart Button */}
       {cart.length > 0 && activeTab === 'STORE' && !isCartOpen && (
-        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-slate-900 text-white p-4 rounded-3xl shadow-2xl z-[60] flex items-center justify-between animate-bounce-in">
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-slate-900 text-white p-4 rounded-3xl shadow-2xl z-60 flex items-center justify-between animate-bounce-in">
            <div className="flex items-center gap-4">
               <div className="relative">
                 <i className="fas fa-shopping-cart text-xl"></i>

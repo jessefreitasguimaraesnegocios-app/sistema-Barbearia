@@ -95,23 +95,32 @@ Deno.serve(async (req: Request) => {
   ).replace(/\/$/, "");
 
   try {
-    const authHeader = (req.headers.get("Authorization") || req.headers.get("authorization") || "").trim();
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-    if (!token) {
+    const authorization =
+      (req.headers.get("Authorization") || req.headers.get("authorization") || "").trim();
+    if (!authorization) {
       return new Response(
-        JSON.stringify({ success: false, error: "Não autorizado: envie Authorization: Bearer <access_token>." }),
+        JSON.stringify({
+          success: false,
+          error: "Não autorizado: envie Authorization: Bearer <access_token>.",
+        }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    /** Valida JWT com GoTrue (anon + Bearer), mais estável que service role auth.getUser(jwt) no Edge. */
-    const bearer = authHeader.startsWith("Bearer ") ? authHeader : `Bearer ${token}`;
-    const authVerify = await fetch(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`, {
-      method: "GET",
-      headers: { Authorization: bearer, apikey: supabaseAnonKey },
+    /** Padrão oficial: cliente anon repassa o JWT do pedido; getUser() valida com GoTrue. */
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authorization },
+      },
     });
-    if (!authVerify.ok) {
-      console.error("[create-payment] auth/v1/user", authVerify.status, await authVerify.text().catch(() => ""));
+
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabaseAuth.auth.getUser();
+
+    if (authErr || !user?.id) {
+      console.error("[create-payment] auth.getUser", authErr?.message || authErr);
       return new Response(
         JSON.stringify({
           success: false,
@@ -120,14 +129,8 @@ Deno.serve(async (req: Request) => {
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    const authJson = (await authVerify.json()) as { user?: { id?: string }; id?: string };
-    const authUserId = authJson?.user?.id ?? authJson?.id;
-    if (!authUserId) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Não autorizado: token sem usuário." }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+
+    const authUserId = user.id;
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();

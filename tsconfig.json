@@ -1,4 +1,9 @@
 {
+  "exclude": [
+    "node_modules",
+    "dist",
+    "supabase/functions"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,
@@ -27,6 +32,5 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  },
-  "exclude": ["node_modules", "dist", "supabase/functions"]
+  }
 }

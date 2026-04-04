@@ -14,7 +14,7 @@
     "preview": "vite preview",
     "supabase:link": "npx supabase link --project-ref wevcqosziiwfbxbmjqln",
     "supabase:db-push": "npx supabase db push",
-    "supabase:functions-deploy": "npx supabase functions deploy create-shop && npx supabase functions deploy create-payment && npx supabase functions deploy process-shop-finance && npx supabase functions deploy shop-finance-webhook --no-verify-jwt && npx supabase functions deploy asaas-webhook --no-verify-jwt",
+    "supabase:functions-deploy": "npx supabase functions deploy create-shop && npx supabase functions deploy create-payment --no-verify-jwt && npx supabase functions deploy process-shop-finance && npx supabase functions deploy shop-finance-webhook --no-verify-jwt && npx supabase functions deploy asaas-webhook --no-verify-jwt",
     "db:push": "node scripts/supabase-db-push.js",
     "db:push:url": "node scripts/apply-migrations.js"
   },

@@ -9,6 +9,7 @@ import {
 } from '../lib/agendaSlots';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const PAYMENT_API_URL = SUPABASE_URL
   ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/create-payment`
   : '/api/payments/create';
@@ -29,24 +30,37 @@ async function ensurePaymentAccessToken(): Promise<string> {
 async function callCreatePayment(body: object): Promise<Record<string, unknown>> {
   const accessToken = await ensurePaymentAccessToken();
   if (PAYMENT_API_URL.startsWith('http')) {
-    const { data, error } = await supabase.functions.invoke('create-payment', {
-      body,
-      headers: { Authorization: `Bearer ${accessToken}` },
+    if (!SUPABASE_ANON_KEY?.trim()) {
+      throw new Error(
+        'Configuração: VITE_SUPABASE_ANON_KEY ausente no build. Defina no Vercel e faça redeploy.'
+      );
+    }
+    /** fetch explícito: gateway das Edge Functions exige header apikey + Authorization (invoke só com Authorization pode falhar em alguns casos). */
+    const res = await fetch(PAYMENT_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body),
     });
-    if (error) {
-      let msg = error.message;
-      const errObj = error as { context?: { json?: () => Promise<unknown> } };
-      if (typeof errObj.context?.json === 'function') {
+    const text = await res.text();
+    const contentType = res.headers.get('content-type');
+    const isJson = Boolean(contentType?.includes('application/json'));
+    if (!res.ok) {
+      let message = res.statusText || `Erro ${res.status}`;
+      if (isJson && text) {
         try {
-          const j = (await errObj.context.json()) as { error?: string };
-          if (typeof j?.error === 'string' && j.error) msg = j.error;
+          const j = JSON.parse(text) as { error?: string };
+          if (typeof j?.error === 'string' && j.error) message = j.error;
         } catch {
           /* ignore */
         }
       }
-      throw new Error(msg || 'Erro ao criar pagamento');
+      throw new Error(message);
     }
-    return (data as Record<string, unknown>) ?? {};
+    return isJson && text ? (JSON.parse(text) as Record<string, unknown>) : {};
   }
   const res = await fetch(PAYMENT_API_URL, {
     method: 'POST',

@@ -373,6 +373,10 @@ verify_jwt = false
 [functions.shop-finance-webhook]
 verify_jwt = false
 
+# PIX: validação do utilizador dentro da função (auth.getUser(jwt)); evita 401 estranhos na gateway com alguns clientes
+[functions.create-payment]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

@@ -51,7 +51,6 @@ Deno.serve(async (req: Request) => {
 
   const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!asaasApiKey) {
     return new Response(
@@ -77,19 +76,6 @@ Deno.serve(async (req: Request) => {
       }
     );
   }
-  if (!supabaseAnonKey) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Configuração do Supabase indisponível (SUPABASE_ANON_KEY na Edge Function).",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  }
-
   const asaasBaseUrl = (
     Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3"
   ).replace(/\/$/, "");
@@ -97,30 +83,25 @@ Deno.serve(async (req: Request) => {
   try {
     const authorization =
       (req.headers.get("Authorization") || req.headers.get("authorization") || "").trim();
-    if (!authorization) {
+    const jwt = authorization.startsWith("Bearer ")
+      ? authorization.slice(7).trim()
+      : authorization;
+    if (!jwt) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Não autorizado: envie Authorization: Bearer <access_token>.",
+          error: "Não autorizado: envie Authorization: Bearer <access_token> e header apikey.",
         }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    /** Padrão oficial: cliente anon repassa o JWT do pedido; getUser() valida com GoTrue. */
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: { Authorization: authorization },
-      },
-    });
-
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabaseAuth.auth.getUser();
-
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    /** Service role + JWT: validação server-side documentada (confiável no Edge vs anon getUser sem apikey no cliente). */
+    const { data: userData, error: authErr } = await supabaseAdmin.auth.getUser(jwt);
+    const user = userData?.user;
     if (authErr || !user?.id) {
-      console.error("[create-payment] auth.getUser", authErr?.message || authErr);
+      console.error("[create-payment] auth.getUser(jwt)", authErr?.message || authErr);
       return new Response(
         JSON.stringify({
           success: false,
@@ -131,8 +112,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const authUserId = user.id;
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();
     const {
       amount,

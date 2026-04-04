@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function normalizeAsaasMobilePhone(rawPhone: unknown): string {
@@ -68,26 +69,31 @@ export default async function handler(
       error: 'Configuração do gateway de pagamento indisponível (ASAAS_API_KEY).',
     });
   }
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
     return res.status(500).json({
       success: false,
-      error: 'Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY).',
+      error: 'Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY).',
     });
   }
 
   try {
     const rawAuth = req.headers?.authorization;
-    const authHeader = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-    if (!token) {
+    const authHeader = (Array.isArray(rawAuth) ? rawAuth[0] : rawAuth || '').trim();
+    if (!authHeader || !/^Bearer\s+\S+/i.test(authHeader)) {
       return res.status(401).json({ success: false, error: 'Não autorizado: token ausente.' });
     }
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+    const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: authData, error: authErr } = await supabaseUser.auth.getUser();
     const authUserId = authData?.user?.id;
     if (authErr || !authUserId) {
-      return res.status(401).json({ success: false, error: 'Não autorizado: token inválido.' });
+      return res.status(401).json({
+        success: false,
+        error: authErr?.message || 'Não autorizado: sessão inválida ou expirada.',
+      });
     }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const body = (req.body || {}) as CreatePaymentBody;
     const {

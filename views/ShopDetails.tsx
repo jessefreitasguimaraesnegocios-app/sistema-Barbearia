@@ -16,11 +16,16 @@ const PAYMENT_API_URL = SUPABASE_URL
 
 async function getPaymentHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const { data } = await supabase.auth.getSession();
-  const accessToken = data.session?.access_token;
-  if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
+  const { data: sessionData } = await supabase.auth.getSession();
+  let accessToken = sessionData.session?.access_token;
+  if (!accessToken) {
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    accessToken = refreshed.session?.access_token;
   }
+  if (!accessToken) {
+    throw new Error('Sessão expirada. Entre de novo para pagar com PIX.');
+  }
+  headers['Authorization'] = `Bearer ${accessToken}`;
   if (PAYMENT_API_URL.includes('supabase.co') && SUPABASE_ANON_KEY) {
     headers['apikey'] = SUPABASE_ANON_KEY;
   }
@@ -270,7 +275,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     } catch (error) {
       console.error("Payment error:", error);
       setIsProcessing(false);
-      alert("Erro ao processar pagamento com Split Asaas.");
+      alert(error instanceof Error ? error.message : 'Erro ao processar pagamento com Split Asaas.');
     }
   };
 
@@ -392,7 +397,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     } catch (error) {
       console.error("Order payment error:", error);
       setIsOrderProcessing(false);
-      alert("Erro ao processar pedido com Split Asaas.");
+      alert(error instanceof Error ? error.message : 'Erro ao processar pedido com Split Asaas.');
     }
   };
 

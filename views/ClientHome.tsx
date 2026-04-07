@@ -83,7 +83,7 @@ const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
             <div className="p-6">
               <div className="flex justify-between items-center mb-2 mt-4">
                 <h3 className="text-xl font-bold text-gray-900">{shop.name}</h3>
-                <img src={shop.profileImage} className="w-16 h-16 rounded-2xl border-4 border-white shadow-md -mt-5 object-cover object-center flex-shrink-0" alt="" />
+                <img src={shop.profileImage} className="w-16 h-16 rounded-2xl border-4 border-white shadow-md -mt-5 object-cover object-center shrink-0" alt="" />
               </div>
               <p className="text-gray-500 text-sm line-clamp-2 mb-4 leading-relaxed">{shop.description}</p>
               <div className="flex items-center gap-2 text-xs text-gray-400">

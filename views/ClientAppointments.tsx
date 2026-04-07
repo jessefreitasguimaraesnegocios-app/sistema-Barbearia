@@ -34,7 +34,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, s
             const pro = shop?.professionals.find(p => p.id === apt.professionalId);
 
             return (
-              <div key={apt.id} className={`bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-6 hover:shadow-lg transition-all relative overflow-hidden ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}>
+              <div key={apt.id} className={`bg-white p-6 rounded-4xl border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-6 hover:shadow-lg transition-all relative overflow-hidden ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}>
                 {apt.status === 'CANCELLED' && (
                   <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center animate-fade-in">
                     <div className="bg-white text-red-600 px-6 py-3 rounded-full font-black uppercase tracking-widest border-2 border-red-500 rotate-[-5deg] shadow-2xl animate-bounce-in flex items-center gap-2">
@@ -42,7 +42,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, s
                     </div>
                   </div>
                 )}
-                <div className={`w-20 h-20 bg-gray-50 rounded-2xl flex-shrink-0 flex items-center justify-center text-indigo-600 text-2xl transition-all ${apt.status === 'CANCELLED' ? 'scale-90 opacity-50' : ''}`}>
+                <div className={`w-20 h-20 bg-gray-50 rounded-2xl shrink-0 flex items-center justify-center text-indigo-600 text-2xl transition-all ${apt.status === 'CANCELLED' ? 'scale-90 opacity-50' : ''}`}>
                   <i
                     className={
                       shop?.type === 'BARBER'
@@ -95,7 +95,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, s
           })}
         </div>
       ) : (
-        <div className="text-center py-20 bg-white rounded-[2rem] border-2 border-dashed border-gray-200">
+        <div className="text-center py-20 bg-white rounded-4xl border-2 border-dashed border-gray-200">
           <div className="w-20 h-20 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
             <i className="far fa-calendar-times"></i>
           </div>

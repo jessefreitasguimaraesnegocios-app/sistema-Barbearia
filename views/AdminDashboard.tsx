@@ -80,6 +80,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
 
       const subAmt = Number(formData.subscriptionAmount);
       const phoneDigits = formData.phone.replace(/\D/g, '');
+      const cepDigits = formData.postalCode.replace(/\D/g, '').slice(0, 8);
       const body = {
         name: formData.name.trim(),
         email: formData.email.trim(),
@@ -88,6 +89,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         password: formData.password,
         type: formData.type,
         address: formData.address.trim() || undefined,
+        postalCode: cepDigits.length === 8 ? cepDigits : undefined,
         subscriptionAmount: Number.isFinite(subAmt) && subAmt >= 0 ? subAmt : 99,
       };
 
@@ -95,14 +97,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       let responseStatus: number;
       let data: Record<string, unknown>;
 
-      const apiRes = await fetch(`${window.location.origin}/api/admin/create-shop`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(body),
-      });
+      const createShopTimeoutMs = 75_000;
+      const abortController = new AbortController();
+      const abortTimer = window.setTimeout(() => abortController.abort(), createShopTimeoutMs);
+      let apiRes: Response;
+      try {
+        apiRes = await fetch(`${window.location.origin}/api/admin/create-shop`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(body),
+          signal: abortController.signal,
+        });
+      } finally {
+        window.clearTimeout(abortTimer);
+      }
 
       if (apiRes.status === 404) {
         const { data: invokeData, error } = await supabase.functions.invoke('create-shop', {
@@ -168,7 +179,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       }
     } catch (error) {
       console.error('Error creating shop:', error);
-      alert('Erro de conexão ao cadastrar barbearia.');
+      if ((error instanceof DOMException || error instanceof Error) && error.name === 'AbortError') {
+        alert(
+          'O cadastro passou do tempo limite (servidor ou rede lentos). Tenta outra vez; se repetir, confirma no Supabase se a função create-shop está deployada e vê os logs.'
+        );
+      } else {
+        alert('Erro de conexão ao cadastrar barbearia.');
+      }
     } finally {
       setIsSubmitting(false);
     }

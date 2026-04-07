@@ -207,53 +207,7 @@ Deno.serve(async (req: Request) => {
 
     const phoneTrim = phone != null && String(phone).trim() !== "" ? String(phone).trim() : null;
 
-    const { data: shop, error: insertError } = await supabase
-      .from("shops")
-      .insert({
-        name: String(name),
-        email: String(email),
-        phone: phoneTrim,
-        cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
-        type: resolvedShopType,
-        subscription_active: true,
-        subscription_amount,
-        pix_key: pixKeyTrim,
-        rating: 5.0,
-        profile_image,
-        banner_image,
-        address: [address, addressNumber, complement, province, postalCode].filter(Boolean).join(", ") || address,
-        finance_provision_status: "pending",
-        finance_provision_payload,
-        finance_provision_updated_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      console.error("Supabase insert error:", insertError);
-      return new Response(
-        JSON.stringify({ success: false, error: insertError.message }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const shopId = shop?.id ?? null;
-    if (!shopId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Falha ao obter id da loja",
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
+    /** Dono primeiro + loja já com owner_id: menos um round-trip e sem loja órfã se o Auth falhar. */
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: String(email),
       password: ownerPassword,
@@ -290,13 +244,56 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { error: updateOwnerError } = await supabase
+    const { data: shop, error: insertError } = await supabase
       .from("shops")
-      .update({ owner_id: ownerId })
-      .eq("id", shopId);
+      .insert({
+        owner_id: ownerId,
+        name: String(name),
+        email: String(email),
+        phone: phoneTrim,
+        cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
+        type: resolvedShopType,
+        subscription_active: true,
+        subscription_amount,
+        pix_key: pixKeyTrim,
+        rating: 5.0,
+        profile_image,
+        banner_image,
+        address: [address, addressNumber, complement, province, postalCode].filter(Boolean).join(", ") || address,
+        finance_provision_status: "pending",
+        finance_provision_payload,
+        finance_provision_updated_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
 
-    if (updateOwnerError) {
-      console.error("Update shop owner_id error:", updateOwnerError);
+    if (insertError) {
+      console.error("Supabase insert error:", insertError);
+      const { error: delErr } = await supabase.auth.admin.deleteUser(ownerId);
+      if (delErr) console.error("[create-shop] rollback deleteUser:", delErr.message);
+      return new Response(
+        JSON.stringify({ success: false, error: insertError.message }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const shopId = shop?.id ?? null;
+    if (!shopId) {
+      const { error: delErr } = await supabase.auth.admin.deleteUser(ownerId);
+      if (delErr) console.error("[create-shop] rollback deleteUser:", delErr.message);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Falha ao obter id da loja",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const { error: profileError } = await supabase

@@ -21,7 +21,13 @@ export async function generateShopDescription(name: string, type: string): Promi
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Escreva uma descrição atraente, curta e profissional para uma ${type === 'BARBER' ? 'Barbearia' : 'Salão de Beleza'} chamada "${name}". A descrição deve ser convidativa e passar uma sensação de exclusividade. No máximo 2 parágrafos.`,
+      contents: `Escreva uma descrição atraente, curta e profissional para ${
+        type === 'BARBER'
+          ? 'uma Barbearia'
+          : type === 'MANICURE'
+            ? 'um estúdio de Manicure e cuidados com as unhas'
+            : 'um Salão de Beleza'
+      } chamado(a) "${name}". A descrição deve ser convidativa e passar uma sensação de exclusividade. No máximo 2 parágrafos.`,
     });
     return response.text || "Bem-vindo ao nosso espaço de beleza e cuidado.";
   } catch (error) {

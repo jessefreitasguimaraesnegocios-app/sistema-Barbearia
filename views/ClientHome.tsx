@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Shop } from '../types';
+import { shopTypeCatalogBadgeClass, shopTypeShortLabel } from '../lib/shopTypeDisplay';
 
 interface ClientHomeProps {
   shops: Shop[];
@@ -8,7 +9,7 @@ interface ClientHomeProps {
 }
 
 const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
-  const [filter, setFilter] = useState<'ALL' | 'BARBER' | 'SALON'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'BARBER' | 'SALON' | 'MANICURE'>('ALL');
   const [search, setSearch] = useState('');
 
   const filteredShops = shops.filter(shop => {
@@ -51,6 +52,12 @@ const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
             >
               Salões
             </button>
+            <button
+              onClick={() => setFilter('MANICURE')}
+              className={`px-6 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${filter === 'MANICURE' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Manicure
+            </button>
           </div>
         </div>
       </header>
@@ -67,8 +74,10 @@ const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
               <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                 <i className="fas fa-star text-yellow-400"></i> {shop.rating}
               </div>
-              <div className={`absolute bottom-4 left-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white ${shop.type === 'BARBER' ? 'bg-slate-900' : 'bg-pink-600'}`}>
-                {shop.type === 'BARBER' ? 'Barbearia' : 'Salão de Beleza'}
+              <div
+                className={`absolute bottom-4 left-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white ${shopTypeCatalogBadgeClass(shop.type)}`}
+              >
+                {shop.type === 'SALON' ? 'Salão de Beleza' : shopTypeShortLabel(shop.type)}
               </div>
             </div>
             <div className="p-6">

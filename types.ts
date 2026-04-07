@@ -1,6 +1,6 @@
 
 export type UserRole = 'ADMIN' | 'SHOP' | 'STAFF' | 'CLIENT' | 'PENDING';
-export type ShopType = 'BARBER' | 'SALON';
+export type ShopType = 'BARBER' | 'SALON' | 'MANICURE';
 
 export interface User {
   id: string;

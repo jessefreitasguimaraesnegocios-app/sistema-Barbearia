@@ -146,7 +146,17 @@ Deno.serve(async (req: Request) => {
       incomeValue,
     };
 
-    const isSalon = shopType === "SALON";
+    const rawType =
+      shopType != null && String(shopType).trim() !== ""
+        ? String(shopType).trim().toUpperCase()
+        : "BARBER";
+    const allowedShopTypes = ["BARBER", "SALON", "MANICURE"] as const;
+    const resolvedShopType = (allowedShopTypes as readonly string[]).includes(rawType)
+      ? (rawType as (typeof allowedShopTypes)[number])
+      : "BARBER";
+
+    const isSalon = resolvedShopType === "SALON";
+    const isManicure = resolvedShopType === "MANICURE";
     const barberProfiles = [
       "https://images.unsplash.com/photo-1585747860715-2ba9226a93f8?w=400&h=400&fit=crop",
       "https://images.unsplash.com/photo-1599351432882-e4723832b434?w=400&h=400&fit=crop",
@@ -175,8 +185,22 @@ Deno.serve(async (req: Request) => {
       "https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=800&h=400&fit=crop",
       "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=800&h=400&fit=crop",
     ];
-    const profileList = isSalon ? salonProfiles : barberProfiles;
-    const bannerList = isSalon ? salonBanners : barberBanners;
+    const manicureProfiles = [
+      "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1519014816548-bf697886cd7c?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1522338242992-e2a73275f588?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1610992015732-2449b76344bc?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop",
+    ];
+    const manicureBanners = [
+      "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1519014816548-bf697886cd7c?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1522338242992-e2a73275f588?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1610992015732-2449b76344bc?w=800&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800&h=400&fit=crop",
+    ];
+    const profileList = isManicure ? manicureProfiles : isSalon ? salonProfiles : barberProfiles;
+    const bannerList = isManicure ? manicureBanners : isSalon ? salonBanners : barberBanners;
     const idx = Math.floor(Math.random() * profileList.length);
     const profile_image = profileList[idx];
     const banner_image = bannerList[idx];
@@ -190,7 +214,7 @@ Deno.serve(async (req: Request) => {
         email: String(email),
         phone: phoneTrim,
         cnpj_cpf: cpfCnpjDigits.length >= 11 ? cpfCnpjDigits : null,
-        type: (shopType === "SALON" ? "SALON" : "BARBER"),
+        type: resolvedShopType,
         subscription_active: true,
         subscription_amount,
         pix_key: pixKeyTrim,

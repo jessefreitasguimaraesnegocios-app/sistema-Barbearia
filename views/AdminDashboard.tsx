@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME } from '../lib/branding';
+import { shopTypeAdminPillClass, shopTypeShortLabel } from '../lib/shopTypeDisplay';
 
 async function adminAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -388,8 +389,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${shop.type === 'BARBER' ? 'bg-slate-900 text-white' : 'bg-pink-100 text-pink-600'}`}>
-                      {shop.type === 'BARBER' ? 'Barbearia' : 'Salão'}
+                    <span
+                      className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${shopTypeAdminPillClass(shop.type)}`}
+                    >
+                      {shopTypeShortLabel(shop.type)}
                     </span>
                   </td>
                   <td className="px-8 py-6">
@@ -534,9 +537,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-gray-400 uppercase ml-2">Tipo de estabelecimento</p>
                   <p className="text-xs text-gray-500 ml-2 -mt-1">
-                    Escolhe conforme o negócio: isso define o perfil no catálogo (barbearia ou salão de beleza).
+                    Escolhe conforme o negócio: isso define o perfil no catálogo (barbearia, salão ou manicure).
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, type: 'BARBER' })}
@@ -576,6 +579,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                         <i className="fas fa-heart" />
                       </span>
                       Salão
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, type: 'MANICURE' })}
+                      aria-pressed={formData.type === 'MANICURE'}
+                      className={`flex flex-col items-center gap-2 rounded-2xl p-4 text-center font-bold transition-all border-2 ${
+                        formData.type === 'MANICURE'
+                          ? 'border-teal-600 bg-teal-50 text-teal-900 shadow-md ring-2 ring-teal-600/20'
+                          : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span
+                        className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg ${
+                          formData.type === 'MANICURE' ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}
+                        aria-hidden
+                      >
+                        <i className="fas fa-hand-sparkles" />
+                      </span>
+                      Manicure
                     </button>
                   </div>
                 </div>

@@ -6,7 +6,7 @@ CREATE TABLE shops (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   owner_id UUID REFERENCES auth.users(id),
   name TEXT NOT NULL,
-  type TEXT CHECK (type IN ('BARBER', 'SALON')),
+  type TEXT CHECK (type IN ('BARBER', 'SALON', 'MANICURE')),
   description TEXT,
   address TEXT,
   profile_image TEXT,

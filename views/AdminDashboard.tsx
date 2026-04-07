@@ -265,6 +265,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     }
   };
 
+  const savePlatformSubscriptionId = async (shop: Shop, raw: string) => {
+    const trimmed = raw.trim();
+    const current = (shop.asaasPlatformSubscriptionId ?? '').trim();
+    if (trimmed === current) return;
+    try {
+      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
+        method: 'PATCH',
+        headers: await adminAuthHeaders(),
+        body: JSON.stringify({
+          asaasPlatformSubscriptionId: trimmed === '' ? null : trimmed.slice(0, 200),
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.shop) {
+        setShops(shops.map((s) => (s.id === shop.id ? data.shop : s)));
+      } else {
+        alert(data.error || 'Erro ao atualizar ID da assinatura Asaas.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao atualizar ID da assinatura.');
+    }
+  };
+
   const saveSplitPercent = async (shop: Shop, newPercent: number) => {
     const v = Math.min(100, Math.max(0, newPercent));
     const current = shop.splitPercent ?? 95;
@@ -345,6 +369,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                 <th className="px-8 py-4">Tipo</th>
                 <th className="px-8 py-4">Status Assinatura</th>
                 <th className="px-8 py-4">Mensalidade</th>
+                <th className="px-8 py-4">Assin. plataforma (Asaas)</th>
                 <th className="px-8 py-4">% Split</th>
                 <th className="px-8 py-4">Asaas ID</th>
                 <th className="px-8 py-4 text-right">Ações</th>
@@ -394,6 +419,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                         }}
                       />
                     </div>
+                  </td>
+                  <td className="px-8 py-6 max-w-56">
+                    <input
+                      type="text"
+                      placeholder="sub_…"
+                      title="ID da assinatura na conta Asaas mãe (mensalidade)"
+                      className="w-full min-w-0 p-2 rounded-xl bg-gray-50 border border-gray-100 text-[11px] font-mono text-gray-800 focus:ring-2 focus:ring-indigo-600"
+                      value={shop.asaasPlatformSubscriptionId ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setShops(shops.map((s) => (s.id === shop.id ? { ...s, asaasPlatformSubscriptionId: v } : s)));
+                      }}
+                      onBlur={(e) => savePlatformSubscriptionId(shop, e.target.value)}
+                    />
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-2">

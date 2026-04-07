@@ -10,7 +10,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPA
 
 /** Colunas seguras (sem asaas_api_key). */
 const SHOP_SELECT_SAFE =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
 
 function getShopId(req: { query?: { id?: string }; url?: string }): string | null {
   if (req.query?.id) return req.query.id;
@@ -83,6 +83,10 @@ function mapShopResponse(shop: Record<string, unknown>) {
     theme: shop.theme || 'MODERN',
     subscriptionActive: shop.subscription_active,
     subscriptionAmount: shop.subscription_amount != null ? Number(shop.subscription_amount) : 99,
+    asaasPlatformSubscriptionId:
+      shop.asaas_platform_subscription_id != null && String(shop.asaas_platform_subscription_id).trim() !== ''
+        ? String(shop.asaas_platform_subscription_id).trim()
+        : null,
     rating: shop.rating != null ? Number(shop.rating) : 5,
     splitPercent: shop.split_percent != null ? Number(shop.split_percent) : 95,
     passFeesToCustomer: shop.pass_fees_to_customer === true,
@@ -157,6 +161,7 @@ export default async function handler(
     subscriptionAmount?: number;
     splitPercent?: number;
     asaasApiKey?: string | null;
+    asaasPlatformSubscriptionId?: string | null;
   };
 
   const updates: Record<string, unknown> = {};
@@ -165,9 +170,18 @@ export default async function handler(
   if (typeof body.splitPercent === 'number' && body.splitPercent >= 0 && body.splitPercent <= 100) updates.split_percent = body.splitPercent;
   const keyUpdateRequested = body.asaasApiKey !== undefined;
   if (keyUpdateRequested) updates.asaas_api_key = body.asaasApiKey === '' || body.asaasApiKey === null ? null : String(body.asaasApiKey).trim();
+  if (body.asaasPlatformSubscriptionId !== undefined) {
+    const v = body.asaasPlatformSubscriptionId;
+    updates.asaas_platform_subscription_id =
+      v === '' || v === null ? null : String(v).trim().slice(0, 200);
+  }
 
   if (Object.keys(updates).length === 0) {
-    return res.status(400).json({ success: false, error: 'Envie subscriptionActive, subscriptionAmount, splitPercent e/ou asaasApiKey.' });
+    return res.status(400).json({
+      success: false,
+      error:
+        'Envie subscriptionActive, subscriptionAmount, splitPercent, asaasPlatformSubscriptionId e/ou asaasApiKey.',
+    });
   }
 
   try {

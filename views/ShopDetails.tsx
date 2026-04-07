@@ -117,8 +117,6 @@ interface ShopDetailsProps {
   onBack: () => void;
 }
 
-type PaymentMethod = 'PIX';
-
 const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointmentsAndOrders, onBook, onOrder, onBack }) => {
   const [activeTab, setActiveTab] = useState<'SERVICES' | 'STORE'>('SERVICES');
   const [step, setStep] = useState(1);
@@ -126,16 +124,14 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
-  const [selectedPaymentMethod] = useState<PaymentMethod>('PIX');
   const [tipAmount, setTipAmount] = useState<number>(0);
   const [customerCpf, setCustomerCpf] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentCustomerName, setPaymentCustomerName] = useState('');
   const [paymentCustomerEmail, setPaymentCustomerEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState(false);
-  
-  // Pagamento PIX pendente: exibe link para pagar e botão "Já paguei"
+
+  // Pagamento PIX pendente: exibe link para pagar e botão "Já paguei" exibe link para pagar e botão "Já paguei"
   type PaymentPendingBooking = { invoiceUrl: string; amount: number; type: 'booking'; pendingBooking: Appointment; isDuplicate?: boolean };
   type PaymentPendingOrder = { invoiceUrl: string; amount: number; type: 'order'; pendingOrder: Order; isDuplicate?: boolean };
   const [paymentPending, setPaymentPending] = useState<PaymentPendingBooking | PaymentPendingOrder | null>(null);
@@ -144,7 +140,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(false);
 
   const [bookingBlocks, setBookingBlocks] = useState<BookingBlock[]>([]);
   const [loadingBookingBlocks, setLoadingBookingBlocks] = useState(false);
@@ -441,50 +436,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.product.promoPrice || item.product.price) * item.quantity, 0);
-
-  // Success Overlay Animation Component
-  if (bookingSuccess) {
-    return (
-      <div className="fixed inset-0 z-120 bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in">
-        <div className="relative mb-8">
-           {/* Decorative background circle */}
-           <div className="absolute inset-0 bg-indigo-100 rounded-full scale-[2] opacity-30 animate-pulse"></div>
-           
-           {/* Success Icon Animation Container */}
-           <div className="relative w-32 h-32 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-2xl shadow-indigo-200 animate-bounce-in">
-              <div className="flex flex-col items-center transition-all duration-1000">
-                {/* Checkmark transforming into calendar icon simulation via sequencing or overlapping */}
-                <i className="fas fa-check text-4xl animate-playful-bounce mb-1"></i>
-                <div className="h-px w-6 bg-white/50 mb-1"></div>
-                <i className="far fa-calendar-check text-2xl opacity-80"></i>
-              </div>
-           </div>
-        </div>
-
-        <div className="text-center space-y-3 px-6 max-w-sm">
-           <h2 className="text-3xl font-black text-gray-900 tracking-tight">Tudo pronto!</h2>
-           <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 my-4">
-             <p className="text-gray-500 font-medium leading-relaxed text-sm">
-               Seu horário com <span className="text-indigo-600 font-bold">{selectedPro?.name}</span> foi confirmado!
-             </p>
-             <div className="flex items-center justify-center gap-4 mt-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
-               <span><i className="far fa-calendar-alt mr-1"></i> {selectedDate}</span>
-               <span><i className="far fa-clock mr-1"></i> {selectedTime}</span>
-             </div>
-           </div>
-           <p className="text-xs text-gray-400">
-             Você receberá um lembrete em breve. Já deixamos tudo preparado para sua chegada!
-           </p>
-        </div>
-        
-        <div className="mt-12 flex gap-2">
-           <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-           <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-           <div className="w-2 h-2 bg-indigo-200 rounded-full animate-bounce"></div>
-        </div>
-      </div>
-    );
-  }
 
   // Tela: complete o pagamento PIX (link + "Já paguei, finalizar")
   if (paymentPending) {
@@ -1087,23 +1038,17 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                   </div>
                 </div>
 
-                {orderSuccess ? (
-                  <div className="bg-green-500 text-white p-4 rounded-2xl flex items-center justify-center gap-3 font-bold animate-bounce-in">
-                    <i className="fas fa-check-circle text-xl"></i> Pedido Realizado!
-                  </div>
-                ) : (
-                  <button 
-                    disabled={isOrderProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
-                    onClick={handleOrderPayment}
-                    className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isOrderProcessing ? (
-                      <><i className="fas fa-spinner fa-spin"></i> Processando...</>
-                    ) : (
-                      <><i className="fas fa-credit-card"></i> Pagar R$ {cartTotal.toFixed(2)}</>
-                    )}
-                  </button>
-                )}
+                <button
+                  disabled={isOrderProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
+                  onClick={handleOrderPayment}
+                  className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isOrderProcessing ? (
+                    <><i className="fas fa-spinner fa-spin"></i> Processando...</>
+                  ) : (
+                    <><i className="fas fa-credit-card"></i> Pagar R$ {cartTotal.toFixed(2)}</>
+                  )}
+                </button>
                 <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest font-bold">Pagamento processado por BeautyPay</p>
               </div>
             )}

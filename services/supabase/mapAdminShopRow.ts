@@ -17,6 +17,10 @@ export function mapAdminShopRow(s: Record<string, unknown>): Shop {
     products: [],
     subscriptionActive: Boolean(s.subscription_active),
     subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
+    asaasPlatformSubscriptionId:
+      s.asaas_platform_subscription_id != null && String(s.asaas_platform_subscription_id).trim() !== ''
+        ? String(s.asaas_platform_subscription_id).trim()
+        : null,
     splitPercent: s.split_percent != null ? Number(s.split_percent) : 95,
     passFeesToCustomer: s.pass_fees_to_customer === true,
     rating: s.rating != null ? Number(s.rating) : 5,

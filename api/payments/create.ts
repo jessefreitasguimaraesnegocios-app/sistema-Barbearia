@@ -6,11 +6,10 @@ import { createClient } from '@supabase/supabase-js';
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function normalizeAsaasMobilePhone(rawPhone: unknown): string {
-  const fallback = '11999999999';
+  const fallback = '31999999999';
   if (rawPhone == null) return fallback;
 
   let digits = String(rawPhone).replace(/\D/g, '');
@@ -69,31 +68,26 @@ export default async function handler(
       error: 'Configuração do gateway de pagamento indisponível (ASAAS_API_KEY).',
     });
   }
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return res.status(500).json({
       success: false,
-      error: 'Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY).',
+      error: 'Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY).',
     });
   }
 
   try {
     const rawAuth = req.headers?.authorization;
-    const authHeader = (Array.isArray(rawAuth) ? rawAuth[0] : rawAuth || '').trim();
-    if (!authHeader || !/^Bearer\s+\S+/i.test(authHeader)) {
+    const authHeader = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!token) {
       return res.status(401).json({ success: false, error: 'Não autorizado: token ausente.' });
     }
-    const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: authData, error: authErr } = await supabaseUser.auth.getUser();
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
     const authUserId = authData?.user?.id;
     if (authErr || !authUserId) {
-      return res.status(401).json({
-        success: false,
-        error: authErr?.message || 'Não autorizado: sessão inválida ou expirada.',
-      });
+      return res.status(401).json({ success: false, error: 'Não autorizado: token inválido.' });
     }
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const body = (req.body || {}) as CreatePaymentBody;
     const {
@@ -241,7 +235,11 @@ export default async function handler(
         let existingPaymentData: Record<string, unknown> = {};
         if (paymentGetRes.ok) {
           const txt = await paymentGetRes.text();
-          try { existingPaymentData = JSON.parse(txt); } catch (_) {}
+          try {
+            existingPaymentData = JSON.parse(txt);
+          } catch {
+            /* ignore invalid JSON */
+          }
         }
         return res.status(200).json({
           success: true,
@@ -272,7 +270,11 @@ export default async function handler(
         let existingPaymentData: Record<string, unknown> = {};
         if (paymentGetRes.ok) {
           const txt = await paymentGetRes.text();
-          try { existingPaymentData = JSON.parse(txt); } catch (_) {}
+          try {
+            existingPaymentData = JSON.parse(txt);
+          } catch {
+            /* ignore invalid JSON */
+          }
         }
         return res.status(200).json({
           success: true,
@@ -326,7 +328,9 @@ export default async function handler(
       let parsed: { errors?: Array<{ description?: string }> } = {};
       try {
         parsed = JSON.parse(errText);
-      } catch (_) {}
+      } catch {
+        /* ignore */
+      }
       const msg = parsed?.errors?.[0]?.description || errText || 'Erro ao criar cliente no gateway.';
       return res.status(400).json({ success: false, error: msg });
     }
@@ -372,14 +376,16 @@ export default async function handler(
       try {
         const errJson = JSON.parse(paymentText);
         errMsg = errJson?.errors?.[0]?.description || errJson?.error || paymentText;
-      } catch (_) {}
+      } catch {
+        /* keep errMsg as paymentText */
+      }
       return res.status(400).json({ success: false, error: errMsg });
     }
 
     let paymentData: Record<string, unknown> = {};
     try {
       paymentData = JSON.parse(paymentText);
-    } catch (_) {
+    } catch {
       return res.status(500).json({
         success: false,
         error: 'Resposta inválida do gateway de pagamento.',

@@ -101,8 +101,8 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({ orders, shops, user, onNavi
 
       {/* Order Details Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-bounce-in">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
+          <div className="bg-white w-full max-w-md mx-auto my-auto rounded-[2.5rem] shadow-2xl overflow-hidden animate-modal-bounce-in shrink-0">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900">Detalhes do Pedido</h3>
               <button onClick={() => setSelectedOrder(null)} className="text-gray-400 hover:text-gray-900 p-2">

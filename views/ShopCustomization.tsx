@@ -402,11 +402,9 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
       name: 'Novo Membro',
       specialty: 'Cargo/Especialidade',
       avatar: `https://ui-avatars.com/api/?name=Profissional&background=random`,
-      email: '',
       phone: '',
       cpfCnpj: '',
       birthDate: '',
-      splitPercent: formData.splitPercent ?? 95,
     };
     setFormData({ ...formData, professionals: [...formData.professionals, newPro] });
   };
@@ -814,40 +812,13 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                     />
                    </div>
                    <div>
-                    <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">E-mail (conta Asaas)</label>
-                    <input
-                      type="email"
-                      value={pro.email || ''}
-                      onChange={(e) => updateProfessional(pro.id, { email: e.target.value })}
-                      className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
-                    />
-                   </div>
-                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">Telefone</label>
-                      <input
-                        type="text"
-                        value={pro.phone || ''}
-                        onChange={(e) => updateProfessional(pro.id, { phone: e.target.value })}
-                        className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">Split %</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.01}
-                        value={pro.splitPercent ?? (formData.splitPercent ?? 95)}
-                        onChange={(e) =>
-                          updateProfessional(pro.id, {
-                            splitPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
-                          })
-                        }
-                        className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
-                      />
-                    </div>
+                     <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">Telefone</label>
+                     <input
+                       type="text"
+                       value={pro.phone || ''}
+                       onChange={(e) => updateProfessional(pro.id, { phone: e.target.value })}
+                       className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
+                     />
                    </div>
                    <div>
                     <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">CPF/CNPJ</label>

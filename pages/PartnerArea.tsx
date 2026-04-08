@@ -13,7 +13,6 @@ import { Shop, Order, PartnerAgendaAppointment } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 import { isClientOnlyRole } from '../lib/profileRole';
-import { normalizeSplitPercent } from '../services/supabase/_format';
 import { useShop } from '../hooks/useShop';
 import { usePartnerData } from '../hooks/usePartnerData';
 
@@ -245,7 +244,7 @@ export default function PartnerArea() {
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
-        <header className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
+        <header className="shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
           <a href="/" className="text-sm text-gray-500 hover:text-indigo-600">← Voltar (sou cliente)</a>
           <div className="flex items-center gap-2">
             <img src={APP_LOGO_SRC} alt="" className="w-10 h-10 rounded-xl object-cover shadow-sm bg-white" />
@@ -330,11 +329,9 @@ export default function PartnerArea() {
           name: p.name,
           specialty: p.specialty ?? null,
           avatar: p.avatar ?? null,
-          email: p.email?.trim() || null,
           phone: p.phone?.trim() || null,
           cpf_cnpj: p.cpfCnpj?.replace(/\D/g, '') || null,
           birth_date: p.birthDate?.trim() || null,
-          split_percent: normalizeSplitPercent(p.splitPercent, updated.splitPercent ?? 95),
         }).match({ id: p.id, shop_id: shopId });
         if (e) throw new Error(`Equipe: ${e.message}`);
       } else {
@@ -343,11 +340,9 @@ export default function PartnerArea() {
           name: p.name,
           specialty: p.specialty ?? null,
           avatar: p.avatar ?? null,
-          email: p.email?.trim() || null,
           phone: p.phone?.trim() || null,
           cpf_cnpj: p.cpfCnpj?.replace(/\D/g, '') || null,
           birth_date: p.birthDate?.trim() || null,
-          split_percent: normalizeSplitPercent(p.splitPercent, updated.splitPercent ?? 95),
         });
         if (e) throw new Error(`Equipe: ${e.message}`);
       }

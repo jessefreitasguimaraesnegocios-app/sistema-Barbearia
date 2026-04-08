@@ -167,7 +167,7 @@ export default async function handler(
       if (recordType === 'booking' && bodyBooking?.professionalId) {
         const { data: professional } = await supabase
           .from('professionals')
-          .select('asaas_wallet_id, split_percent')
+          .select('asaas_wallet_id')
           .eq('id', bodyBooking.professionalId)
           .eq('shop_id', shopId)
           .maybeSingle();
@@ -178,10 +178,6 @@ export default async function handler(
         if (professionalWallet) {
           effectiveWalletId = professionalWallet;
           hasProfessionalWallet = true;
-        }
-        if (professional?.split_percent != null) {
-          const pct = Number(professional.split_percent);
-          if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
         }
       }
       if (recordType === 'order' && !hasShopWallet) {

@@ -2,6 +2,9 @@
 // 1) Pagamentos (PIX cliente): PAYMENT_RECEIVED / PAYMENT_CONFIRMED → appointments/orders PAID
 // 2) Mensalidade plataforma: pagamento ligado a subscription OU eventos SUBSCRIPTION_* → subscription_active na shops
 // Requer verify_jwt = false e header asaas-access-token = ASAAS_WEBHOOK_TOKEN
+//
+// Importante: qualquer erro não tratado vira 500 genérico no Asaas. O handler principal devolve 200 sempre
+// que possível para não pausar a fila de webhooks.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -14,25 +17,34 @@ const IGNORE_EVENTS = new Set<string>([
   "PAYMENT_OVERDUE",
   "PAYMENT_REFUNDED",
 ]);
+/** Variantes / eventos de cobrança apagada (Asaas pode enviar só PAYMENT_DELETED). */
+const PAYMENT_DELETED_LIKE = new Set<string>(["PAYMENT_DELETED", "PAYMENT_REMOVED", "PAYMENT_DELETED_BY"]);
 const ASAAS_API_URL = (Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3").replace(/\/$/, "");
 
 function normalizeEventName(raw: unknown): string {
-  return String(raw ?? "").trim().toUpperCase();
+  return String(raw ?? "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .toUpperCase();
 }
 
 type AsaasPayload = {
   event?: string;
-  payment?: { id?: string; subscription?: string | { id?: string } };
+  payment?: { id?: string; deleted?: boolean; subscription?: string | { id?: string } };
   subscription?: { id?: string; status?: string };
 };
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 function unauthorized(message: string, hint?: string) {
   const body: Record<string, unknown> = { code: 401, message };
   if (hint) body.hint = hint;
-  return new Response(JSON.stringify(body), {
-    status: 401,
-    headers: { "Content-Type": "application/json" },
-  });
+  return jsonResponse(body, 401);
 }
 
 /** Token que o Asaas envia em `asaas-access-token` (ou Bearer no Authorization, se alguém configurar assim). */
@@ -47,10 +59,15 @@ function readIncomingWebhookToken(req: Request): string {
 }
 
 async function tokensMatch(expected: string, received: string): Promise<boolean> {
-  const a = new TextEncoder().encode(expected);
-  const b = new TextEncoder().encode(received);
-  if (a.length !== b.length) return false;
-  return await crypto.subtle.timingSafeEqual(a, b);
+  try {
+    const a = new TextEncoder().encode(expected);
+    const b = new TextEncoder().encode(received);
+    if (a.length !== b.length) return false;
+    return await crypto.subtle.timingSafeEqual(a, b);
+  } catch (e) {
+    console.error("[asaas-webhook] tokensMatch error:", e);
+    return false;
+  }
 }
 
 function extractSubscriptionId(raw: unknown): string | null {
@@ -63,7 +80,13 @@ function extractSubscriptionId(raw: unknown): string | null {
   return null;
 }
 
-Deno.serve(async (req: Request) => {
+function extractPaymentId(payload: AsaasPayload): string {
+  const raw = payload?.payment?.id;
+  if (raw == null) return "";
+  return String(raw).trim();
+}
+
+async function handleWebhook(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: {
@@ -74,19 +97,16 @@ Deno.serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ received: false, error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: false, error: "Method not allowed" }, 405);
   }
 
   const webhookToken = Deno.env.get("ASAAS_WEBHOOK_TOKEN");
   if (!webhookToken || String(webhookToken).trim() === "") {
-    return new Response(JSON.stringify({ code: 500, message: "ASAAS_WEBHOOK_TOKEN not configured" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("[asaas-webhook] ASAAS_WEBHOOK_TOKEN not configured — configure o secret na Edge Function");
+    // 200: não penalizar fila Asaas; sem token não processamos de qualquer forma.
+    return jsonResponse({ received: true, note: "ASAAS_WEBHOOK_TOKEN not configured" });
   }
+
   const expected = webhookToken.trim();
   const receivedToken = readIncomingWebhookToken(req);
   const ok = receivedToken !== "" && (await tokensMatch(expected, receivedToken));
@@ -102,31 +122,27 @@ Deno.serve(async (req: Request) => {
   try {
     payload = (await req.json()) as AsaasPayload;
   } catch {
-    return new Response(JSON.stringify({ received: false, error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: false, error: "Invalid JSON" }, 400);
   }
 
-  try {
   const eventKey = normalizeEventName(payload?.event);
+  const paymentIdEarly = extractPaymentId(payload);
+  console.log("[asaas-webhook] event=", eventKey, "paymentId=", paymentIdEarly || "(none)");
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("[asaas-webhook] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing");
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: true, note: "supabase_env_missing" });
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
 
   /** Cobrança removida no Asaas: desvincula PIX pendente para o cliente poder gerar outro. */
-  if (eventKey === "PAYMENT_DELETED") {
+  if (PAYMENT_DELETED_LIKE.has(eventKey)) {
     try {
-      const delPaymentId = payload?.payment?.id != null ? String(payload.payment.id).trim() : "";
+      const delPaymentId = paymentIdEarly;
       if (delPaymentId) {
         const [aptDel, ordDel] = await Promise.all([
           supabase
@@ -146,17 +162,11 @@ Deno.serve(async (req: Request) => {
     } catch (e) {
       console.error("[asaas-webhook] PAYMENT_DELETED handler:", e);
     }
-    return new Response(JSON.stringify({ received: true, event: "PAYMENT_DELETED" }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: true, event: eventKey || "PAYMENT_DELETED_LIKE" });
   }
 
   if (IGNORE_EVENTS.has(eventKey)) {
-    return new Response(JSON.stringify({ received: true, ignored: true, event: eventKey }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: true, ignored: true, event: eventKey });
   }
 
   /** Assinatura cancelada / inativa no Asaas → desliga acesso na plataforma */
@@ -169,13 +179,7 @@ Deno.serve(async (req: Request) => {
         .select("event, subscription_id");
       if (recErr) {
         console.error("[asaas-webhook] subscription receipt error:", recErr.message);
-        return new Response(
-          JSON.stringify({ received: true, note: "subscription_receipt_failed", detail: recErr.message }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
+        return jsonResponse({ received: true, note: "subscription_receipt_failed", detail: recErr.message });
       }
       if (rec && rec.length > 0) {
         const { data: shops, error: upErr } = await supabase
@@ -187,18 +191,12 @@ Deno.serve(async (req: Request) => {
         else if (shops?.length) console.log("[asaas-webhook] subscription_active=false for shop(s):", shops.map((s: { id: string }) => s.id));
       }
     }
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: true });
   }
 
   const paymentId = payload?.payment?.id;
   if (!PAYMENT_CONFIRMED_EVENTS.includes(eventKey) || !paymentId) {
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: true });
   }
 
   const { data: receiptData, error: receiptErr } = await supabase
@@ -210,20 +208,10 @@ Deno.serve(async (req: Request) => {
     .select("event, payment_id");
   if (receiptErr) {
     console.error("[asaas-webhook] receipt error:", receiptErr.message);
-    // 200: não pausar fila Asaas; investigar via logs / BD.
-    return new Response(
-      JSON.stringify({ received: true, note: "receipt_persist_failed", detail: receiptErr.message }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return jsonResponse({ received: true, note: "receipt_persist_failed", detail: receiptErr.message });
   }
   if (!receiptData || receiptData.length === 0) {
-    return new Response(JSON.stringify({ received: true, duplicate: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ received: true, duplicate: true });
   }
 
   const updatedCount = (rows: unknown[] | null | undefined) => (rows ? rows.length : 0);
@@ -242,17 +230,22 @@ Deno.serve(async (req: Request) => {
       console.log("[asaas-webhook] Order(s) marked PAID:", ordRes.data?.map((r: { id: string }) => r.id));
     }
 
-    let paymentDetail: { externalReference?: string | null; subscription?: string | { id?: string } } | null = null;
+    let paymentDetail: { externalReference?: string | null; subscription?: string | { id?: string }; deleted?: boolean } | null = null;
     if (asaasApiKey) {
-      const paymentRes = await fetch(`${ASAAS_API_URL}/payments/${paymentId}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json", access_token: asaasApiKey },
-      });
-      if (paymentRes.ok) {
-        paymentDetail = (await paymentRes.json()) as {
-          externalReference?: string | null;
-          subscription?: string | { id?: string };
-        };
+      try {
+        const paymentRes = await fetch(`${ASAAS_API_URL}/payments/${paymentId}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json", access_token: asaasApiKey },
+        });
+        if (paymentRes.ok) {
+          paymentDetail = (await paymentRes.json()) as {
+            externalReference?: string | null;
+            subscription?: string | { id?: string };
+            deleted?: boolean;
+          };
+        }
+      } catch (fetchErr) {
+        console.error("[asaas-webhook] GET payment Asaas:", fetchErr);
       }
     }
 
@@ -302,28 +295,21 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[asaas-webhook] payment handler error:", e);
-    // 200 evita fila pausada no Asaas; detalhe fica nos logs da função.
-    return new Response(
-      JSON.stringify({ received: true, note: "payment_handler_error_logged" }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return jsonResponse({ received: true, note: "payment_handler_error_logged" });
   }
 
-  return new Response(JSON.stringify({ received: true }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+  return jsonResponse({ received: true });
+}
+
+Deno.serve(async (req: Request) => {
+  try {
+    return await handleWebhook(req);
   } catch (e) {
-    console.error("[asaas-webhook] unhandled exception:", e);
-    return new Response(
-      JSON.stringify({ received: true, note: "unhandled_exception_logged" }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    console.error("[asaas-webhook] FATAL (outer catch):", e);
+    return jsonResponse({
+      received: true,
+      note: "fatal_outer_catch",
+      detail: e instanceof Error ? e.message : String(e).slice(0, 300),
+    });
   }
 });

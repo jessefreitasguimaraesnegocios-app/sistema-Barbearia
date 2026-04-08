@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { resolveShopSplitPercent } from '../../../lib/payments/resolve-shop-split';
+import { resolveSplitPercentForRuntime, resolveShopSplitPercent } from '../../../lib/payments/resolve-shop-split';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,6 +17,7 @@ type ProvisionRow = {
   cpf_cnpj: string | null;
   birth_date: string | null;
   split_percent: number | null;
+  split_percent_sandbox: number | null;
   asaas_wallet_id: string | null;
   asaas_wallet_id_prod?: string | null;
   asaas_wallet_id_sandbox?: string | null;
@@ -96,12 +97,15 @@ export default async function handler(
 
     const { data: pros, error: prosErr } = await supabase
       .from('professionals')
-      .select('id, name, email, phone, cpf_cnpj, birth_date, split_percent, asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox')
+      .select(
+        'id, name, email, phone, cpf_cnpj, birth_date, split_percent, split_percent_sandbox, asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox'
+      )
       .eq('shop_id', shopId)
       .order('created_at', { ascending: true });
     if (prosErr) return res.status(500).json({ success: false, error: prosErr.message });
 
     const environment = resolveEnvironment();
+    const shopSplitForEnv = resolveShopSplitPercent(environment, shop as Record<string, unknown>);
     const missingWallet = (pros || []).filter((p) => {
       const envWallet =
         environment === 'sandbox'
@@ -118,13 +122,13 @@ export default async function handler(
     const shopCpfCnpj = String(shop.cnpj_cpf || '').replace(/\D/g, '');
     const shopDomain = String(shop.email || 'barbearia.local').split('@')[1] || 'barbearia.local';
     const shopAddress = String(shop.address || 'A definir').trim() || 'A definir';
-    const defaultSplit = resolveShopSplitPercent(environment, shop as Record<string, unknown>);
+    const defaultSplit = shopSplitForEnv;
 
     for (const p of missingWallet) {
       const proCpfCnpj = String(p.cpf_cnpj || '').replace(/\D/g, '') || shopCpfCnpj;
       const proEmail = (p.email && p.email.trim()) || `profissional.${p.id.slice(0, 8)}@${shopDomain}`;
       const proPhone = normalizePhone(p.phone || String(shop.phone || ''));
-      const splitPercent = Number(p.split_percent ?? defaultSplit);
+      const splitPercent = resolveSplitPercentForRuntime(environment, p as Record<string, unknown>, defaultSplit);
       const payload = {
         app_id: ASAAS_PROVISIONER_APP_ID,
         environment,
@@ -186,7 +190,9 @@ export default async function handler(
         asaas_wallet_id_prod: environment === 'production' ? (sub.asaas_wallet_id ?? null) : undefined,
         asaas_wallet_id_sandbox: environment === 'sandbox' ? (sub.asaas_wallet_id ?? null) : undefined,
         asaas_environment: environment,
-        split_percent: payload.splitPercent,
+        ...(environment === 'sandbox'
+          ? { split_percent_sandbox: payload.splitPercent }
+          : { split_percent: payload.splitPercent }),
       };
       if (apiKeyFromProv) row.asaas_api_key = apiKeyFromProv;
       updates.push(row);

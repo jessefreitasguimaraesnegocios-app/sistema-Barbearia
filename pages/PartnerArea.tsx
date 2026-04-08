@@ -323,16 +323,26 @@ export default function PartnerArea() {
       }
     }
 
+    const clampSplit = (n: number) => Math.min(100, Math.max(0, n));
+
     for (const p of updated.professionals || []) {
       if (isUuid(p.id)) {
-        const { error: e } = await supabase.from('professionals').update({
+        const proPatch: Record<string, unknown> = {
           name: p.name,
           specialty: p.specialty ?? null,
           avatar: p.avatar ?? null,
           phone: p.phone?.trim() || null,
           cpf_cnpj: p.cpfCnpj?.replace(/\D/g, '') || null,
           birth_date: p.birthDate?.trim() || null,
-        }).match({ id: p.id, shop_id: shopId });
+        };
+        if (p.splitPercent !== undefined) {
+          proPatch.split_percent = clampSplit(Number(p.splitPercent));
+        }
+        if (p.splitPercentSandbox !== undefined) {
+          proPatch.split_percent_sandbox =
+            p.splitPercentSandbox === null ? null : clampSplit(Number(p.splitPercentSandbox));
+        }
+        const { error: e } = await supabase.from('professionals').update(proPatch).match({ id: p.id, shop_id: shopId });
         if (e) throw new Error(`Equipe: ${e.message}`);
       } else {
         const { error: e } = await supabase.from('professionals').insert({
@@ -343,6 +353,9 @@ export default function PartnerArea() {
           phone: p.phone?.trim() || null,
           cpf_cnpj: p.cpfCnpj?.replace(/\D/g, '') || null,
           birth_date: p.birthDate?.trim() || null,
+          split_percent: p.splitPercent != null ? clampSplit(Number(p.splitPercent)) : null,
+          split_percent_sandbox:
+            p.splitPercentSandbox != null ? clampSplit(Number(p.splitPercentSandbox)) : null,
         });
         if (e) throw new Error(`Equipe: ${e.message}`);
       }

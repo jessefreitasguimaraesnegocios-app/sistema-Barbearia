@@ -405,6 +405,8 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
       phone: '',
       cpfCnpj: '',
       birthDate: '',
+      splitPercent: 95,
+      splitPercentSandbox: null,
     };
     setFormData({ ...formData, professionals: [...formData.professionals, newPro] });
   };
@@ -828,6 +830,47 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                       onChange={(e) => updateProfessional(pro.id, { cpfCnpj: e.target.value })}
                       className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
                     />
+                   </div>
+                   <div className="grid grid-cols-2 gap-2">
+                     <div>
+                       <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">
+                         % split produção
+                       </label>
+                       <input
+                         type="number"
+                         min={0}
+                         max={100}
+                         step={1}
+                         value={pro.splitPercent ?? 95}
+                         onChange={(e) => {
+                           const v = Number(e.target.value);
+                           if (!Number.isNaN(v) && v >= 0 && v <= 100) {
+                             updateProfessional(pro.id, { splitPercent: v });
+                           }
+                         }}
+                         className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
+                       />
+                     </div>
+                     <div>
+                       <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">
+                         % split sandbox
+                       </label>
+                       <input
+                         type="number"
+                         min={0}
+                         max={100}
+                         step={1}
+                         title="Usado quando o gateway da plataforma está em sandbox"
+                         value={pro.splitPercentSandbox ?? pro.splitPercent ?? 95}
+                         onChange={(e) => {
+                           const v = Number(e.target.value);
+                           if (!Number.isNaN(v) && v >= 0 && v <= 100) {
+                             updateProfessional(pro.id, { splitPercentSandbox: v });
+                           }
+                         }}
+                         className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-amber-200 focus:ring-2 focus:ring-amber-500 outline-none"
+                       />
+                     </div>
                    </div>
                    <p className="text-[10px] text-gray-500">
                     {pro.asaasWalletId ? `Carteira vinculada: ${pro.asaasWalletId}` : 'Carteira Asaas ainda não vinculada.'}

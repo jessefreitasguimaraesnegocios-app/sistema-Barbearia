@@ -38,6 +38,8 @@ export interface Professional {
   asaasWalletId?: string;
   asaasEnvironment?: 'sandbox' | 'production';
   splitPercent?: number;
+  /** % split sandbox; null no banco → usa splitPercent / loja em pagamentos */
+  splitPercentSandbox?: number | null;
   /** Preenchido quando o profissional já tem usuário em Sou parceiro */
   authUserId?: string | null;
 }

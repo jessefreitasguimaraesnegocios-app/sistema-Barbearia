@@ -84,6 +84,7 @@ function mockSupabaseForPartnerBundle() {
                   asaas_wallet_id: null,
                   asaas_environment: null,
                   split_percent: null,
+                  split_percent_sandbox: null,
                   user_id: null,
                 },
               ],

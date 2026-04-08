@@ -43,6 +43,7 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
     asaasWalletId: p.asaas_wallet_id != null ? String(p.asaas_wallet_id) : undefined,
     asaasEnvironment: p.asaas_environment as 'sandbox' | 'production' | undefined,
     splitPercent: normalizeSplitPercent(p.split_percent, shopSplit),
+    splitPercentSandbox: p.split_percent_sandbox != null ? Number(p.split_percent_sandbox) : null,
     authUserId: (p.user_id as string | null | undefined) ?? null,
   }));
 

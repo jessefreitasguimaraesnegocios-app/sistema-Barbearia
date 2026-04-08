@@ -20,17 +20,26 @@ function resolveWalletByMode(mode: RuntimeMode, row: Record<string, unknown>): s
   return legacy != null && String(legacy).trim() !== "" ? String(legacy).trim() : "";
 }
 
-function resolveShopSplitPercent(mode: RuntimeMode, shop: Record<string, unknown>): number {
-  const prod = shop.split_percent != null ? Number(shop.split_percent) : NaN;
-  const sand = shop.split_percent_sandbox != null ? Number(shop.split_percent_sandbox) : NaN;
-  const clamp = (n: number) => Math.min(100, Math.max(0, n));
+function clampSplitValue(n: number): number {
+  return Math.min(100, Math.max(0, n));
+}
+function resolveSplitPercentForRuntime(
+  mode: RuntimeMode,
+  row: Record<string, unknown>,
+  fallbackPercent: number,
+): number {
+  const prod = row.split_percent != null ? Number(row.split_percent) : NaN;
+  const sand = row.split_percent_sandbox != null ? Number(row.split_percent_sandbox) : NaN;
   if (mode === "sandbox") {
-    if (!Number.isNaN(sand)) return clamp(sand);
-    if (!Number.isNaN(prod)) return clamp(prod);
-    return 95;
+    if (!Number.isNaN(sand)) return clampSplitValue(sand);
+    if (!Number.isNaN(prod)) return clampSplitValue(prod);
+    return clampSplitValue(fallbackPercent);
   }
-  if (!Number.isNaN(prod)) return clamp(prod);
-  return 95;
+  if (!Number.isNaN(prod)) return clampSplitValue(prod);
+  return clampSplitValue(fallbackPercent);
+}
+function resolveShopSplitPercent(mode: RuntimeMode, shop: Record<string, unknown>): number {
+  return resolveSplitPercentForRuntime(mode, shop, 95);
 }
 
 async function resolveAsaasRuntimeConfig(
@@ -213,6 +222,7 @@ Deno.serve(async (req: Request) => {
     }
     let effectiveWalletId = "";
     let splitToShop = Math.min(100, Math.max(0, bodySplitPercent != null ? Number(bodySplitPercent) : 95));
+    let shopSplitResolved = splitToShop;
     let hasShopWallet = false;
     let hasProfessionalWallet = false;
 
@@ -261,13 +271,14 @@ Deno.serve(async (req: Request) => {
           effectiveWalletId = shopWallet;
           hasShopWallet = true;
         }
-        splitToShop = resolveShopSplitPercent(runtimeMode, shop as Record<string, unknown>);
+        shopSplitResolved = resolveShopSplitPercent(runtimeMode, shop as Record<string, unknown>);
+        splitToShop = shopSplitResolved;
       }
 
       if (recordType === "booking" && bodyBooking?.professionalId) {
         const { data: professional } = await supabaseAdmin
           .from("professionals")
-          .select("asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox")
+          .select("asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox")
           .eq("id", bodyBooking.professionalId)
           .eq("shop_id", shopId)
           .maybeSingle();
@@ -277,6 +288,11 @@ Deno.serve(async (req: Request) => {
         if (professionalWallet) {
           effectiveWalletId = professionalWallet;
           hasProfessionalWallet = true;
+          splitToShop = resolveSplitPercentForRuntime(
+            runtimeMode,
+            professional as Record<string, unknown>,
+            shopSplitResolved,
+          );
         }
       }
 

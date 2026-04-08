@@ -2,7 +2,7 @@
 // Mesmo contrato da Edge Function create-payment: wallet/split resolvidos por shopId (booking/order); shopWalletId não é mais obrigatório
 
 import { createClient } from '@supabase/supabase-js';
-import { resolveShopSplitPercent } from '../../lib/payments/resolve-shop-split';
+import { resolveShopSplitPercent, resolveSplitPercentForRuntime } from '../../lib/payments/resolve-shop-split';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -189,6 +189,7 @@ export default async function handler(
     const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
     let effectiveWalletId = '';
     let splitToShop = 95;
+    let shopSplitResolved = 95;
     let hasShopWallet = false;
     let hasProfessionalWallet = false;
 
@@ -204,12 +205,13 @@ export default async function handler(
           effectiveWalletId = shopWallet;
           hasShopWallet = true;
         }
-        splitToShop = resolveShopSplitPercent(runtimeMode, shop as Record<string, unknown>);
+        shopSplitResolved = resolveShopSplitPercent(runtimeMode, shop as Record<string, unknown>);
+        splitToShop = shopSplitResolved;
       }
       if (recordType === 'booking' && bodyBooking?.professionalId) {
         const { data: professional } = await supabase
           .from('professionals')
-          .select('asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox')
+          .select('asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox')
           .eq('id', bodyBooking.professionalId)
           .eq('shop_id', shopId)
           .maybeSingle();
@@ -219,6 +221,11 @@ export default async function handler(
         if (professionalWallet) {
           effectiveWalletId = professionalWallet;
           hasProfessionalWallet = true;
+          splitToShop = resolveSplitPercentForRuntime(
+            runtimeMode,
+            professional as Record<string, unknown>,
+            shopSplitResolved
+          );
         }
       }
       if (recordType === 'order' && !hasShopWallet) {

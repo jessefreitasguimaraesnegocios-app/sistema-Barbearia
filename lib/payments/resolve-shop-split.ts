@@ -1,22 +1,36 @@
 export type AsaasRuntimeMode = 'production' | 'sandbox';
 
+function clampSplit(n: number): number {
+  return Math.min(100, Math.max(0, n));
+}
+
 /**
- * Em sandbox usa split_percent_sandbox quando definido; senão split_percent.
- * Em produção usa apenas split_percent.
+ * Resolve % split para uma linha (loja ou profissional) conforme o runtime.
+ * Se profissional sem valores definidos, use como fallback o split já resolvido da loja.
+ */
+export function resolveSplitPercentForRuntime(
+  mode: AsaasRuntimeMode,
+  row: { split_percent?: unknown; split_percent_sandbox?: unknown },
+  fallbackPercent: number
+): number {
+  const prod = row.split_percent != null ? Number(row.split_percent) : NaN;
+  const sand = row.split_percent_sandbox != null ? Number(row.split_percent_sandbox) : NaN;
+
+  if (mode === 'sandbox') {
+    if (!Number.isNaN(sand)) return clampSplit(sand);
+    if (!Number.isNaN(prod)) return clampSplit(prod);
+    return clampSplit(fallbackPercent);
+  }
+  if (!Number.isNaN(prod)) return clampSplit(prod);
+  return clampSplit(fallbackPercent);
+}
+
+/**
+ * Loja: fallback final 95 se não houver colunas preenchidas.
  */
 export function resolveShopSplitPercent(
   mode: AsaasRuntimeMode,
   shop: { split_percent?: unknown; split_percent_sandbox?: unknown }
 ): number {
-  const prod = shop.split_percent != null ? Number(shop.split_percent) : NaN;
-  const sand = shop.split_percent_sandbox != null ? Number(shop.split_percent_sandbox) : NaN;
-  const clamp = (n: number) => Math.min(100, Math.max(0, n));
-
-  if (mode === 'sandbox') {
-    if (!Number.isNaN(sand)) return clamp(sand);
-    if (!Number.isNaN(prod)) return clamp(prod);
-    return 95;
-  }
-  if (!Number.isNaN(prod)) return clamp(prod);
-  return 95;
+  return resolveSplitPercentForRuntime(mode, shop, 95);
 }

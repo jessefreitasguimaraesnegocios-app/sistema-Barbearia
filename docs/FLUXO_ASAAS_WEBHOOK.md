@@ -38,6 +38,8 @@ flowchart LR
 3. Webhook **`PAYMENT_RECEIVED` / `PAYMENT_CONFIRMED`** chega em **`asaas-webhook`**.
 4. A função deduplica, identifica o pagamento (ex. `externalReference`, `asaas_payment_id`) e marca **`appointments`** ou **`orders`** como pagos, conforme a lógica já existente.
 5. **`PAYMENT_DELETED`**: cobrança apagada no Asaas → para linhas ainda **`PENDING`**, limpa `asaas_payment_id` e `payment_idempotency_key` (agendamento ou pedido), para o cliente poder gerar um novo PIX. Resposta sempre **200** para não penalizar a fila de webhooks.
+6. **Outros eventos** (`PAYMENT_CREATED`, `PAYMENT_UPDATED`, …): lista `IGNORE_EVENTS` → **200** com `{ ignored: true }`, sem lógica extra. O nome do evento é normalizado em maiúsculas para bater com o Asaas mesmo com variações de casing.
+7. Qualquer **exceção não prevista** no handler → **200** + `note: unhandled_exception_logged` (detalhe nos logs da Edge Function), para não pausar a fila do Asaas.
 5. **Cliente:** em `ShopDetails`, o fluxo é **PIX pendente** → link → “já paguei” / refetch; não há overlay de sucesso “fantasma” — o que importa é confirmação e estado na BD.
 
 ```mermaid

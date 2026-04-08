@@ -7,7 +7,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PAYMENT_CONFIRMED_EVENTS = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
 const SUBSCRIPTION_OFF_EVENTS = ["SUBSCRIPTION_INACTIVATED", "SUBSCRIPTION_DELETED"];
+/** Sem lógica de negócio: só 200 para o Asaas não travar a fila. */
+const IGNORE_EVENTS = new Set<string>([
+  "PAYMENT_CREATED",
+  "PAYMENT_UPDATED",
+  "PAYMENT_OVERDUE",
+  "PAYMENT_REFUNDED",
+]);
 const ASAAS_API_URL = (Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3").replace(/\/$/, "");
+
+function normalizeEventName(raw: unknown): string {
+  return String(raw ?? "").trim().toUpperCase();
+}
 
 type AsaasPayload = {
   event?: string;
@@ -97,7 +108,8 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const event = String(payload?.event ?? "").trim();
+  try {
+  const eventKey = normalizeEventName(payload?.event);
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -112,7 +124,7 @@ Deno.serve(async (req: Request) => {
   const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
 
   /** Cobrança removida no Asaas: desvincula PIX pendente para o cliente poder gerar outro. */
-  if (event === "PAYMENT_DELETED") {
+  if (eventKey === "PAYMENT_DELETED") {
     try {
       const delPaymentId = payload?.payment?.id != null ? String(payload.payment.id).trim() : "";
       if (delPaymentId) {
@@ -140,13 +152,20 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  if (IGNORE_EVENTS.has(eventKey)) {
+    return new Response(JSON.stringify({ received: true, ignored: true, event: eventKey }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   /** Assinatura cancelada / inativa no Asaas → desliga acesso na plataforma */
-  if (SUBSCRIPTION_OFF_EVENTS.includes(event)) {
+  if (SUBSCRIPTION_OFF_EVENTS.includes(eventKey)) {
     const subId = extractSubscriptionId(payload?.subscription);
     if (subId) {
       const { data: rec, error: recErr } = await supabase
         .from("asaas_subscription_webhook_receipts")
-        .upsert({ event: String(event), subscription_id: subId }, { onConflict: "event,subscription_id", ignoreDuplicates: true })
+        .upsert({ event: eventKey, subscription_id: subId }, { onConflict: "event,subscription_id", ignoreDuplicates: true })
         .select("event, subscription_id");
       if (recErr) {
         console.error("[asaas-webhook] subscription receipt error:", recErr.message);
@@ -175,7 +194,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const paymentId = payload?.payment?.id;
-  if (!PAYMENT_CONFIRMED_EVENTS.includes(event) || !paymentId) {
+  if (!PAYMENT_CONFIRMED_EVENTS.includes(eventKey) || !paymentId) {
     return new Response(JSON.stringify({ received: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -185,7 +204,7 @@ Deno.serve(async (req: Request) => {
   const { data: receiptData, error: receiptErr } = await supabase
     .from("asaas_webhook_receipts")
     .upsert(
-      { event: String(event), payment_id: String(paymentId) },
+      { event: eventKey, payment_id: String(paymentId) },
       { onConflict: "event,payment_id", ignoreDuplicates: true }
     )
     .select("event, payment_id");
@@ -297,4 +316,14 @@ Deno.serve(async (req: Request) => {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
+  } catch (e) {
+    console.error("[asaas-webhook] unhandled exception:", e);
+    return new Response(
+      JSON.stringify({ received: true, note: "unhandled_exception_logged" }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
 });

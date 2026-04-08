@@ -25,7 +25,7 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({ orders, shops, user, onNavi
           {userOrders.map(order => {
             const shop = shops.find(s => s.id === order.shopId);
             return (
-              <div key={order.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col gap-4 hover:shadow-lg transition-shadow">
+              <div key={order.id} className="bg-white p-6 rounded-4xl border border-gray-100 shadow-sm flex flex-col gap-4 hover:shadow-lg transition-shadow">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-4">
                     <img src={shop?.profileImage} className="w-12 h-12 rounded-xl object-cover" alt="" />
@@ -101,7 +101,7 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({ orders, shops, user, onNavi
 
       {/* Order Details Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
           <div className="bg-white w-full max-w-md mx-auto my-auto rounded-[2.5rem] shadow-2xl overflow-hidden animate-modal-bounce-in shrink-0">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900">Detalhes do Pedido</h3>

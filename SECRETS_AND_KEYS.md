@@ -55,7 +55,7 @@ Tudo que é **service role**, **ASAAS_API_KEY** ou segredo de webhook fica **no 
 |----------|-----|
 | `ASAAS_API_KEY` | Conta principal · `.env`, Vercel, Edge (`create-payment`, `process-shop-finance`…) |
 | `ASAAS_API_URL` | Ex.: sandbox `https://sandbox.asaas.com/api/v3` · prod `https://api.asaas.com/v3` |
-| `ASAAS_WEBHOOK_TOKEN` | Edge `asaas-webhook` — se não existir, a função **não processa** (proposital) |
+| `ASAAS_WEBHOOK_TOKEN` | Edge `asaas-webhook` — deve ser **igual** ao token configurado no webhook Asaas (header `asaas-access-token`). Se não existir o secret, a função responde **500** (fail-closed). |
 
 Opcionais que às vezes aparecem no `.env.example`:
 
@@ -107,6 +107,11 @@ Pacote mínimo que quase todo mundo usa:
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_API_KEY`, `ASAAS_API_URL` (+ provisionador se tiver `provision-wallets`).
 
 ---
+
+## Webhook Asaas (`asaas-webhook`) — 401 nas Invocations
+
+- O Asaas **não manda** `Authorization: Bearer` com JWT Supabase. Se a função estiver com **JWT verification** ligada no projeto, a gateway devolve **401** antes de correr o código. **Deploy obrigatório:** `npx supabase functions deploy asaas-webhook --no-verify-jwt` (ou `npm run supabase:deploy-asaas-webhook`). O `supabase/config.toml` do repo já declara `verify_jwt = false` para esta função.
+- Depois do deploy, se ainda houver **401** com corpo JSON da função, verifica o header **`asaas-access-token`** vs secret **`ASAAS_WEBHOOK_TOKEN`**.
 
 ## Checklist rápido das Edge Functions (Supabase)
 

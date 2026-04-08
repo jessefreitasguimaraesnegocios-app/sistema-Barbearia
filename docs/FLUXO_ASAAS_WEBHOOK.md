@@ -53,6 +53,16 @@ flowchart LR
 - URL do webhook no Asaas apontando para a função deployada.
 - Secrets na função: credenciais Supabase (service role), e **`ASAAS_API_KEY`** (conta mãe) quando quiseres reconciliação rica a partir do GET do pagamento.
 - **Admin:** preencher o **ID da assinatura** da plataforma por loja quando a assinatura existir no Asaas mãe.
+- **Token do webhook:** no Asaas (Integrações → Webhooks), define o **token de autenticação**; o Asaas envia-o no header **`asaas-access-token`**. O mesmo valor deve estar no secret **`ASAAS_WEBHOOK_TOKEN`** da Edge Function.
+
+## Troubleshooting: `POST | 401` nas Invocations
+
+Dois cenários distintos:
+
+1. **401 na gateway (antes do teu código)** — o Asaas **não envia** JWT do Supabase. A função **tem** de estar deployada com **`verify_jwt` desligado**. No repo: `supabase/config.toml` já tem `[functions.asaas-webhook] verify_jwt = false`. No deploy, usa sempre:
+   `npx supabase functions deploy asaas-webhook --no-verify-jwt`
+   (ou o script `npm run supabase:deploy-asaas-webhook`). No Dashboard, confirma que a função **não** exige JWT para invocação pública.
+2. **401 devolvido pela função** — corpo JSON com mensagem do tipo *Missing or invalid asaas-access-token*: o header **`asaas-access-token`** não bate com **`ASAAS_WEBHOOK_TOKEN`**. Alinha o token no painel Asaas com o secret no Supabase.
 
 ## Resumo
 

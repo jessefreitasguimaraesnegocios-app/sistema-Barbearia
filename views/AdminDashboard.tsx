@@ -16,6 +16,29 @@ async function adminAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+/** Evita SyntaxError quando o edge retorna HTML (500) em vez de JSON. */
+async function parseSubscriptionPatchResponse(
+  res: Response
+): Promise<{ success: boolean; shop?: Shop; error?: string }> {
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text) as { success?: boolean; shop?: Shop; error?: string };
+    return {
+      success: data.success === true,
+      shop: data.shop,
+      error: typeof data.error === 'string' ? data.error : undefined,
+    };
+  } catch {
+    const error =
+      res.status === 502
+        ? 'Resposta inválida do serviço de autenticação.'
+        : res.status >= 500
+          ? 'Erro no servidor. Tente de novo em instantes.'
+          : 'Resposta inválida do servidor.';
+    return { success: false, error };
+  }
+}
+
 // Máscara telefone BR: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -205,7 +228,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         headers: await adminAuthHeaders(),
         body: JSON.stringify({ subscriptionActive: next })
       });
-      const data = await response.json();
+      const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops(shops.map(s => s.id === shop.id ? data.shop : s));
       } else {
@@ -277,7 +300,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         headers: await adminAuthHeaders(),
         body: JSON.stringify({ subscriptionAmount: newAmount })
       });
-      const data = await response.json();
+      const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops(shops.map(s => s.id === shop.id ? data.shop : s));
       } else {
@@ -301,7 +324,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           asaasPlatformSubscriptionId: trimmed === '' ? null : trimmed.slice(0, 200),
         }),
       });
-      const data = await response.json();
+      const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops(shops.map((s) => (s.id === shop.id ? data.shop : s)));
       } else {
@@ -323,7 +346,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         headers: await adminAuthHeaders(),
         body: JSON.stringify({ splitPercent: v })
       });
-      const data = await response.json();
+      const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops(shops.map(s => s.id === shop.id ? data.shop : s));
       } else {

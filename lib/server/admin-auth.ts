@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export type AdminAuthResult =
-  | { success: true; supabase: SupabaseClient }
+  | { success: true; supabase: SupabaseClient; userId: string }
   | { success: false; status: number; error: string };
 
 /**
@@ -32,7 +32,12 @@ export async function assertAdminFromRequest(req: {
     return { success: false as const, status: 401, error: 'Sessão inválida ou expirada. Faça login novamente.' };
   }
 
-  const userData = (await authRes.json()) as { id?: string };
+  let userData: { id?: string };
+  try {
+    userData = (await authRes.json()) as { id?: string };
+  } catch {
+    return { success: false as const, status: 502, error: 'Resposta inválida do serviço de autenticação.' };
+  }
   const userId = userData?.id;
   if (!userId) {
     return { success: false as const, status: 401, error: 'Token inválido.' };
@@ -44,5 +49,5 @@ export async function assertAdminFromRequest(req: {
     return { success: false as const, status: 403, error: 'Apenas administradores.' };
   }
 
-  return { success: true as const, supabase };
+  return { success: true as const, supabase, userId };
 }

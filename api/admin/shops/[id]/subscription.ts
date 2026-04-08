@@ -1,21 +1,31 @@
 // Vercel Serverless: PATCH /api/admin/shops/:id/subscription
 // Atualiza subscription_active, subscription_amount e/ou split_percent da loja (service role)
 
-import { createClient } from '@supabase/supabase-js';
 import { insertFinancialAudit } from '../../../../lib/server/financial-audit';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 /** Colunas seguras (sem asaas_api_key). */
 const SHOP_SELECT_SAFE =
   'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
 
+function requestPathname(req: { url?: string }): string {
+  const raw = req.url || '';
+  if (raw.startsWith('http')) {
+    try {
+      return new URL(raw).pathname;
+    } catch {
+      return raw.split('?')[0] || '';
+    }
+  }
+  return raw.split('?')[0] || '';
+}
+
 function getShopId(req: { query?: { id?: string }; url?: string }): string | null {
-  if (req.query?.id) return req.query.id;
-  const match = req.url?.match(/\/api\/admin\/shops\/([^/?]+)\/subscription/);
-  return match ? match[1] : null;
+  const q = req.query?.id;
+  if (q && String(q).trim()) return String(q).trim();
+  const pathname = requestPathname(req);
+  const match = pathname.match(/\/api\/admin\/shops\/([^/]+)\/subscription/);
+  return match ? match[1].trim() : null;
 }
 
 function getClientMeta(req: { headers?: Record<string, string | string[] | undefined> }): { ip: string | null; userAgent: string | null } {
@@ -38,35 +48,19 @@ function getClientMeta(req: { headers?: Record<string, string | string[] | undef
   return { ip, userAgent };
 }
 
-async function getAdminUserIdFromRequest(
-  req: { headers?: Record<string, string | string[] | undefined> }
-): Promise<{ userId: string } | { error: string; status: number }> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
-    return { error: 'Configuração do Supabase indisponível.', status: 500 };
+function readNonNegativeNumber(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) return raw;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const n = Number(String(raw).replace(',', '.'));
+    if (Number.isFinite(n) && n >= 0) return n;
   }
-  const authRaw = req.headers?.authorization;
-  const authHeader = typeof authRaw === 'string' ? authRaw : Array.isArray(authRaw) ? authRaw[0] : '';
-  const token = authHeader?.replace(/^Bearer\s+/i, '').trim();
-  if (!token) {
-    return { error: 'Token de autorização não enviado. Faça login novamente.', status: 401 };
-  }
-  const authRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY },
-  });
-  if (!authRes.ok) {
-    return { error: 'Sessão inválida ou expirada. Faça login novamente.', status: 401 };
-  }
-  const userData = (await authRes.json()) as { id?: string };
-  const userId = userData?.id;
-  if (!userId) return { error: 'Token inválido.', status: 401 };
+  return null;
+}
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
-  const role = (profile as { role?: string } | null)?.role;
-  if (role !== 'admin') {
-    return { error: 'Apenas administradores podem alterar assinatura da loja.', status: 403 };
-  }
-  return { userId };
+function readSplitPercent(raw: unknown): number | null {
+  const n = readNonNegativeNumber(raw);
+  if (n == null || n > 100) return null;
+  return n;
 }
 
 function mapShopResponse(shop: Record<string, unknown>) {
@@ -130,63 +124,67 @@ export default async function handler(
   },
   res: { setHeader: (k: string, v: string) => void; status: (n: number) => { json: (o: object) => void; end: () => void }; end?: (code?: number) => void }
 ) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'PATCH') {
-    return res.status(405).json({ success: false, error: 'Método não permitido. Use PATCH.' });
-  }
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: 'Configuração do Supabase indisponível.' });
-  }
-
-  const admin = await getAdminUserIdFromRequest(req);
-  if ('error' in admin) {
-    return res.status(admin.status).json({ success: false, error: admin.error });
-  }
-  const clientMeta = getClientMeta(req);
-
-  const shopId = req.query?.id ?? getShopId(req);
-  if (!shopId) {
-    return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
-  }
-
-  const body = (req.body || {}) as {
-    subscriptionActive?: boolean;
-    subscriptionAmount?: number;
-    splitPercent?: number;
-    asaasApiKey?: string | null;
-    asaasPlatformSubscriptionId?: string | null;
-  };
-
-  const updates: Record<string, unknown> = {};
-  if (typeof body.subscriptionActive === 'boolean') updates.subscription_active = body.subscriptionActive;
-  if (typeof body.subscriptionAmount === 'number' && body.subscriptionAmount >= 0) updates.subscription_amount = body.subscriptionAmount;
-  if (typeof body.splitPercent === 'number' && body.splitPercent >= 0 && body.splitPercent <= 100) updates.split_percent = body.splitPercent;
-  const keyUpdateRequested = body.asaasApiKey !== undefined;
-  if (keyUpdateRequested) updates.asaas_api_key = body.asaasApiKey === '' || body.asaasApiKey === null ? null : String(body.asaasApiKey).trim();
-  if (body.asaasPlatformSubscriptionId !== undefined) {
-    const v = body.asaasPlatformSubscriptionId;
-    updates.asaas_platform_subscription_id =
-      v === '' || v === null ? null : String(v).trim().slice(0, 200);
-  }
-
-  if (Object.keys(updates).length === 0) {
-    return res.status(400).json({
-      success: false,
-      error:
-        'Envie subscriptionActive, subscriptionAmount, splitPercent, asaasPlatformSubscriptionId e/ou asaasApiKey.',
-    });
-  }
-
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: shop, error } = await supabase
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
+    if (req.method !== 'PATCH') {
+      return res.status(405).json({ success: false, error: 'Método não permitido. Use PATCH.' });
+    }
+
+    const auth = await assertAdminFromRequest(req);
+    if (auth.success === false) {
+      return res.status(auth.status).json({ success: false, error: auth.error });
+    }
+
+    const clientMeta = getClientMeta(req);
+    const shopId = getShopId(req);
+    if (!shopId) {
+      return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
+    }
+
+    const body = (req.body || {}) as {
+      subscriptionActive?: boolean;
+      subscriptionAmount?: unknown;
+      splitPercent?: unknown;
+      asaasApiKey?: string | null;
+      asaasPlatformSubscriptionId?: string | null;
+    };
+
+    const updates: Record<string, unknown> = {};
+    if (typeof body.subscriptionActive === 'boolean') updates.subscription_active = body.subscriptionActive;
+
+    if (body.subscriptionAmount !== undefined) {
+      const a = readNonNegativeNumber(body.subscriptionAmount);
+      if (a !== null) updates.subscription_amount = a;
+    }
+
+    if (body.splitPercent !== undefined) {
+      const s = readSplitPercent(body.splitPercent);
+      if (s !== null) updates.split_percent = s;
+    }
+
+    const keyUpdateRequested = body.asaasApiKey !== undefined;
+    if (keyUpdateRequested) updates.asaas_api_key = body.asaasApiKey === '' || body.asaasApiKey === null ? null : String(body.asaasApiKey).trim();
+    if (body.asaasPlatformSubscriptionId !== undefined) {
+      const v = body.asaasPlatformSubscriptionId;
+      updates.asaas_platform_subscription_id =
+        v === '' || v === null ? null : String(v).trim().slice(0, 200);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Envie subscriptionActive, subscriptionAmount, splitPercent, asaasPlatformSubscriptionId e/ou asaasApiKey.',
+      });
+    }
+
+    const { data: shop, error } = await auth.supabase
       .from('shops')
       .update(updates)
       .eq('id', shopId)
@@ -201,9 +199,9 @@ export default async function handler(
     }
 
     if (keyUpdateRequested) {
-      await insertFinancialAudit(supabase, {
+      await insertFinancialAudit(auth.supabase, {
         shop_id: shopId,
-        actor_user_id: admin.userId,
+        actor_user_id: auth.userId,
         action: 'SHOP_API_KEY_UPDATED',
         result: 'success',
         metadata: { cleared: body.asaasApiKey === '' || body.asaasApiKey === null },

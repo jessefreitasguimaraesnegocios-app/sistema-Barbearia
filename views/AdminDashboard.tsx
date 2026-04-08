@@ -269,8 +269,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
 
   const saveSubscriptionAmount = async (shop: Shop, newAmount: number) => {
     if (newAmount < 0) return;
-    const current = shop.subscriptionAmount ?? 99;
-    if (Math.abs(newAmount - current) < 0.01) return;
+    // Não comparar com shop.* aqui: o onChange já atualizou o estado local antes do blur,
+    // e isso faria o PATCH ser ignorado mesmo quando o valor mudou de fato.
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
         method: 'PATCH',
@@ -315,8 +315,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
 
   const saveSplitPercent = async (shop: Shop, newPercent: number) => {
     const v = Math.min(100, Math.max(0, newPercent));
-    const current = shop.splitPercent ?? 95;
-    if (Math.abs(v - current) < 0.01) return;
+    // Não comparar com shop.splitPercent: o onChange já sincronizou o estado antes do blur,
+    // então current === v sempre e o save nunca rodava.
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
         method: 'PATCH',

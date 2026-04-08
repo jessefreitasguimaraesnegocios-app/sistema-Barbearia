@@ -5,6 +5,10 @@ import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
+type RuntimeMode = 'production' | 'sandbox';
+function resolveMode(): RuntimeMode {
+  return ASAAS_API_URL.toLowerCase().includes('sandbox') ? 'sandbox' : 'production';
+}
 
 function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): string | null {
   const fromQuery = req.query?.id;
@@ -52,9 +56,12 @@ export default async function handler(
 
   try {
     const supabase = auth.supabase;
+    const runtimeMode = resolveMode();
+    const walletColumn = runtimeMode === 'sandbox' ? 'asaas_wallet_id_sandbox' : 'asaas_wallet_id_prod';
+
     const { data: shop, error: shopError } = await supabase
       .from('shops')
-      .select('id, name, email, phone, cnpj_cpf, asaas_wallet_id')
+      .select('id, name, email, phone, cnpj_cpf, asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox')
       .eq('id', shopId)
       .single();
 
@@ -62,11 +69,12 @@ export default async function handler(
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
     }
 
-    if (shop.asaas_wallet_id != null && String(shop.asaas_wallet_id).trim() !== '') {
+    const currentEnvWallet = (shop as Record<string, unknown>)[walletColumn];
+    if (currentEnvWallet != null && String(currentEnvWallet).trim() !== '') {
       return res.status(400).json({
         success: false,
-        error: 'Esta loja já possui carteira Asaas configurada.',
-        asaasWalletId: shop.asaas_wallet_id,
+        error: `Esta loja já possui carteira Asaas configurada para ${runtimeMode}.`,
+        asaasWalletId: String(currentEnvWallet),
       });
     }
 
@@ -170,6 +178,7 @@ export default async function handler(
 
     const updates: Record<string, unknown> = {
       asaas_wallet_id: walletId,
+      [walletColumn]: walletId,
       asaas_account_id: asaasAccountId,
       finance_provision_status: 'active',
       finance_provision_last_error: null,

@@ -9,6 +9,16 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 type RuntimeMode = "production" | "sandbox";
+function resolveWalletByMode(mode: RuntimeMode, row: Record<string, unknown>): string {
+  const modeWallet = mode === "sandbox" ? row.asaas_wallet_id_sandbox : row.asaas_wallet_id_prod;
+  const normalizedMode =
+    modeWallet != null && String(modeWallet).trim() !== ""
+      ? String(modeWallet).trim()
+      : "";
+  if (normalizedMode) return normalizedMode;
+  const legacy = row.asaas_wallet_id;
+  return legacy != null && String(legacy).trim() !== "" ? String(legacy).trim() : "";
+}
 
 async function resolveAsaasRuntimeConfig(
   supabaseAdmin: ReturnType<typeof createClient>,
@@ -108,6 +118,7 @@ Deno.serve(async (req: Request) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const asaasRuntime = await resolveAsaasRuntimeConfig(supabaseAdmin);
+    const runtimeMode = asaasRuntime.mode;
     const asaasApiKey = asaasRuntime.apiKey;
     const asaasBaseUrl = asaasRuntime.apiUrl;
     if (!asaasApiKey) {
@@ -228,13 +239,11 @@ Deno.serve(async (req: Request) => {
     if (shopId) {
       const { data: shop, error: shopErr } = await supabaseAdmin
         .from("shops")
-        .select("asaas_wallet_id, split_percent")
+        .select("asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent")
         .eq("id", shopId)
         .single();
       if (!shopErr && shop) {
-        const shopWallet = (shop.asaas_wallet_id != null && String(shop.asaas_wallet_id).trim() !== "")
-          ? String(shop.asaas_wallet_id).trim()
-          : "";
+        const shopWallet = resolveWalletByMode(runtimeMode, shop as unknown as Record<string, unknown>);
         if (shopWallet) {
           effectiveWalletId = shopWallet;
           hasShopWallet = true;
@@ -248,14 +257,12 @@ Deno.serve(async (req: Request) => {
       if (recordType === "booking" && bodyBooking?.professionalId) {
         const { data: professional } = await supabaseAdmin
           .from("professionals")
-          .select("asaas_wallet_id")
+          .select("asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox")
           .eq("id", bodyBooking.professionalId)
           .eq("shop_id", shopId)
           .maybeSingle();
-        const professionalWallet = (
-          professional?.asaas_wallet_id != null && String(professional.asaas_wallet_id).trim() !== ""
-        )
-          ? String(professional.asaas_wallet_id).trim()
+        const professionalWallet = professional
+          ? resolveWalletByMode(runtimeMode, professional as unknown as Record<string, unknown>)
           : "";
         if (professionalWallet) {
           effectiveWalletId = professionalWallet;

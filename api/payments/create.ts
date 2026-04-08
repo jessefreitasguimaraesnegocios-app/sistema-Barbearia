@@ -6,6 +6,19 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 type RuntimeMode = 'production' | 'sandbox';
+function resolveWalletByMode(mode: RuntimeMode, row: Record<string, unknown>): string {
+  const modeWallet =
+    mode === 'sandbox'
+      ? row.asaas_wallet_id_sandbox
+      : row.asaas_wallet_id_prod;
+  const normalizedMode =
+    modeWallet != null && String(modeWallet).trim() !== ''
+      ? String(modeWallet).trim()
+      : '';
+  if (normalizedMode) return normalizedMode;
+  const legacy = row.asaas_wallet_id;
+  return legacy != null && String(legacy).trim() !== '' ? String(legacy).trim() : '';
+}
 
 async function resolveAsaasRuntimeConfig(
   supabase: { from: (table: string) => unknown }
@@ -113,6 +126,7 @@ export default async function handler(
     }
 
     const asaasRuntime = await resolveAsaasRuntimeConfig(supabase);
+    const runtimeMode = asaasRuntime.mode;
     const ASAAS_API_KEY = asaasRuntime.apiKey;
     const ASAAS_API_URL = asaasRuntime.apiUrl;
     if (!ASAAS_API_KEY) {
@@ -180,14 +194,11 @@ export default async function handler(
     if (shopId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       const { data: shop, error: shopErr } = await supabase
         .from('shops')
-        .select('asaas_wallet_id, split_percent')
+        .select('asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent')
         .eq('id', shopId)
         .single();
       if (!shopErr && shop) {
-        const shopWallet =
-          shop.asaas_wallet_id != null && String(shop.asaas_wallet_id).trim() !== ''
-            ? String(shop.asaas_wallet_id).trim()
-            : '';
+        const shopWallet = resolveWalletByMode(runtimeMode, shop as unknown as Record<string, unknown>);
         if (shopWallet) {
           effectiveWalletId = shopWallet;
           hasShopWallet = true;
@@ -200,14 +211,13 @@ export default async function handler(
       if (recordType === 'booking' && bodyBooking?.professionalId) {
         const { data: professional } = await supabase
           .from('professionals')
-          .select('asaas_wallet_id')
+          .select('asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox')
           .eq('id', bodyBooking.professionalId)
           .eq('shop_id', shopId)
           .maybeSingle();
-        const professionalWallet =
-          professional?.asaas_wallet_id != null && String(professional.asaas_wallet_id).trim() !== ''
-            ? String(professional.asaas_wallet_id).trim()
-            : '';
+        const professionalWallet = professional
+          ? resolveWalletByMode(runtimeMode, professional as unknown as Record<string, unknown>)
+          : '';
         if (professionalWallet) {
           effectiveWalletId = professionalWallet;
           hasProfessionalWallet = true;

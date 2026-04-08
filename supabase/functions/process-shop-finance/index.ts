@@ -32,6 +32,9 @@ function resolveEnvironment(asaasApiUrl: string, explicit?: string): "sandbox" |
   if (explicit === "sandbox" || explicit === "production") return explicit;
   return asaasApiUrl.toLowerCase().includes("sandbox") ? "sandbox" : "production";
 }
+function walletColumnByEnvironment(environment: "sandbox" | "production"): "asaas_wallet_id_sandbox" | "asaas_wallet_id_prod" {
+  return environment === "sandbox" ? "asaas_wallet_id_sandbox" : "asaas_wallet_id_prod";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -115,6 +118,8 @@ Deno.serve(async (req: Request) => {
   const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
   const asaasBaseUrl = (Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3").replace(/\/$/, "");
 
+  const runtimeEnvironment = resolveEnvironment(asaasBaseUrl, Deno.env.get("ASAAS_PROVISIONER_ENV") || undefined);
+  const walletColumn = walletColumnByEnvironment(runtimeEnvironment);
   const results: Array<{ shopId: string; ok: boolean; status?: string; error?: string }> = [];
 
   for (const shopId of candidateIds) {
@@ -384,6 +389,7 @@ Deno.serve(async (req: Request) => {
       const updateRow: Record<string, unknown> = {
         asaas_customer_id: asaasCustomerId,
         asaas_wallet_id: asaasWalletId,
+        [walletColumn]: asaasWalletId,
         asaas_account_id: asaasAccountId ?? null,
         finance_provision_status: "active",
         finance_provision_last_error: null,

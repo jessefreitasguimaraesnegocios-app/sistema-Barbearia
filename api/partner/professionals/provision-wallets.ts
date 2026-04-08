@@ -17,6 +17,8 @@ type ProvisionRow = {
   birth_date: string | null;
   split_percent: number | null;
   asaas_wallet_id: string | null;
+  asaas_wallet_id_prod?: string | null;
+  asaas_wallet_id_sandbox?: string | null;
 };
 
 function normalizePhone(raw: string | null | undefined): string {
@@ -93,17 +95,23 @@ export default async function handler(
 
     const { data: pros, error: prosErr } = await supabase
       .from('professionals')
-      .select('id, name, email, phone, cpf_cnpj, birth_date, split_percent, asaas_wallet_id')
+      .select('id, name, email, phone, cpf_cnpj, birth_date, split_percent, asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox')
       .eq('shop_id', shopId)
       .order('created_at', { ascending: true });
     if (prosErr) return res.status(500).json({ success: false, error: prosErr.message });
 
-    const missingWallet = (pros || []).filter((p) => !p.asaas_wallet_id || String(p.asaas_wallet_id).trim() === '') as ProvisionRow[];
+    const environment = resolveEnvironment();
+    const missingWallet = (pros || []).filter((p) => {
+      const envWallet =
+        environment === 'sandbox'
+          ? p.asaas_wallet_id_sandbox
+          : p.asaas_wallet_id_prod;
+      return !envWallet || String(envWallet).trim() === '';
+    }) as ProvisionRow[];
     if (missingWallet.length === 0) {
       return res.status(200).json({ success: true, processed: 0, created: 0, failures: [] });
     }
 
-    const environment = resolveEnvironment();
     const updates: Array<Record<string, unknown>> = [];
     const failures: Array<{ professionalId: string; reason: string }> = [];
     const shopCpfCnpj = String(shop.cnpj_cpf || '').replace(/\D/g, '');
@@ -174,6 +182,8 @@ export default async function handler(
         shop_id: shopId,
         asaas_account_id: sub.asaas_subaccount_id ?? null,
         asaas_wallet_id: sub.asaas_wallet_id ?? null,
+        asaas_wallet_id_prod: environment === 'production' ? (sub.asaas_wallet_id ?? null) : undefined,
+        asaas_wallet_id_sandbox: environment === 'sandbox' ? (sub.asaas_wallet_id ?? null) : undefined,
         asaas_environment: environment,
         split_percent: payload.splitPercent,
       };

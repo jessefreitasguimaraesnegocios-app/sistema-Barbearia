@@ -16,6 +16,9 @@ function jsonResponse(body: object, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+function walletColumnByEnvironment(environment: "sandbox" | "production"): "asaas_wallet_id_sandbox" | "asaas_wallet_id_prod" {
+  return environment === "sandbox" ? "asaas_wallet_id_sandbox" : "asaas_wallet_id_prod";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -48,6 +51,7 @@ Deno.serve(async (req: Request) => {
     asaasApiKey?: string | null;
     error?: string | null;
     correlationId?: string | null;
+    environment?: "sandbox" | "production" | null;
   } = {};
 
   try {
@@ -55,6 +59,8 @@ Deno.serve(async (req: Request) => {
   } catch {
     return jsonResponse({ success: false, error: "JSON inválido." }, 400);
   }
+  const environment = body.environment === "sandbox" ? "sandbox" : "production";
+  const walletColumn = walletColumnByEnvironment(environment);
 
   const shopId = body.shopId != null ? String(body.shopId).trim() : "";
   if (!shopId) {
@@ -108,6 +114,7 @@ Deno.serve(async (req: Request) => {
 
   const updateRow: Record<string, unknown> = {
     asaas_wallet_id: walletId,
+    [walletColumn]: walletId,
     finance_provision_status: "active",
     finance_provision_last_error: null,
     finance_provision_updated_at: new Date().toISOString(),

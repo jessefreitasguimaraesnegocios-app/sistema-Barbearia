@@ -37,6 +37,7 @@ flowchart LR
 2. Asaas gera cobrança PIX; o cliente paga.
 3. Webhook **`PAYMENT_RECEIVED` / `PAYMENT_CONFIRMED`** chega em **`asaas-webhook`**.
 4. A função deduplica, identifica o pagamento (ex. `externalReference`, `asaas_payment_id`) e marca **`appointments`** ou **`orders`** como pagos, conforme a lógica já existente.
+5. **`PAYMENT_DELETED`**: cobrança apagada no Asaas → para linhas ainda **`PENDING`**, limpa `asaas_payment_id` e `payment_idempotency_key` (agendamento ou pedido), para o cliente poder gerar um novo PIX. Resposta sempre **200** para não penalizar a fila de webhooks.
 5. **Cliente:** em `ShopDetails`, o fluxo é **PIX pendente** → link → “já paguei” / refetch; não há overlay de sucesso “fantasma” — o que importa é confirmação e estado na BD.
 
 ```mermaid

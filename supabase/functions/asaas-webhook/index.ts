@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const event = payload?.event ?? "";
+  const event = String(payload?.event ?? "").trim();
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -111,6 +111,35 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
 
+  /** Cobrança removida no Asaas: desvincula PIX pendente para o cliente poder gerar outro. */
+  if (event === "PAYMENT_DELETED") {
+    try {
+      const delPaymentId = payload?.payment?.id != null ? String(payload.payment.id).trim() : "";
+      if (delPaymentId) {
+        const [aptDel, ordDel] = await Promise.all([
+          supabase
+            .from("appointments")
+            .update({ asaas_payment_id: null, payment_idempotency_key: null })
+            .eq("asaas_payment_id", delPaymentId)
+            .eq("status", "PENDING"),
+          supabase
+            .from("orders")
+            .update({ asaas_payment_id: null, payment_idempotency_key: null })
+            .eq("asaas_payment_id", delPaymentId)
+            .eq("status", "PENDING"),
+        ]);
+        if (aptDel.error) console.error("[asaas-webhook] PAYMENT_DELETED appointments:", aptDel.error.message);
+        if (ordDel.error) console.error("[asaas-webhook] PAYMENT_DELETED orders:", ordDel.error.message);
+      }
+    } catch (e) {
+      console.error("[asaas-webhook] PAYMENT_DELETED handler:", e);
+    }
+    return new Response(JSON.stringify({ received: true, event: "PAYMENT_DELETED" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   /** Assinatura cancelada / inativa no Asaas → desliga acesso na plataforma */
   if (SUBSCRIPTION_OFF_EVENTS.includes(event)) {
     const subId = extractSubscriptionId(payload?.subscription);
@@ -121,10 +150,13 @@ Deno.serve(async (req: Request) => {
         .select("event, subscription_id");
       if (recErr) {
         console.error("[asaas-webhook] subscription receipt error:", recErr.message);
-        return new Response(JSON.stringify({ received: false, error: "Receipt failed" }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ received: true, note: "subscription_receipt_failed", detail: recErr.message }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
       }
       if (rec && rec.length > 0) {
         const { data: shops, error: upErr } = await supabase
@@ -159,10 +191,14 @@ Deno.serve(async (req: Request) => {
     .select("event, payment_id");
   if (receiptErr) {
     console.error("[asaas-webhook] receipt error:", receiptErr.message);
-    return new Response(JSON.stringify({ received: false, error: "Webhook receipt persistence failed" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    // 200: não pausar fila Asaas; investigar via logs / BD.
+    return new Response(
+      JSON.stringify({ received: true, note: "receipt_persist_failed", detail: receiptErr.message }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
   if (!receiptData || receiptData.length === 0) {
     return new Response(JSON.stringify({ received: true, duplicate: true }), {
@@ -246,7 +282,15 @@ Deno.serve(async (req: Request) => {
       }
     }
   } catch (e) {
-    console.error("[asaas-webhook]", e);
+    console.error("[asaas-webhook] payment handler error:", e);
+    // 200 evita fila pausada no Asaas; detalhe fica nos logs da função.
+    return new Response(
+      JSON.stringify({ received: true, note: "payment_handler_error_logged" }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 
   return new Response(JSON.stringify({ received: true }), {

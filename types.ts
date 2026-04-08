@@ -71,7 +71,10 @@ export interface Shop {
   subscriptionAmount?: number;
   /** ID da assinatura na conta Asaas mãe (mensalidade); webhook liga a `subscription_active` */
   asaasPlatformSubscriptionId?: string | null;
+  /** % split Asaas com runtime em produção */
   splitPercent?: number;
+  /** % split quando runtime Asaas está em sandbox; null no banco → em pagamentos usa splitPercent */
+  splitPercentSandbox?: number | null;
   /** Se true, na edição de serviços o parceiro informa "valor a receber" e o app calcula o preço mínimo a cobrar (taxa + Asaas), com arredondamento ,50 / próximo real */
   passFeesToCustomer?: boolean;
   rating: number;

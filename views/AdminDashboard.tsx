@@ -350,11 +350,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       if (data.success && data.shop) {
         setShops(shops.map(s => s.id === shop.id ? data.shop : s));
       } else {
-        alert(data.error || 'Erro ao atualizar % split.');
+        alert(data.error || 'Erro ao atualizar % split produção.');
       }
     } catch (e) {
       console.error(e);
-      alert('Erro de conexão ao atualizar % split.');
+      alert('Erro de conexão ao atualizar % split produção.');
+    }
+  };
+
+  const saveSplitPercentSandbox = async (shop: Shop, newPercent: number) => {
+    const v = Math.min(100, Math.max(0, newPercent));
+    try {
+      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
+        method: 'PATCH',
+        headers: await adminAuthHeaders(),
+        body: JSON.stringify({ splitPercentSandbox: v }),
+      });
+      const data = await parseSubscriptionPatchResponse(response);
+      if (data.success && data.shop) {
+        setShops(shops.map((s) => (s.id === shop.id ? data.shop : s)));
+      } else {
+        alert(data.error || 'Erro ao atualizar % split sandbox.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao atualizar % split sandbox.');
     }
   };
 
@@ -495,7 +515,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                 <th className="px-8 py-4">Status Assinatura</th>
                 <th className="px-8 py-4">Mensalidade</th>
                 <th className="px-8 py-4">Assin. plataforma (Asaas)</th>
-                <th className="px-8 py-4">% Split</th>
+                <th className="px-8 py-4">% Split (produção)</th>
+                <th className="px-8 py-4">% Split (sandbox)</th>
                 <th className="px-8 py-4">Asaas ID</th>
                 <th className="px-8 py-4 text-right">Ações</th>
               </tr>
@@ -582,6 +603,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                           if (!Number.isNaN(v) && v >= 0 && v <= 100) saveSplitPercent(shop, v);
                         }}
                       />
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">%</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          title="Usado quando o gateway está em modo sandbox"
+                          className="w-16 p-2 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-amber-600"
+                          value={shop.splitPercentSandbox ?? shop.splitPercent ?? 95}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            if (!Number.isNaN(v) && v >= 0 && v <= 100) {
+                              setShops(shops.map((s) => (s.id === shop.id ? { ...s, splitPercentSandbox: v } : s)));
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const v = Number((e.target as HTMLInputElement).value);
+                            if (!Number.isNaN(v) && v >= 0 && v <= 100) saveSplitPercentSandbox(shop, v);
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-400">Gateway sandbox</span>
                     </div>
                   </td>
                   <td className="px-8 py-6">

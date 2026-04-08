@@ -23,6 +23,7 @@ function mockSupabaseForPartnerBundle() {
     phone: null,
     pix_key: null,
     split_percent: 95,
+    split_percent_sandbox: null,
     pass_fees_to_customer: false,
     workday_start: '08:00:00',
     workday_end: '20:00:00',

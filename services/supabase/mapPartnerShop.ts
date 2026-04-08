@@ -26,6 +26,8 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
   }));
 
   const shopSplit = d.split_percent != null ? Number(d.split_percent) : 95;
+  const shopSplitSandbox =
+    d.split_percent_sandbox != null ? Number(d.split_percent_sandbox) : null;
   const professionals = dedupeByKey(rawProfessionals as Record<string, unknown>[], (p) =>
     `${String(p.name || '').trim()}|${String(p.specialty || '').trim()}`
   ).map((p) => ({
@@ -76,6 +78,7 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
     subscriptionActive: Boolean(d.subscription_active),
     subscriptionAmount: d.subscription_amount != null ? Number(d.subscription_amount) : 99,
     splitPercent: d.split_percent != null ? Number(d.split_percent) : 95,
+    splitPercentSandbox: shopSplitSandbox,
     passFeesToCustomer: d.pass_fees_to_customer === true,
     rating: d.rating != null ? Number(d.rating) : 5,
     asaasWalletId: d.asaas_wallet_id != null ? String(d.asaas_wallet_id) : undefined,

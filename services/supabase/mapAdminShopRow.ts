@@ -22,6 +22,8 @@ export function mapAdminShopRow(s: Record<string, unknown>): Shop {
         ? String(s.asaas_platform_subscription_id).trim()
         : null,
     splitPercent: s.split_percent != null ? Number(s.split_percent) : 95,
+    splitPercentSandbox:
+      s.split_percent_sandbox != null ? Number(s.split_percent_sandbox) : null,
     passFeesToCustomer: s.pass_fees_to_customer === true,
     rating: s.rating != null ? Number(s.rating) : 5,
     asaasAccountId: s.asaas_account_id != null ? String(s.asaas_account_id) : undefined,

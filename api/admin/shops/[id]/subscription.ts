@@ -1,12 +1,12 @@
 // Vercel Serverless: PATCH /api/admin/shops/:id/subscription
-// Atualiza subscription_active, subscription_amount e/ou split_percent da loja (service role)
+// Atualiza subscription_active, subscription_amount, split_percent (prod) e split_percent_sandbox da loja (service role)
 
 import { insertFinancialAudit } from '../../../../lib/server/financial-audit';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 /** Colunas seguras (sem asaas_api_key). */
 const SHOP_SELECT_SAFE =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
 
 function requestPathname(req: { url?: string }): string {
   const raw = req.url || '';
@@ -83,6 +83,8 @@ function mapShopResponse(shop: Record<string, unknown>) {
         : null,
     rating: shop.rating != null ? Number(shop.rating) : 5,
     splitPercent: shop.split_percent != null ? Number(shop.split_percent) : 95,
+    splitPercentSandbox:
+      shop.split_percent_sandbox != null ? Number(shop.split_percent_sandbox) : null,
     passFeesToCustomer: shop.pass_fees_to_customer === true,
     asaasAccountId: shop.asaas_account_id,
     asaasWalletId: shop.asaas_wallet_id,
@@ -151,6 +153,7 @@ export default async function handler(
       subscriptionActive?: boolean;
       subscriptionAmount?: unknown;
       splitPercent?: unknown;
+      splitPercentSandbox?: unknown | null;
       asaasApiKey?: string | null;
       asaasPlatformSubscriptionId?: string | null;
     };
@@ -168,6 +171,15 @@ export default async function handler(
       if (s !== null) updates.split_percent = s;
     }
 
+    if (body.splitPercentSandbox !== undefined) {
+      if (body.splitPercentSandbox === null) {
+        updates.split_percent_sandbox = null;
+      } else {
+        const s = readSplitPercent(body.splitPercentSandbox);
+        if (s !== null) updates.split_percent_sandbox = s;
+      }
+    }
+
     const keyUpdateRequested = body.asaasApiKey !== undefined;
     if (keyUpdateRequested) updates.asaas_api_key = body.asaasApiKey === '' || body.asaasApiKey === null ? null : String(body.asaasApiKey).trim();
     if (body.asaasPlatformSubscriptionId !== undefined) {
@@ -180,7 +192,7 @@ export default async function handler(
       return res.status(400).json({
         success: false,
         error:
-          'Envie subscriptionActive, subscriptionAmount, splitPercent, asaasPlatformSubscriptionId e/ou asaasApiKey.',
+          'Envie subscriptionActive, subscriptionAmount, splitPercent, splitPercentSandbox, asaasPlatformSubscriptionId e/ou asaasApiKey.',
       });
     }
 

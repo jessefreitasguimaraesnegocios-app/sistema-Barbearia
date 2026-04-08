@@ -20,6 +20,19 @@ function resolveWalletByMode(mode: RuntimeMode, row: Record<string, unknown>): s
   return legacy != null && String(legacy).trim() !== "" ? String(legacy).trim() : "";
 }
 
+function resolveShopSplitPercent(mode: RuntimeMode, shop: Record<string, unknown>): number {
+  const prod = shop.split_percent != null ? Number(shop.split_percent) : NaN;
+  const sand = shop.split_percent_sandbox != null ? Number(shop.split_percent_sandbox) : NaN;
+  const clamp = (n: number) => Math.min(100, Math.max(0, n));
+  if (mode === "sandbox") {
+    if (!Number.isNaN(sand)) return clamp(sand);
+    if (!Number.isNaN(prod)) return clamp(prod);
+    return 95;
+  }
+  if (!Number.isNaN(prod)) return clamp(prod);
+  return 95;
+}
+
 async function resolveAsaasRuntimeConfig(
   supabaseAdmin: ReturnType<typeof createClient>,
 ): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string }> {
@@ -239,7 +252,7 @@ Deno.serve(async (req: Request) => {
     if (shopId) {
       const { data: shop, error: shopErr } = await supabaseAdmin
         .from("shops")
-        .select("asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent")
+        .select("asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox")
         .eq("id", shopId)
         .single();
       if (!shopErr && shop) {
@@ -248,10 +261,7 @@ Deno.serve(async (req: Request) => {
           effectiveWalletId = shopWallet;
           hasShopWallet = true;
         }
-        if (shop.split_percent != null) {
-          const pct = Number(shop.split_percent);
-          if (!Number.isNaN(pct)) splitToShop = Math.min(100, Math.max(0, pct));
-        }
+        splitToShop = resolveShopSplitPercent(runtimeMode, shop as Record<string, unknown>);
       }
 
       if (recordType === "booking" && bodyBooking?.professionalId) {

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { resolveShopSplitPercent } from '../../../lib/payments/resolve-shop-split';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -87,7 +88,7 @@ export default async function handler(
 
     const { data: shop, error: shopErr } = await supabase
       .from('shops')
-      .select('id, owner_id, name, email, phone, cnpj_cpf, split_percent, address')
+      .select('id, owner_id, name, email, phone, cnpj_cpf, split_percent, split_percent_sandbox, address')
       .eq('id', shopId)
       .single();
     if (shopErr || !shop) return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
@@ -117,7 +118,7 @@ export default async function handler(
     const shopCpfCnpj = String(shop.cnpj_cpf || '').replace(/\D/g, '');
     const shopDomain = String(shop.email || 'barbearia.local').split('@')[1] || 'barbearia.local';
     const shopAddress = String(shop.address || 'A definir').trim() || 'A definir';
-    const defaultSplit = Number(shop.split_percent ?? 95);
+    const defaultSplit = resolveShopSplitPercent(environment, shop as Record<string, unknown>);
 
     for (const p of missingWallet) {
       const proCpfCnpj = String(p.cpf_cnpj || '').replace(/\D/g, '') || shopCpfCnpj;

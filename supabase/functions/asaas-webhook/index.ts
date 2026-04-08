@@ -15,11 +15,31 @@ type AsaasPayload = {
   subscription?: { id?: string; status?: string };
 };
 
-function unauthorized(message: string) {
-  return new Response(JSON.stringify({ code: 401, message }), {
+function unauthorized(message: string, hint?: string) {
+  const body: Record<string, unknown> = { code: 401, message };
+  if (hint) body.hint = hint;
+  return new Response(JSON.stringify(body), {
     status: 401,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/** Token que o Asaas envia em `asaas-access-token` (ou Bearer no Authorization, se alguém configurar assim). */
+function readIncomingWebhookToken(req: Request): string {
+  const direct = req.headers.get("asaas-access-token")?.trim();
+  if (direct) return direct;
+  const auth = req.headers.get("authorization")?.trim();
+  if (auth && /^Bearer\s+/i.test(auth)) {
+    return auth.replace(/^Bearer\s+/i, "").trim();
+  }
+  return "";
+}
+
+async function tokensMatch(expected: string, received: string): Promise<boolean> {
+  const a = new TextEncoder().encode(expected);
+  const b = new TextEncoder().encode(received);
+  if (a.length !== b.length) return false;
+  return await crypto.subtle.timingSafeEqual(a, b);
 }
 
 function extractSubscriptionId(raw: unknown): string | null {
@@ -37,7 +57,7 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", {
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "content-type, asaas-access-token",
+        "Access-Control-Allow-Headers": "content-type, asaas-access-token, authorization",
       },
     });
   }
@@ -56,9 +76,15 @@ Deno.serve(async (req: Request) => {
       headers: { "Content-Type": "application/json" },
     });
   }
-  const receivedToken = req.headers.get("asaas-access-token")?.trim() ?? "";
-  if (receivedToken === "" || receivedToken !== webhookToken.trim()) {
-    return unauthorized("Missing or invalid asaas-access-token");
+  const expected = webhookToken.trim();
+  const receivedToken = readIncomingWebhookToken(req);
+  const ok = receivedToken !== "" && (await tokensMatch(expected, receivedToken));
+  if (!ok) {
+    return unauthorized(
+      "Missing or invalid asaas-access-token",
+      "No Asaas: Integrações → Webhooks → edite este webhook e defina o Token de autenticação (ou use Gerar token). " +
+        "No Supabase: Edge Functions → Secrets → ASAAS_WEBHOOK_TOKEN com o MESMO valor. Sem espaços a mais.",
+    );
   }
 
   let payload: AsaasPayload = {};

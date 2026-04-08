@@ -62,7 +62,7 @@ Dois cenários distintos:
 1. **401 na gateway (antes do teu código)** — o Asaas **não envia** JWT do Supabase. A função **tem** de estar deployada com **`verify_jwt` desligado**. No repo: `supabase/config.toml` já tem `[functions.asaas-webhook] verify_jwt = false`. No deploy, usa sempre:
    `npx supabase functions deploy asaas-webhook --no-verify-jwt`
    (ou o script `npm run supabase:deploy-asaas-webhook`). No Dashboard, confirma que a função **não** exige JWT para invocação pública.
-2. **401 devolvido pela função** — corpo JSON com mensagem do tipo *Missing or invalid asaas-access-token*: o header **`asaas-access-token`** não bate com **`ASAAS_WEBHOOK_TOKEN`**. Alinha o token no painel Asaas com o secret no Supabase.
+2. **401 devolvido pela função** — corpo JSON com *Missing or invalid asaas-access-token*: o Asaas **só envia** o header `asaas-access-token` se o webhook tiver **token de autenticação** configurado. O valor tem de ser **idêntico** ao secret **`ASAAS_WEBHOOK_TOKEN`** no Supabase (Project Settings → Edge Functions → Secrets). Passos: Asaas → menu do utilizador → **Integrações** → **Webhooks** → editar `webhook-barbearia` → campo de token (ou **Gerar token**) → copiar o mesmo valor para o secret no Supabase → **redeploy não é obrigatório** só por mudar o secret, mas confirma que o secret foi guardado. Depois, reativa a fila de sincronização no Asaas se estiver pausada/penalizada.
 
 ## Resumo
 

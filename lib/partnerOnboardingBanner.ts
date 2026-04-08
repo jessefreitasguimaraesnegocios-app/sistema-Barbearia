@@ -1,3 +1,14 @@
+/** Indica se o dono da loja deve ver o aviso de cadastro Asaas pendente (dados vêm do Supabase, não de fluxo no app). */
+export function shouldShowPartnerAsaasSetupBanner(shop: {
+  asaasWalletId?: string;
+  financeProvisionStatus?: 'pending' | 'processing' | 'awaiting_callback' | 'active' | 'failed';
+}): boolean {
+  const wallet = shop.asaasWalletId != null && String(shop.asaasWalletId).trim() !== '';
+  if (wallet) return false;
+  if (shop.financeProvisionStatus === 'active') return false;
+  return true;
+}
+
 /** Dados mínimos da API GET /api/partner/onboarding para decidir se o painel deve lembrar o parceiro. */
 
 export interface PartnerOnboardingAccountStatus {

@@ -472,7 +472,6 @@ export default function PartnerArea() {
           appointments={appointments}
           orders={dashboardOrders}
           onMarkAppointmentCompleted={markAppointmentCompleted}
-          onGoToOnboarding={isShopOwner ? () => setCurrentView('shop-onboarding') : undefined}
           staffMode={isStaff}
         />
       )}

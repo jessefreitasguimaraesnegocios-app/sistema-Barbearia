@@ -1,16 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Shop, Appointment, Order } from '../types';
-import { supabase } from '../src/lib/supabase';
-import { shouldShowPartnerOnboardingBanner } from '../lib/partnerOnboardingBanner';
+import { shouldShowPartnerAsaasSetupBanner } from '../lib/partnerOnboardingBanner';
 
 interface ShopDashboardProps {
   shop: Shop;
   appointments: Appointment[];
   orders: Order[];
   onMarkAppointmentCompleted?: (appointmentId: string) => Promise<void>;
-  /** Abre a tela de aprovação da conta (onboarding Asaas); usado pelo aviso no painel. */
-  onGoToOnboarding?: () => void;
   /** Funcionário: agenda já filtrada; esconde filtro por equipe e banner de onboarding da loja. */
   staffMode?: boolean;
 }
@@ -22,13 +19,12 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   appointments,
   orders,
   onMarkAppointmentCompleted,
-  onGoToOnboarding,
   staffMode = false,
 }) => {
   const [filterPro, setFilterPro] = useState<string>('ALL');
   const [period, setPeriod] = useState<Period>('TODAY');
   const [completingId, setCompletingId] = useState<string | null>(null);
-  const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
+  const showAsaasSetupBanner = !staffMode && shouldShowPartnerAsaasSetupBanner(shop);
 
   // Filtrar dados da loja
   const myApts = appointments.filter(a => a.shopId === shop.id);
@@ -85,44 +81,6 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
 
   const nextApt = todayApts.find(a => a.status === 'PAID' || a.status === 'PENDING');
 
-  useEffect(() => {
-    if (!onGoToOnboarding) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token;
-        if (!token || cancelled) return;
-        const res = await fetch(`${window.location.origin}/api/partner/onboarding`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const json = (await res.json()) as {
-          accountStatus?: { general: string; documentation: string } | null;
-          documents?: { onboardingUrl?: string }[];
-          error?: string;
-        };
-        if (cancelled) return;
-        if (!res.ok) {
-          setShowOnboardingBanner(false);
-          return;
-        }
-        setShowOnboardingBanner(
-          shouldShowPartnerOnboardingBanner({
-            accountStatus: json.accountStatus ?? null,
-            documents: json.documents ?? [],
-            apiMessage: json.error,
-          })
-        );
-      } catch {
-        if (!cancelled) setShowOnboardingBanner(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [onGoToOnboarding, shop.id]);
-
   return (
     <div className="space-y-8 animate-fade-in pb-20">
       {/* Header */}
@@ -152,33 +110,33 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
         </div>
       </header>
 
-      {onGoToOnboarding && showOnboardingBanner && (
+      {showAsaasSetupBanner && (
         <div
           role="status"
-          className="rounded-2xl border border-amber-200 bg-amber-50 p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm"
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-4 md:p-5 flex flex-col sm:flex-row sm:items-start gap-4 shadow-sm"
         >
-          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl">
-            <i className="fas fa-user-shield" aria-hidden />
+          <div className="shrink-0 w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl">
+            <i className="fas fa-building-columns" aria-hidden />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-900">Finalize a aprovação da sua conta de pagamentos</p>
+            <p className="font-bold text-gray-900">Cadastro da conta Asaas em conclusão</p>
             <p className="text-sm text-gray-600 mt-1">
-              Envie documentos ou conclua o que falta para liberar recebimentos e saques sem surpresas.
+              A plataforma está a configurar a subconta e a carteira de recebimentos da sua barbearia no Asaas. Quando os
+              dados estiverem registados no sistema (carteira ativa), este aviso desaparece automaticamente — não é
+              necessário concluir nada aqui no painel.
             </p>
+            {shop.financeProvisionStatus === 'failed' && shop.financeProvisionLastError && (
+              <p className="text-xs text-red-700 mt-2 font-medium">
+                Último erro registado: {shop.financeProvisionLastError.slice(0, 200)}
+                {shop.financeProvisionLastError.length > 200 ? '…' : ''}
+              </p>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={onGoToOnboarding}
-            className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors"
-          >
-            Continuar cadastro
-            <i className="fas fa-arrow-right text-xs" aria-hidden />
-          </button>
         </div>
       )}
 
       {/* Financial Summary Section */}
-      <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm">
+      <section className="bg-white p-6 md:p-8 rounded-4xl border border-gray-100 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h3 className="text-xl font-bold text-gray-900">Resumo Financeiro</h3>
@@ -230,7 +188,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
         <div className="space-y-6">
           {/* Next Client Card */}
           {nextApt && (
-            <div className="bg-white p-6 rounded-[2rem] border-2 border-indigo-600 shadow-lg relative overflow-hidden">
+            <div className="bg-white p-6 rounded-4xl border-2 border-indigo-600 shadow-lg relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-indigo-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest">
                 Próximo Cliente
               </div>
@@ -276,7 +234,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
           )}
 
           {!staffMode && (
-            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+            <div className="bg-white p-6 rounded-4xl border border-gray-100 shadow-sm">
               <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-widest">Filtrar Equipe</h3>
               <div className="space-y-2">
                 <button 
@@ -304,7 +262,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
 
         {/* Coluna da Direita: Timeline do Dia */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm">
+          <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-8">
               <h3 className="text-xl font-bold text-gray-900">Agenda do Dia</h3>
               <div className="flex items-center gap-2 text-xs text-gray-400 font-bold">
@@ -315,7 +273,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
 
             <div className="relative space-y-1">
               {/* Linha vertical da timeline */}
-              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-100 ml-[1px]"></div>
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-100 ml-px"></div>
 
               {filteredApts.length > 0 ? filteredApts.map((apt, idx) => {
                 const pro = shop.professionals.find(p => p.id === apt.professionalId);

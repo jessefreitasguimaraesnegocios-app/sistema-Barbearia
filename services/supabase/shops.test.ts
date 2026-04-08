@@ -30,6 +30,8 @@ function mockSupabaseForPartnerBundle() {
     lunch_end: null,
     agenda_slot_minutes: 30,
     asaas_api_key_configured: false,
+    finance_provision_status: 'pending',
+    finance_provision_last_error: null,
   };
 
   const from = vi.fn((table: string) => {

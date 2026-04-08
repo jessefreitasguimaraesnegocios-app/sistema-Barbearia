@@ -81,6 +81,9 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
     asaasWalletId: d.asaas_wallet_id != null ? String(d.asaas_wallet_id) : undefined,
     asaasAccountId: d.asaas_account_id != null ? String(d.asaas_account_id) : undefined,
     asaasApiKeyConfigured: d.asaas_api_key_configured === true,
+    financeProvisionStatus: d.finance_provision_status as Shop['financeProvisionStatus'] | undefined,
+    financeProvisionLastError:
+      d.finance_provision_last_error != null ? String(d.finance_provision_last_error) : undefined,
     cnpjOrCpf: d.cnpj_cpf != null ? String(d.cnpj_cpf) : undefined,
     email: d.email != null ? String(d.email) : undefined,
     phone: d.phone != null ? String(d.phone) : undefined,

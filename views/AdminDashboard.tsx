@@ -5,6 +5,8 @@ import { supabase } from '../src/lib/supabase';
 import { APP_NAME } from '../lib/branding';
 import { shopTypeAdminPillClass, shopTypeShortLabel } from '../lib/shopTypeDisplay';
 
+type RuntimeMode = 'production' | 'sandbox';
+
 async function adminAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const {
@@ -52,6 +54,10 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShopCreated }) => {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRuntimeModeModal, setShowRuntimeModeModal] = useState(false);
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>('production');
+  const [runtimeModeLoading, setRuntimeModeLoading] = useState(false);
+  const [runtimeConfirmInput, setRuntimeConfirmInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [formData, setFormData] = useState({
@@ -345,6 +351,66 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     }
   };
 
+  const loadRuntimeMode = async () => {
+    setRuntimeModeLoading(true);
+    try {
+      const response = await fetch('/api/admin/runtime-mode', {
+        method: 'GET',
+        headers: await adminAuthHeaders(),
+      });
+      const data = (await response.json().catch(() => ({}))) as { success?: boolean; mode?: RuntimeMode; error?: string };
+      if (!response.ok || !data.success) {
+        if (response.status !== 401) {
+          alert(data.error || 'Não foi possível carregar o ambiente de pagamento.');
+        }
+        return;
+      }
+      setRuntimeMode(data.mode === 'sandbox' ? 'sandbox' : 'production');
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao carregar o ambiente de pagamento.');
+    } finally {
+      setRuntimeModeLoading(false);
+    }
+  };
+
+  const requestToggleRuntimeMode = () => {
+    setRuntimeConfirmInput('');
+    setShowRuntimeModeModal(true);
+  };
+
+  const confirmToggleRuntimeMode = async () => {
+    const nextMode: RuntimeMode = runtimeMode === 'sandbox' ? 'production' : 'sandbox';
+    setRuntimeModeLoading(true);
+    try {
+      const response = await fetch('/api/admin/runtime-mode', {
+        method: 'PATCH',
+        headers: await adminAuthHeaders(),
+        body: JSON.stringify({
+          mode: nextMode,
+          confirmationText: runtimeConfirmInput.trim(),
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { success?: boolean; mode?: RuntimeMode; error?: string };
+      if (!response.ok || !data.success) {
+        alert(data.error || 'Não foi possível trocar o ambiente de pagamento.');
+        return;
+      }
+      setRuntimeMode(data.mode === 'sandbox' ? 'sandbox' : 'production');
+      setShowRuntimeModeModal(false);
+      setRuntimeConfirmInput('');
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao trocar o ambiente de pagamento.');
+    } finally {
+      setRuntimeModeLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    void loadRuntimeMode();
+  }, []);
+
   return (
     <div className="space-y-8 animate-fade-in">
       <header className="flex justify-between items-center">
@@ -352,12 +418,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           <h2 className="text-3xl font-display font-bold text-gray-900">Portal do Administrador</h2>
           <p className="text-gray-500">Gerenciamento global da plataforma {APP_NAME}.</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"
-        >
-          <i className="fas fa-plus"></i> Adicionar Parceiro
-        </button>
+        <div className="flex items-center gap-3">
+          <div
+            className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide ${
+              runtimeMode === 'sandbox' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+            }`}
+            title="Ambiente atual usado pelos pagamentos e webhook Asaas"
+          >
+            {runtimeModeLoading ? 'Carregando...' : runtimeMode === 'sandbox' ? 'Sandbox ativo' : 'Produção ativa'}
+          </div>
+          <button
+            type="button"
+            onClick={requestToggleRuntimeMode}
+            disabled={runtimeModeLoading}
+            className="bg-slate-900 text-white px-4 py-3 rounded-2xl text-sm font-bold shadow-sm hover:bg-black transition-all disabled:opacity-60"
+          >
+            Alternar ambiente
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"
+          >
+            <i className="fas fa-plus"></i> Adicionar Parceiro
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -742,6 +826,59 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   Cadastrar estabelecimento
                 </button>
              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRuntimeModeModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 sm:p-8 animate-scale-in">
+            <div className="flex justify-between items-start gap-3">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Alternar ambiente de pagamento</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Atual: <strong>{runtimeMode === 'sandbox' ? 'Sandbox' : 'Produção'}</strong>. Próximo:{' '}
+                  <strong>{runtimeMode === 'sandbox' ? 'Produção' : 'Sandbox'}</strong>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRuntimeModeModal(false)}
+                className="p-2 rounded-xl text-gray-400 hover:text-gray-800 hover:bg-gray-100"
+              >
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            <div className="mt-5 space-y-2">
+              <p className="text-sm text-gray-700">
+                Para confirmar, digite <span className="font-black">CONFIRMAR</span>.
+              </p>
+              <input
+                type="text"
+                value={runtimeConfirmInput}
+                onChange={(e) => setRuntimeConfirmInput(e.target.value)}
+                placeholder="Digite CONFIRMAR"
+                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-indigo-600"
+              />
+            </div>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowRuntimeModeModal(false)}
+                className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100"
+                disabled={runtimeModeLoading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmToggleRuntimeMode}
+                disabled={runtimeModeLoading || runtimeConfirmInput.trim() !== 'CONFIRMAR'}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold disabled:opacity-50"
+              >
+                {runtimeModeLoading ? 'Trocando...' : 'Confirmar troca'}
+              </button>
             </div>
           </div>
         </div>

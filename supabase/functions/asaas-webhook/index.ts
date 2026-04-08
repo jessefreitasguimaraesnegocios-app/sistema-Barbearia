@@ -7,6 +7,7 @@
 // que possível para não pausar a fila de webhooks.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+type RuntimeMode = "production" | "sandbox";
 
 const PAYMENT_CONFIRMED_EVENTS = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
 const SUBSCRIPTION_OFF_EVENTS = ["SUBSCRIPTION_INACTIVATED", "SUBSCRIPTION_DELETED"];
@@ -19,7 +20,34 @@ const IGNORE_EVENTS = new Set<string>([
 ]);
 /** Variantes / eventos de cobrança apagada (Asaas pode enviar só PAYMENT_DELETED). */
 const PAYMENT_DELETED_LIKE = new Set<string>(["PAYMENT_DELETED", "PAYMENT_REMOVED", "PAYMENT_DELETED_BY"]);
-const ASAAS_API_URL = (Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3").replace(/\/$/, "");
+
+async function resolveAsaasRuntimeConfig(
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string; webhookToken: string }> {
+  let mode: RuntimeMode = "production";
+  const { data } = await supabase
+    .from("platform_runtime_settings")
+    .select("asaas_mode")
+    .eq("singleton_id", true)
+    .maybeSingle();
+  if (data?.asaas_mode === "sandbox") mode = "sandbox";
+
+  const defaultApiUrl = "https://api.asaas.com/v3";
+  if (mode === "sandbox") {
+    return {
+      mode,
+      apiKey: Deno.env.get("ASAAS_API_KEY_SANDBOX") || Deno.env.get("ASAAS_API_KEY") || "",
+      apiUrl: (Deno.env.get("ASAAS_API_URL_SANDBOX") || Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
+      webhookToken: Deno.env.get("ASAAS_WEBHOOK_TOKEN_SANDBOX") || Deno.env.get("ASAAS_WEBHOOK_TOKEN") || "",
+    };
+  }
+  return {
+    mode,
+    apiKey: Deno.env.get("ASAAS_API_KEY") || "",
+    apiUrl: (Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
+    webhookToken: Deno.env.get("ASAAS_WEBHOOK_TOKEN") || "",
+  };
+}
 
 function normalizeEventName(raw: unknown): string {
   return String(raw ?? "")
@@ -100,21 +128,29 @@ async function handleWebhook(req: Request): Promise<Response> {
     return jsonResponse({ received: false, error: "Method not allowed" }, 405);
   }
 
-  const webhookToken = Deno.env.get("ASAAS_WEBHOOK_TOKEN");
-  if (!webhookToken || String(webhookToken).trim() === "") {
-    console.error("[asaas-webhook] ASAAS_WEBHOOK_TOKEN not configured — configure o secret na Edge Function");
-    // 200: não penalizar fila Asaas; sem token não processamos de qualquer forma.
-    return jsonResponse({ received: true, note: "ASAAS_WEBHOOK_TOKEN not configured" });
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("[asaas-webhook] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing");
+    return jsonResponse({ received: true, note: "supabase_env_missing" });
   }
 
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const runtime = await resolveAsaasRuntimeConfig(supabase);
+  const webhookToken = runtime.webhookToken;
+  if (!webhookToken || String(webhookToken).trim() === "") {
+    console.error("[asaas-webhook] ASAAS_WEBHOOK_TOKEN not configured — configure o secret na Edge Function");
+    return jsonResponse({ received: true, note: "ASAAS_WEBHOOK_TOKEN not configured" });
+  }
   const expected = webhookToken.trim();
   const receivedToken = readIncomingWebhookToken(req);
   const ok = receivedToken !== "" && (await tokensMatch(expected, receivedToken));
   if (!ok) {
+    const tokenName = runtime.mode === "sandbox" ? "ASAAS_WEBHOOK_TOKEN_SANDBOX" : "ASAAS_WEBHOOK_TOKEN";
     return unauthorized(
       "Missing or invalid asaas-access-token",
       "No Asaas: Integrações → Webhooks → edite este webhook e defina o Token de autenticação (ou use Gerar token). " +
-        "No Supabase: Edge Functions → Secrets → ASAAS_WEBHOOK_TOKEN com o MESMO valor. Sem espaços a mais.",
+        `No Supabase: Edge Functions → Secrets → ${tokenName} com o MESMO valor. Sem espaços a mais.`,
     );
   }
 
@@ -127,17 +163,7 @@ async function handleWebhook(req: Request): Promise<Response> {
 
   const eventKey = normalizeEventName(payload?.event);
   const paymentIdEarly = extractPaymentId(payload);
-  console.log("[asaas-webhook] event=", eventKey, "paymentId=", paymentIdEarly || "(none)");
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("[asaas-webhook] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing");
-    return jsonResponse({ received: true, note: "supabase_env_missing" });
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
+  console.log("[asaas-webhook] mode=", runtime.mode, "event=", eventKey, "paymentId=", paymentIdEarly || "(none)");
 
   /** Cobrança removida no Asaas: desvincula PIX pendente para o cliente poder gerar outro. */
   if (PAYMENT_DELETED_LIKE.has(eventKey)) {
@@ -231,11 +257,11 @@ async function handleWebhook(req: Request): Promise<Response> {
     }
 
     let paymentDetail: { externalReference?: string | null; subscription?: string | { id?: string }; deleted?: boolean } | null = null;
-    if (asaasApiKey) {
+    if (runtime.apiKey) {
       try {
-        const paymentRes = await fetch(`${ASAAS_API_URL}/payments/${paymentId}`, {
+        const paymentRes = await fetch(`${runtime.apiUrl}/payments/${paymentId}`, {
           method: "GET",
-          headers: { "Content-Type": "application/json", access_token: asaasApiKey },
+          headers: { "Content-Type": "application/json", access_token: runtime.apiKey },
         });
         if (paymentRes.ok) {
           paymentDetail = (await paymentRes.json()) as {

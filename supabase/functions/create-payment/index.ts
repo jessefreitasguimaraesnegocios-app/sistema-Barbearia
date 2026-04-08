@@ -8,6 +8,33 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+type RuntimeMode = "production" | "sandbox";
+
+async function resolveAsaasRuntimeConfig(
+  supabaseAdmin: ReturnType<typeof createClient>,
+): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string }> {
+  let mode: RuntimeMode = "production";
+  const { data } = await supabaseAdmin
+    .from("platform_runtime_settings")
+    .select("asaas_mode")
+    .eq("singleton_id", true)
+    .maybeSingle();
+  if (data?.asaas_mode === "sandbox") mode = "sandbox";
+
+  const defaultApiUrl = "https://api.asaas.com/v3";
+  if (mode === "sandbox") {
+    return {
+      mode,
+      apiKey: Deno.env.get("ASAAS_API_KEY_SANDBOX") || Deno.env.get("ASAAS_API_KEY") || "",
+      apiUrl: (Deno.env.get("ASAAS_API_URL_SANDBOX") || Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
+    };
+  }
+  return {
+    mode,
+    apiKey: Deno.env.get("ASAAS_API_KEY") || "",
+    apiUrl: (Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
+  };
+}
 
 function normalizeAsaasMobilePhone(rawPhone: unknown): string {
   const fallback = "11999999999";
@@ -49,21 +76,8 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!asaasApiKey) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Configuração do gateway de pagamento indisponível (ASAAS_API_KEY).",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  }
   if (!supabaseUrl || !supabaseServiceKey) {
     return new Response(
       JSON.stringify({
@@ -76,10 +90,6 @@ Deno.serve(async (req: Request) => {
       }
     );
   }
-  const asaasBaseUrl = (
-    Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3"
-  ).replace(/\/$/, "");
-
   try {
     const authorization =
       (req.headers.get("Authorization") || req.headers.get("authorization") || "").trim();
@@ -97,6 +107,21 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const asaasRuntime = await resolveAsaasRuntimeConfig(supabaseAdmin);
+    const asaasApiKey = asaasRuntime.apiKey;
+    const asaasBaseUrl = asaasRuntime.apiUrl;
+    if (!asaasApiKey) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Configuração do gateway de pagamento indisponível (ASAAS_API_KEY em ${asaasRuntime.mode}).`,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
     /** Service role + JWT: validação server-side documentada (confiável no Edge vs anon getUser sem apikey no cliente). */
     const { data: userData, error: authErr } = await supabaseAdmin.auth.getUser(jwt);
     const user = userData?.user;

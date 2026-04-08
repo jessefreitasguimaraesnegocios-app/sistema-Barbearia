@@ -3,10 +3,39 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+type RuntimeMode = 'production' | 'sandbox';
+
+async function resolveAsaasRuntimeConfig(
+  supabase: { from: (table: string) => unknown }
+): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string }> {
+  let mode: RuntimeMode = 'production';
+  const runtimeSelect = supabase.from('platform_runtime_settings') as {
+    select: (fields: string) => {
+      eq: (column: string, value: unknown) => { maybeSingle: () => Promise<{ data: { asaas_mode?: string } | null }> };
+    };
+  };
+  const { data } = await runtimeSelect
+    .select('asaas_mode')
+    .eq('singleton_id', true)
+    .maybeSingle();
+  if (data?.asaas_mode === 'sandbox') mode = 'sandbox';
+
+  const defaultApiUrl = 'https://api.asaas.com/v3';
+  if (mode === 'sandbox') {
+    return {
+      mode,
+      apiKey: process.env.ASAAS_API_KEY_SANDBOX || process.env.ASAAS_API_KEY || '',
+      apiUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
+    };
+  }
+  return {
+    mode,
+    apiKey: process.env.ASAAS_API_KEY || '',
+    apiUrl: (process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
+  };
+}
 
 function normalizeAsaasMobilePhone(rawPhone: unknown): string {
   const fallback = '31999999999';
@@ -62,12 +91,6 @@ export default async function handler(
     return res.status(405).json({ success: false, error: 'Método não permitido. Use POST.' });
   }
 
-  if (!ASAAS_API_KEY) {
-    return res.status(500).json({
-      success: false,
-      error: 'Configuração do gateway de pagamento indisponível (ASAAS_API_KEY).',
-    });
-  }
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return res.status(500).json({
       success: false,
@@ -87,6 +110,16 @@ export default async function handler(
     const authUserId = authData?.user?.id;
     if (authErr || !authUserId) {
       return res.status(401).json({ success: false, error: 'Não autorizado: token inválido.' });
+    }
+
+    const asaasRuntime = await resolveAsaasRuntimeConfig(supabase);
+    const ASAAS_API_KEY = asaasRuntime.apiKey;
+    const ASAAS_API_URL = asaasRuntime.apiUrl;
+    if (!ASAAS_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: `Configuração do gateway de pagamento indisponível (ASAAS_API_KEY em ${asaasRuntime.mode}).`,
+      });
     }
 
     const body = (req.body || {}) as CreatePaymentBody;

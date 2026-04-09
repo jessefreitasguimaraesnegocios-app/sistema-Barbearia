@@ -4,9 +4,11 @@
 import { insertFinancialAudit } from '../../../../lib/server/financial-audit';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
-/** Colunas seguras (sem asaas_api_key). */
-const SHOP_SELECT_SAFE =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+/**
+ * Usamos `select('*')` após o update: o PostgREST só devolve colunas que existem no schema.
+ * Se `split_percent_sandbox` ainda não foi migrado no projeto, listar o nome na string `.select(...)`
+ * quebrava até PATCH só de mensalidade. A chave `asaas_api_key` é removida antes do JSON.
+ */
 
 function requestPathname(req: { url?: string }): string {
   const raw = req.url || '';
@@ -196,19 +198,34 @@ export default async function handler(
       });
     }
 
-    const { data: shop, error } = await auth.supabase
-      .from('shops')
-      .update(updates)
-      .eq('id', shopId)
-      .select(SHOP_SELECT_SAFE)
-      .single();
+    let shop: Record<string, unknown> | null = null;
+    let pgError: { message: string; code?: string } | null = null;
 
-    if (error) {
-      return res.status(400).json({ success: false, error: error.message });
+    try {
+      const result = await auth.supabase.from('shops').update(updates).eq('id', shopId).select('*').single();
+      shop = (result.data as Record<string, unknown> | null) ?? null;
+      pgError = result.error;
+    } catch (e) {
+      console.error('[api/admin/shops/[id]/subscription] supabase throw', e);
+      return res.status(502).json({
+        success: false,
+        error: e instanceof Error ? e.message : 'Falha ao comunicar com o banco (Supabase).',
+      });
+    }
+
+    if (pgError) {
+      const msg = pgError.message || 'Erro ao atualizar loja.';
+      const hintSandbox =
+        msg.toLowerCase().includes('split_percent_sandbox') || msg.includes('PGRST204')
+          ? ' Confirme se a migration shops.split_percent_sandbox foi aplicada (npm run db:push).'
+          : '';
+      return res.status(400).json({ success: false, error: msg + hintSandbox });
     }
     if (!shop) {
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
     }
+
+    delete shop.asaas_api_key;
 
     if (keyUpdateRequested) {
       await insertFinancialAudit(auth.supabase, {
@@ -224,7 +241,7 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      shop: mapShopResponse(shop as Record<string, unknown>),
+      shop: mapShopResponse(shop),
     });
   } catch (e) {
     console.error('[api/admin/shops/[id]/subscription]', e);

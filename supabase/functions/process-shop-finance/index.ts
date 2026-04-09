@@ -4,6 +4,7 @@
 /// <reference path="./deno.d.ts" />
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { readAsaasApiKey, readAsaasBaseUrl } from "../_shared/asaasEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,8 +116,8 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: true, processed: 0, results: [], message: "Nenhuma loja elegível." });
   }
 
-  const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
-  const asaasBaseUrl = (Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3").replace(/\/$/, "");
+  const asaasApiKey = readAsaasApiKey("ASAAS_API_KEY");
+  const asaasBaseUrl = readAsaasBaseUrl(["ASAAS_API_URL"], "https://api-sandbox.asaas.com/v3");
 
   const runtimeEnvironment = resolveEnvironment(asaasBaseUrl, Deno.env.get("ASAAS_PROVISIONER_ENV") || undefined);
   const walletColumn = walletColumnByEnvironment(runtimeEnvironment);

@@ -7,6 +7,7 @@
 // que possível para não pausar a fila de webhooks.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { readAsaasApiKey, readAsaasBaseUrl } from "../_shared/asaasEnv.ts";
 type RuntimeMode = "production" | "sandbox";
 
 const PAYMENT_CONFIRMED_EVENTS = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
@@ -32,20 +33,21 @@ async function resolveAsaasRuntimeConfig(
     .maybeSingle();
   if (data?.asaas_mode === "sandbox") mode = "sandbox";
 
-  const defaultApiUrl = "https://api.asaas.com/v3";
+  const defaultProdUrl = "https://api.asaas.com/v3";
+  const defaultSandboxUrl = "https://api-sandbox.asaas.com/v3";
   if (mode === "sandbox") {
     return {
       mode,
-      apiKey: Deno.env.get("ASAAS_API_KEY_SANDBOX") || Deno.env.get("ASAAS_API_KEY") || "",
-      apiUrl: (Deno.env.get("ASAAS_API_URL_SANDBOX") || Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
-      webhookToken: Deno.env.get("ASAAS_WEBHOOK_TOKEN_SANDBOX") || Deno.env.get("ASAAS_WEBHOOK_TOKEN") || "",
+      apiKey: readAsaasApiKey("ASAAS_API_KEY_SANDBOX", "ASAAS_API_KEY"),
+      apiUrl: readAsaasBaseUrl(["ASAAS_API_URL_SANDBOX", "ASAAS_API_URL"], defaultSandboxUrl),
+      webhookToken: readAsaasApiKey("ASAAS_WEBHOOK_TOKEN_SANDBOX", "ASAAS_WEBHOOK_TOKEN"),
     };
   }
   return {
     mode,
-    apiKey: Deno.env.get("ASAAS_API_KEY") || "",
-    apiUrl: (Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
-    webhookToken: Deno.env.get("ASAAS_WEBHOOK_TOKEN") || "",
+    apiKey: readAsaasApiKey("ASAAS_API_KEY"),
+    apiUrl: readAsaasBaseUrl(["ASAAS_API_URL"], defaultProdUrl),
+    webhookToken: readAsaasApiKey("ASAAS_WEBHOOK_TOKEN"),
   };
 }
 

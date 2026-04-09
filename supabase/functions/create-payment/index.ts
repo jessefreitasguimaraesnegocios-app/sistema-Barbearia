@@ -2,6 +2,7 @@
 // Cria cobrança Asaas (PIX) com split para a carteira da loja e opcionalmente grava agendamento/pedido PENDING no Supabase
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { readAsaasApiKey, readAsaasBaseUrl } from "../_shared/asaasEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,18 +54,19 @@ async function resolveAsaasRuntimeConfig(
     .maybeSingle();
   if (data?.asaas_mode === "sandbox") mode = "sandbox";
 
-  const defaultApiUrl = "https://api.asaas.com/v3";
+  const defaultProdUrl = "https://api.asaas.com/v3";
+  const defaultSandboxUrl = "https://api-sandbox.asaas.com/v3";
   if (mode === "sandbox") {
     return {
       mode,
-      apiKey: Deno.env.get("ASAAS_API_KEY_SANDBOX") || Deno.env.get("ASAAS_API_KEY") || "",
-      apiUrl: (Deno.env.get("ASAAS_API_URL_SANDBOX") || Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
+      apiKey: readAsaasApiKey("ASAAS_API_KEY_SANDBOX", "ASAAS_API_KEY"),
+      apiUrl: readAsaasBaseUrl(["ASAAS_API_URL_SANDBOX", "ASAAS_API_URL"], defaultSandboxUrl),
     };
   }
   return {
     mode,
-    apiKey: Deno.env.get("ASAAS_API_KEY") || "",
-    apiUrl: (Deno.env.get("ASAAS_API_URL") || defaultApiUrl).replace(/\/$/, ""),
+    apiKey: readAsaasApiKey("ASAAS_API_KEY"),
+    apiUrl: readAsaasBaseUrl(["ASAAS_API_URL"], defaultProdUrl),
   };
 }
 

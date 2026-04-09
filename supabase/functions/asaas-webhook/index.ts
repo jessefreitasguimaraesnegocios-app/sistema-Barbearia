@@ -22,33 +22,59 @@ const IGNORE_EVENTS = new Set<string>([
 /** Variantes / eventos de cobrança apagada (Asaas pode enviar só PAYMENT_DELETED). */
 const PAYMENT_DELETED_LIKE = new Set<string>(["PAYMENT_DELETED", "PAYMENT_REMOVED", "PAYMENT_DELETED_BY"]);
 
-async function resolveAsaasRuntimeConfig(
-  supabase: ReturnType<typeof createClient>,
-): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string; webhookToken: string }> {
-  let mode: RuntimeMode = "production";
-  const { data } = await supabase
-    .from("platform_runtime_settings")
-    .select("asaas_mode")
-    .eq("singleton_id", true)
-    .maybeSingle();
-  if (data?.asaas_mode === "sandbox") mode = "sandbox";
+async function tokensMatch(expected: string, received: string): Promise<boolean> {
+  try {
+    const a = new TextEncoder().encode(expected);
+    const b = new TextEncoder().encode(received);
+    if (a.length !== b.length) return false;
+    return await crypto.subtle.timingSafeEqual(a, b);
+  } catch (e) {
+    console.error("[asaas-webhook] tokensMatch error:", e);
+    return false;
+  }
+}
+
+type WebhookRuntime = { mode: RuntimeMode; apiKey: string; apiUrl: string };
+
+/**
+ * Webhook ≠ toggle do admin: produção pode receber fila sandbox (Asaas_Hmlg) e vice-versa.
+ * Aceita o token que bater (sandbox ou produção), com ordem por User-Agent.
+ */
+async function resolveWebhookRuntime(
+  req: Request,
+  receivedToken: string,
+): Promise<{ ok: true; runtime: WebhookRuntime } | { ok: false; reason: "no_secrets" | "bad_token" }> {
+  const sandTok = readAsaasApiKey("ASAAS_WEBHOOK_TOKEN_SANDBOX");
+  const prodTok = readAsaasApiKey("ASAAS_WEBHOOK_TOKEN");
+  if (!sandTok.trim() && !prodTok.trim()) {
+    return { ok: false, reason: "no_secrets" };
+  }
 
   const defaultProdUrl = "https://api.asaas.com/v3";
   const defaultSandboxUrl = "https://api-sandbox.asaas.com/v3";
-  if (mode === "sandbox") {
-    return {
-      mode,
-      apiKey: readAsaasApiKey("ASAAS_API_KEY_SANDBOX", "ASAAS_API_KEY"),
-      apiUrl: readAsaasBaseUrl(["ASAAS_API_URL_SANDBOX", "ASAAS_API_URL"], defaultSandboxUrl),
-      webhookToken: readAsaasApiKey("ASAAS_WEBHOOK_TOKEN_SANDBOX", "ASAAS_WEBHOOK_TOKEN"),
-    };
+  const sandKey = readAsaasApiKey("ASAAS_API_KEY_SANDBOX", "ASAAS_API_KEY");
+  const sandUrl = readAsaasBaseUrl(["ASAAS_API_URL_SANDBOX", "ASAAS_API_URL"], defaultSandboxUrl);
+  const prodKey = readAsaasApiKey("ASAAS_API_KEY");
+  const prodUrl = readAsaasBaseUrl(["ASAAS_API_URL"], defaultProdUrl);
+
+  type Row = { mode: RuntimeMode; tok: string; apiKey: string; apiUrl: string };
+  const rows: Row[] = [];
+  if (sandTok.trim()) rows.push({ mode: "sandbox", tok: sandTok.trim(), apiKey: sandKey, apiUrl: sandUrl });
+  if (prodTok.trim()) rows.push({ mode: "production", tok: prodTok.trim(), apiKey: prodKey, apiUrl: prodUrl });
+
+  const ua = (req.headers.get("user-agent") || "").toLowerCase();
+  const sandboxFirst = ua.includes("hmlg") || ua.includes("sandbox");
+
+  const ordered = sandboxFirst
+    ? [...rows.filter((r) => r.mode === "sandbox"), ...rows.filter((r) => r.mode === "production")]
+    : [...rows.filter((r) => r.mode === "production"), ...rows.filter((r) => r.mode === "sandbox")];
+
+  for (const r of ordered) {
+    if (await tokensMatch(r.tok, receivedToken)) {
+      return { ok: true, runtime: { mode: r.mode, apiKey: r.apiKey, apiUrl: r.apiUrl } };
+    }
   }
-  return {
-    mode,
-    apiKey: readAsaasApiKey("ASAAS_API_KEY"),
-    apiUrl: readAsaasBaseUrl(["ASAAS_API_URL"], defaultProdUrl),
-    webhookToken: readAsaasApiKey("ASAAS_WEBHOOK_TOKEN"),
-  };
+  return { ok: false, reason: "bad_token" };
 }
 
 function normalizeEventName(raw: unknown): string {
@@ -86,18 +112,6 @@ function readIncomingWebhookToken(req: Request): string {
     return auth.replace(/^Bearer\s+/i, "").trim();
   }
   return "";
-}
-
-async function tokensMatch(expected: string, received: string): Promise<boolean> {
-  try {
-    const a = new TextEncoder().encode(expected);
-    const b = new TextEncoder().encode(received);
-    if (a.length !== b.length) return false;
-    return await crypto.subtle.timingSafeEqual(a, b);
-  } catch (e) {
-    console.error("[asaas-webhook] tokensMatch error:", e);
-    return false;
-  }
 }
 
 function extractSubscriptionId(raw: unknown): string | null {
@@ -138,23 +152,28 @@ async function handleWebhook(req: Request): Promise<Response> {
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  const runtime = await resolveAsaasRuntimeConfig(supabase);
-  const webhookToken = runtime.webhookToken;
-  if (!webhookToken || String(webhookToken).trim() === "") {
-    console.error("[asaas-webhook] ASAAS_WEBHOOK_TOKEN not configured — configure o secret na Edge Function");
+  const receivedToken = readIncomingWebhookToken(req);
+
+  const auth = await resolveWebhookRuntime(req, receivedToken);
+  if (auth.ok === false && auth.reason === "no_secrets") {
+    console.error("[asaas-webhook] ASAAS_WEBHOOK_TOKEN / _SANDBOX não configurados");
     return jsonResponse({ received: true, note: "ASAAS_WEBHOOK_TOKEN not configured" });
   }
-  const expected = webhookToken.trim();
-  const receivedToken = readIncomingWebhookToken(req);
-  const ok = receivedToken !== "" && (await tokensMatch(expected, receivedToken));
-  if (!ok) {
-    const tokenName = runtime.mode === "sandbox" ? "ASAAS_WEBHOOK_TOKEN_SANDBOX" : "ASAAS_WEBHOOK_TOKEN";
+  if (receivedToken === "") {
     return unauthorized(
       "Missing or invalid asaas-access-token",
-      "No Asaas: Integrações → Webhooks → edite este webhook e defina o Token de autenticação (ou use Gerar token). " +
-        `No Supabase: Edge Functions → Secrets → ${tokenName} com o MESMO valor. Sem espaços a mais.`,
+      "O Asaas não enviou o header asaas-access-token. No painel Asaas (Integrações → Webhooks), defina o " +
+        "Token de autenticação igual a ASAAS_WEBHOOK_TOKEN_SANDBOX (homologação) ou ASAAS_WEBHOOK_TOKEN (produção) no Supabase.",
     );
   }
+  if (auth.ok === false && auth.reason === "bad_token") {
+    return unauthorized(
+      "Missing or invalid asaas-access-token",
+      "O token do webhook não bate com nenhum secret. Supabase → Secrets: ASAAS_WEBHOOK_TOKEN_SANDBOX (sandbox / Asaas_Hmlg) " +
+        "e/ou ASAAS_WEBHOOK_TOKEN (produção), com o MESMO valor do campo Token no webhook Asaas. Sem espaços a mais.",
+    );
+  }
+  const runtime = auth.runtime;
 
   let payload: AsaasPayload = {};
   try {
@@ -263,7 +282,11 @@ async function handleWebhook(req: Request): Promise<Response> {
       try {
         const paymentRes = await fetch(`${runtime.apiUrl}/payments/${paymentId}`, {
           method: "GET",
-          headers: { "Content-Type": "application/json", access_token: runtime.apiKey },
+          headers: {
+            "Content-Type": "application/json",
+            "User-Agent": "SmartCria-Barbearia/1.0",
+            access_token: runtime.apiKey,
+          },
         });
         if (paymentRes.ok) {
           paymentDetail = (await paymentRes.json()) as {

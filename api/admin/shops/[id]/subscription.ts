@@ -4,11 +4,26 @@
 import { insertFinancialAudit } from '../../../../lib/server/financial-audit';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
-/**
- * Usamos `select('*')` após o update: o PostgREST só devolve colunas que existem no schema.
- * Se `split_percent_sandbox` ainda não foi migrado no projeto, listar o nome na string `.select(...)`
- * quebrava até PATCH só de mensalidade. A chave `asaas_api_key` é removida antes do JSON.
- */
+/** Mesmas colunas que `SHOPS_SELECT_ADMIN` (sem `asaas_api_key` — evita payload/serialização e vazamento). */
+const SHOP_ROW_SELECT_AFTER_PATCH =
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+
+function normalizeJsonBody(raw: unknown): Record<string, unknown> {
+  if (raw == null) return {};
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t) return {};
+    try {
+      const p = JSON.parse(t) as unknown;
+      if (typeof p === 'object' && p !== null && !Array.isArray(p)) return p as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+    return {};
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  return {};
+}
 
 function requestPathname(req: { url?: string }): string {
   const raw = req.url || '';
@@ -22,9 +37,12 @@ function requestPathname(req: { url?: string }): string {
   return raw.split('?')[0] || '';
 }
 
-function getShopId(req: { query?: { id?: string }; url?: string }): string | null {
+function getShopId(req: { query?: { id?: string | string[] }; url?: string }): string | null {
   const q = req.query?.id;
-  if (q && String(q).trim()) return String(q).trim();
+  if (q != null) {
+    const one = Array.isArray(q) ? q[0] : q;
+    if (one && String(one).trim()) return String(one).trim();
+  }
   const pathname = requestPathname(req);
   const match = pathname.match(/\/api\/admin\/shops\/([^/]+)\/subscription/);
   return match ? match[1].trim() : null;
@@ -122,8 +140,8 @@ export default async function handler(
   req: {
     method?: string;
     url?: string;
-    query?: { id?: string };
-    body?: Record<string, unknown>;
+    query?: { id?: string | string[] };
+    body?: Record<string, unknown> | string;
     headers?: Record<string, string | string[] | undefined>;
   },
   res: { setHeader: (k: string, v: string) => void; status: (n: number) => { json: (o: object) => void; end: () => void }; end?: (code?: number) => void }
@@ -151,7 +169,7 @@ export default async function handler(
       return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
     }
 
-    const body = (req.body || {}) as {
+    const body = normalizeJsonBody(req.body) as {
       subscriptionActive?: boolean;
       subscriptionAmount?: unknown;
       splitPercent?: unknown;
@@ -202,7 +220,12 @@ export default async function handler(
     let pgError: { message: string; code?: string } | null = null;
 
     try {
-      const result = await auth.supabase.from('shops').update(updates).eq('id', shopId).select('*').single();
+      const result = await auth.supabase
+        .from('shops')
+        .update(updates)
+        .eq('id', shopId)
+        .select(SHOP_ROW_SELECT_AFTER_PATCH)
+        .single();
       shop = (result.data as Record<string, unknown> | null) ?? null;
       pgError = result.error;
     } catch (e) {
@@ -225,23 +248,38 @@ export default async function handler(
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
     }
 
-    delete shop.asaas_api_key;
-
     if (keyUpdateRequested) {
-      await insertFinancialAudit(auth.supabase, {
-        shop_id: shopId,
-        actor_user_id: auth.userId,
-        action: 'SHOP_API_KEY_UPDATED',
-        result: 'success',
-        metadata: { cleared: body.asaasApiKey === '' || body.asaasApiKey === null },
-        ip: clientMeta.ip,
-        user_agent: clientMeta.userAgent,
+      try {
+        await insertFinancialAudit(auth.supabase, {
+          shop_id: shopId,
+          actor_user_id: auth.userId,
+          action: 'SHOP_API_KEY_UPDATED',
+          result: 'success',
+          metadata: { cleared: body.asaasApiKey === '' || body.asaasApiKey === null },
+          ip: clientMeta.ip,
+          user_agent: clientMeta.userAgent,
+        });
+      } catch (auditErr) {
+        console.error('[api/admin/shops/[id]/subscription] audit insert', auditErr);
+      }
+    }
+
+    let mapped: ReturnType<typeof mapShopResponse>;
+    try {
+      mapped = mapShopResponse(shop);
+      JSON.stringify(mapped);
+    } catch (mapErr) {
+      console.error('[api/admin/shops/[id]/subscription] map/serialize', mapErr);
+      return res.status(500).json({
+        success: false,
+        error: 'Falha ao montar resposta da loja.',
+        details: mapErr instanceof Error ? mapErr.message : String(mapErr),
       });
     }
 
     return res.status(200).json({
       success: true,
-      shop: mapShopResponse(shop),
+      shop: mapped,
     });
   } catch (e) {
     console.error('[api/admin/shops/[id]/subscription]', e);

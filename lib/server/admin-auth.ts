@@ -25,9 +25,19 @@ export async function assertAdminFromRequest(req: {
     return { success: false as const, status: 401, error: 'Token de autorização não enviado. Faça login novamente.' };
   }
 
-  const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: { Authorization: `Bearer ${token}`, apikey: anonKey },
-  });
+  let authRes: Response;
+  try {
+    authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: anonKey },
+    });
+  } catch (e) {
+    console.error('[admin-auth] auth fetch failed', e);
+    return {
+      success: false as const,
+      status: 502,
+      error: 'Não foi possível validar a sessão (rede). Tente de novo.',
+    };
+  }
   if (!authRes.ok) {
     return { success: false as const, status: 401, error: 'Sessão inválida ou expirada. Faça login novamente.' };
   }

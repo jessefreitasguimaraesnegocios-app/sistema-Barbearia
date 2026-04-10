@@ -22,11 +22,19 @@ async function parseSubscriptionPatchResponse(
 ): Promise<{ success: boolean; shop?: Shop; error?: string }> {
   const text = await res.text();
   try {
-    const data = JSON.parse(text) as { success?: boolean; shop?: Shop; error?: string };
+    const data = JSON.parse(text) as {
+      success?: boolean;
+      shop?: Shop;
+      error?: string;
+      details?: string;
+    };
+    const baseErr = typeof data.error === 'string' ? data.error : undefined;
+    const details =
+      typeof data.details === 'string' && data.details.trim() !== '' ? data.details.trim().slice(0, 400) : '';
     return {
       success: data.success === true,
       shop: data.shop,
-      error: typeof data.error === 'string' ? data.error : undefined,
+      error: details ? (baseErr ? `${baseErr} (${details})` : details) : baseErr,
     };
   } catch {
     const error =

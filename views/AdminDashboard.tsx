@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME } from '../lib/branding';
@@ -69,6 +69,33 @@ function formatCep(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
+/** Rascunho local da linha financeira (mensalidade / splits / ID Asaas) — persiste só com Salvar. */
+type ShopFinancialDraft = {
+  subscriptionAmount: number;
+  splitPercent: number;
+  splitPercentSandbox: number;
+  asaasPlatformSubscriptionId: string;
+};
+
+function shopToFinancialDraft(shop: Shop): ShopFinancialDraft {
+  return {
+    subscriptionAmount: shop.subscriptionAmount ?? 99,
+    splitPercent: shop.splitPercent ?? 95,
+    splitPercentSandbox: shop.splitPercentSandbox ?? shop.splitPercent ?? 95,
+    asaasPlatformSubscriptionId: shop.asaasPlatformSubscriptionId ?? '',
+  };
+}
+
+function financialDraftDirty(shop: Shop, draft: ShopFinancialDraft): boolean {
+  const o = shopToFinancialDraft(shop);
+  return (
+    draft.subscriptionAmount !== o.subscriptionAmount ||
+    draft.splitPercent !== o.splitPercent ||
+    draft.splitPercentSandbox !== o.splitPercentSandbox ||
+    draft.asaasPlatformSubscriptionId.trim() !== o.asaasPlatformSubscriptionId.trim()
+  );
+}
+
 interface AdminDashboardProps {
   shops: Shop[];
   setShops: (shops: Shop[]) => void;
@@ -93,7 +120,85 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     postalCode: '',
     address: '',
     subscriptionAmount: 99,
+    splitPercent: 95,
+    splitPercentSandbox: 95,
   });
+
+  const [financialDrafts, setFinancialDrafts] = useState<Record<string, ShopFinancialDraft>>({});
+  const [savingFinancialShopId, setSavingFinancialShopId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const ids = new Set(shops.map((s) => s.id));
+    setFinancialDrafts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const id of Object.keys(next)) {
+        if (!ids.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [shops]);
+
+  const getFinancialDraft = (shop: Shop): ShopFinancialDraft =>
+    financialDrafts[shop.id] ?? shopToFinancialDraft(shop);
+
+  const patchFinancialDraft = (shop: Shop, patch: Partial<ShopFinancialDraft>) => {
+    setFinancialDrafts((prev) => {
+      const base = prev[shop.id] ?? shopToFinancialDraft(shop);
+      return { ...prev, [shop.id]: { ...base, ...patch } };
+    });
+  };
+
+  const clearFinancialDraft = (shopId: string) => {
+    setFinancialDrafts((prev) => {
+      if (!(shopId in prev)) return prev;
+      const next = { ...prev };
+      delete next[shopId];
+      return next;
+    });
+  };
+
+  const saveShopFinancialDraft = async (shop: Shop) => {
+    const draft = financialDrafts[shop.id];
+    if (!draft || !financialDraftDirty(shop, draft)) return;
+
+    const orig = shopToFinancialDraft(shop);
+    const body: Record<string, unknown> = {};
+    if (draft.subscriptionAmount !== orig.subscriptionAmount) body.subscriptionAmount = draft.subscriptionAmount;
+    if (draft.splitPercent !== orig.splitPercent) body.splitPercent = draft.splitPercent;
+    if (draft.splitPercentSandbox !== orig.splitPercentSandbox) body.splitPercentSandbox = draft.splitPercentSandbox;
+    const dTrim = draft.asaasPlatformSubscriptionId.trim();
+    const oTrim = orig.asaasPlatformSubscriptionId.trim();
+    if (dTrim !== oTrim) {
+      body.asaasPlatformSubscriptionId = dTrim === '' ? null : dTrim.slice(0, 200);
+    }
+
+    if (Object.keys(body).length === 0) return;
+
+    setSavingFinancialShopId(shop.id);
+    try {
+      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
+        method: 'PATCH',
+        headers: await adminAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      const data = await parseSubscriptionPatchResponse(response);
+      if (data.success && data.shop) {
+        setShops((prev) => prev.map((s) => (s.id === shop.id ? (data.shop as Shop) : s)));
+        clearFinancialDraft(shop.id);
+      } else {
+        alert(data.error || 'Erro ao salvar alterações financeiras.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao salvar alterações.');
+    } finally {
+      setSavingFinancialShopId(null);
+    }
+  };
 
   const handleAddShop = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +213,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       }
 
       const subAmt = Number(formData.subscriptionAmount);
+      const sp = Math.min(100, Math.max(0, Math.floor(Number(formData.splitPercent))));
+      const sps = Math.min(100, Math.max(0, Math.floor(Number(formData.splitPercentSandbox))));
       const phoneDigits = formData.phone.replace(/\D/g, '');
       const cepDigits = formData.postalCode.replace(/\D/g, '').slice(0, 8);
       const body = {
@@ -120,6 +227,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
         address: formData.address.trim() || undefined,
         postalCode: cepDigits.length === 8 ? cepDigits : undefined,
         subscriptionAmount: Number.isFinite(subAmt) && subAmt >= 0 ? subAmt : 99,
+        splitPercent: Number.isFinite(sp) ? sp : 95,
+        splitPercentSandbox: Number.isFinite(sps) ? sps : 95,
       };
 
       let responseOk: boolean;
@@ -198,6 +307,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
           postalCode: '',
           address: '',
           subscriptionAmount: 99,
+          splitPercent: 95,
+          splitPercentSandbox: 95,
         });
         alert(
           'Estabelecimento cadastrado. O dono já pode entrar com o e-mail e a senha informados. Dados bancários e contas de recebimento cadastre no teu sistema externo.'
@@ -231,6 +342,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops(shops.map(s => s.id === shop.id ? data.shop : s));
+        clearFinancialDraft(shop.id);
       } else {
         alert(data.error || 'Erro ao atualizar assinatura.');
       }
@@ -290,100 +402,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
     }
   };
 
-  const saveSubscriptionAmount = async (shop: Shop, newAmount: number) => {
-    if (newAmount < 0) return;
-    // Não comparar com shop.* aqui: o onChange já atualizou o estado local antes do blur,
-    // e isso faria o PATCH ser ignorado mesmo quando o valor mudou de fato.
-    try {
-      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
-        method: 'PATCH',
-        headers: await adminAuthHeaders(),
-        body: JSON.stringify({ subscriptionAmount: newAmount })
-      });
-      const data = await parseSubscriptionPatchResponse(response);
-      if (data.success && data.shop) {
-        setShops(shops.map(s => s.id === shop.id ? data.shop : s));
-      } else {
-        alert(data.error || 'Erro ao atualizar mensalidade.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Erro de conexão ao atualizar mensalidade.');
-    }
-  };
-
-  const savePlatformSubscriptionId = async (shop: Shop, raw: string) => {
-    const trimmed = raw.trim();
-    const current = (shop.asaasPlatformSubscriptionId ?? '').trim();
-    if (trimmed === current) return;
-    try {
-      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
-        method: 'PATCH',
-        headers: await adminAuthHeaders(),
-        body: JSON.stringify({
-          asaasPlatformSubscriptionId: trimmed === '' ? null : trimmed.slice(0, 200),
-        }),
-      });
-      const data = await parseSubscriptionPatchResponse(response);
-      if (data.success && data.shop) {
-        setShops(shops.map((s) => (s.id === shop.id ? data.shop : s)));
-      } else {
-        alert(data.error || 'Erro ao atualizar ID da assinatura Asaas.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Erro de conexão ao atualizar ID da assinatura.');
-    }
-  };
-
-  const saveSplitPercent = async (shop: Shop, newPercent: number) => {
-    const v = Math.min(100, Math.max(0, newPercent));
-    // Não comparar com shop.splitPercent: o onChange já sincronizou o estado antes do blur,
-    // então current === v sempre e o save nunca rodava.
-    try {
-      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
-        method: 'PATCH',
-        headers: await adminAuthHeaders(),
-        body: JSON.stringify({ splitPercent: v })
-      });
-      const data = await parseSubscriptionPatchResponse(response);
-      if (data.success && data.shop) {
-        setShops(shops.map(s => s.id === shop.id ? data.shop : s));
-      } else {
-        alert(data.error || 'Erro ao atualizar % split produção.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Erro de conexão ao atualizar % split produção.');
-    }
-  };
-
-  const saveSplitPercentSandbox = async (shop: Shop, newPercent: number) => {
-    const v = Math.min(100, Math.max(0, newPercent));
-    try {
-      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
-        method: 'PATCH',
-        headers: await adminAuthHeaders(),
-        body: JSON.stringify({ splitPercentSandbox: v }),
-      });
-      const data = await parseSubscriptionPatchResponse(response);
-      if (data.success && data.shop) {
-        setShops(shops.map((s) => (s.id === shop.id ? data.shop : s)));
-      } else {
-        alert(data.error || 'Erro ao atualizar % split sandbox.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Erro de conexão ao atualizar % split sandbox.');
-    }
-  };
-
   const deleteShop = async (shop: Shop) => {
     if (!window.confirm(`Excluir o estabelecimento "${shop.name}"? Esta ação não pode ser desfeita.`)) return;
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}`, { method: 'DELETE', headers: await adminAuthHeaders() });
       const data = await response.json();
       if (data.success) {
+        clearFinancialDraft(shop.id);
         setShops(shops.filter(s => s.id !== shop.id));
       } else {
         alert(data.error || 'Erro ao excluir estabelecimento.');
@@ -505,6 +530,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       <div className="bg-white rounded-4xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-8 border-b border-gray-50">
           <h3 className="text-xl font-bold text-gray-900">Lista de Parceiros</h3>
+          <p className="text-sm text-gray-500 mt-2">
+            Mensalidade, splits e ID da assinatura Asaas só são gravados no banco ao clicar em{' '}
+            <span className="font-semibold text-gray-700">Salvar</span> na linha do parceiro.
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -522,8 +551,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {shops.map(shop => (
-                <tr key={shop.id} className="hover:bg-gray-50 transition-colors">
+              {shops.map((shop) => {
+                const fd = getFinancialDraft(shop);
+                const rowFinancialDirty = financialDraftDirty(shop, fd);
+                return (
+                <tr
+                  key={shop.id}
+                  className={`transition-colors ${rowFinancialDirty ? 'bg-amber-50/50' : 'hover:bg-gray-50'}`}
+                >
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
                       <img src={shop.profileImage} className="w-10 h-10 rounded-xl object-cover" alt="" />
@@ -554,16 +589,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                         min={0}
                         step={1}
                         className="w-20 p-2 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-indigo-600"
-                        value={shop.subscriptionAmount ?? 99}
-                        onChange={e => {
+                        value={fd.subscriptionAmount}
+                        onChange={(e) => {
                           const v = Number(e.target.value);
-                          if (!Number.isNaN(v) && v >= 0) {
-                            setShops(shops.map(s => s.id === shop.id ? { ...s, subscriptionAmount: v } : s));
-                          }
-                        }}
-                        onBlur={e => {
-                          const v = Number((e.target as HTMLInputElement).value);
-                          if (!Number.isNaN(v) && v >= 0) saveSubscriptionAmount(shop, v);
+                          if (!Number.isNaN(v) && v >= 0) patchFinancialDraft(shop, { subscriptionAmount: v });
                         }}
                       />
                     </div>
@@ -574,12 +603,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                       placeholder="sub_…"
                       title="ID da assinatura na conta Asaas mãe (mensalidade)"
                       className="w-full min-w-0 p-2 rounded-xl bg-gray-50 border border-gray-100 text-[11px] font-mono text-gray-800 focus:ring-2 focus:ring-indigo-600"
-                      value={shop.asaasPlatformSubscriptionId ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setShops(shops.map((s) => (s.id === shop.id ? { ...s, asaasPlatformSubscriptionId: v } : s)));
-                      }}
-                      onBlur={(e) => savePlatformSubscriptionId(shop, e.target.value)}
+                      value={fd.asaasPlatformSubscriptionId}
+                      onChange={(e) => patchFinancialDraft(shop, { asaasPlatformSubscriptionId: e.target.value })}
                     />
                   </td>
                   <td className="px-8 py-6">
@@ -591,16 +616,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                         max={100}
                         step={1}
                         className="w-16 p-2 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-indigo-600"
-                        value={shop.splitPercent ?? 95}
-                        onChange={e => {
+                        value={fd.splitPercent}
+                        onChange={(e) => {
                           const v = Number(e.target.value);
-                          if (!Number.isNaN(v) && v >= 0 && v <= 100) {
-                            setShops(shops.map(s => s.id === shop.id ? { ...s, splitPercent: v } : s));
-                          }
-                        }}
-                        onBlur={e => {
-                          const v = Number((e.target as HTMLInputElement).value);
-                          if (!Number.isNaN(v) && v >= 0 && v <= 100) saveSplitPercent(shop, v);
+                          if (!Number.isNaN(v) && v >= 0 && v <= 100) patchFinancialDraft(shop, { splitPercent: v });
                         }}
                       />
                     </div>
@@ -616,16 +635,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                           step={1}
                           title="Usado quando o gateway está em modo sandbox"
                           className="w-16 p-2 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-amber-600"
-                          value={shop.splitPercentSandbox ?? shop.splitPercent ?? 95}
+                          value={fd.splitPercentSandbox}
                           onChange={(e) => {
                             const v = Number(e.target.value);
                             if (!Number.isNaN(v) && v >= 0 && v <= 100) {
-                              setShops(shops.map((s) => (s.id === shop.id ? { ...s, splitPercentSandbox: v } : s)));
+                              patchFinancialDraft(shop, { splitPercentSandbox: v });
                             }
-                          }}
-                          onBlur={(e) => {
-                            const v = Number((e.target as HTMLInputElement).value);
-                            if (!Number.isNaN(v) && v >= 0 && v <= 100) saveSplitPercentSandbox(shop, v);
                           }}
                         />
                       </div>
@@ -657,13 +672,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-3 flex-wrap">
-                      <button 
+                      <button
+                        type="button"
+                        onClick={() => void saveShopFinancialDraft(shop)}
+                        disabled={!rowFinancialDirty || savingFinancialShopId === shop.id}
+                        className="text-sm font-bold px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {savingFinancialShopId === shop.id ? 'Salvando…' : 'Salvar'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => toggleSubscription(shop)}
                         className={`text-sm font-bold ${shop.subscriptionActive ? 'text-red-500' : 'text-green-600'} hover:underline`}
                       >
                         {shop.subscriptionActive ? 'Suspender' : 'Reativar'}
                       </button>
                       <button
+                        type="button"
                         onClick={() => deleteShop(shop)}
                         className="text-sm font-bold text-gray-500 hover:text-red-600 hover:underline"
                       >
@@ -672,7 +697,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -885,6 +911,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
                       onChange={e => setFormData({...formData, subscriptionAmount: Math.max(0, Number(e.target.value) || 99)})}
                     />
                     <p className="text-xs text-gray-400 mt-1">Valor de referência na plataforma (podes ajustar depois na tabela).</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">% Split Asaas (produção)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                      value={formData.splitPercent}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          splitPercent: Math.max(0, Math.min(100, Math.floor(Number(e.target.value)) || 95)),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Percentual para a subconta quando o gateway está em produção.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">% Split Asaas (sandbox)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-amber-600"
+                      value={formData.splitPercentSandbox}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          splitPercentSandbox: Math.max(0, Math.min(100, Math.floor(Number(e.target.value)) || 95)),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Usado quando a plataforma está em modo sandbox.</p>
                   </div>
                 </div>
 

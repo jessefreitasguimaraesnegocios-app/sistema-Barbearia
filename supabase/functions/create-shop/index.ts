@@ -44,6 +44,8 @@ Deno.serve(async (req: Request) => {
       incomeValue: bodyIncomeValue,
       subscriptionAmount: bodySubscriptionAmount,
       pixKey: bodyPixKey,
+      splitPercent: bodySplitPercent,
+      splitPercentSandbox: bodySplitPercentSandbox,
     } = bodyJson as Record<string, unknown>;
 
     if (!name || !email) {
@@ -129,6 +131,17 @@ Deno.serve(async (req: Request) => {
     const subRaw = Number(bodySubscriptionAmount);
     const subscription_amount =
       Number.isFinite(subRaw) && subRaw >= 0 ? Math.min(999999, Math.floor(subRaw)) : 99;
+
+    const readSplit0to100 = (raw: unknown, fallback: number): number => {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0 || n > 100) return fallback;
+      return Math.min(100, Math.max(0, Math.floor(n)));
+    };
+    const split_percent = readSplit0to100(bodySplitPercent, 95);
+    const split_percent_sandbox =
+      bodySplitPercentSandbox === undefined || bodySplitPercentSandbox === null || bodySplitPercentSandbox === ""
+        ? null
+        : readSplit0to100(bodySplitPercentSandbox, split_percent);
 
     const pixKeyTrim =
       bodyPixKey != null && String(bodyPixKey).trim() !== "" ? String(bodyPixKey).trim().slice(0, 500) : null;
@@ -255,6 +268,8 @@ Deno.serve(async (req: Request) => {
         type: resolvedShopType,
         subscription_active: true,
         subscription_amount,
+        split_percent,
+        split_percent_sandbox,
         pix_key: pixKeyTrim,
         rating: 5.0,
         profile_image,

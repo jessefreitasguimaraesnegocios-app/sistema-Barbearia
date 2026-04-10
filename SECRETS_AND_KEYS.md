@@ -49,13 +49,22 @@ Tudo que é **service role**, **ASAAS_API_KEY** ou segredo de webhook fica **no 
 - **Produção:** painel Asaas oficial → mesma ideia.
 - **Webhook:** você escolhe um **token** e configura no painel; o Asaas manda no header combinado.
 
-### Onde colocar
+### Onde colocar (produção vs sandbox)
+
+O código usa **defaults** alinhados à documentação Asaas v3: produção `https://api.asaas.com/v3`, sandbox `https://api-sandbox.asaas.com/v3` (ver `asaas-webhook` / `create-payment` e `_shared/asaasEnv.ts`). Se definires `ASAAS_API_URL*`, usa URL **completa** da API (sem colar `CHAVE=valor` no campo do Dashboard).
 
 | Variável | Uso |
 |----------|-----|
-| `ASAAS_API_KEY` | Conta principal · `.env`, Vercel, Edge (`create-payment`, `process-shop-finance`…) |
-| `ASAAS_API_URL` | Ex.: sandbox `https://sandbox.asaas.com/api/v3` · prod `https://api.asaas.com/v3` |
-| `ASAAS_WEBHOOK_TOKEN` | Edge `asaas-webhook` — deve ser **igual** ao token configurado no webhook Asaas (header `asaas-access-token`). Se não existir o secret, a função responde **500** (fail-closed). |
+| `ASAAS_API_KEY` | API **produção** · `.env`, Vercel, Edge |
+| `ASAAS_API_URL` | Base URL produção (opcional; default acima) |
+| `ASAAS_API_KEY_SANDBOX` | API **sandbox** · Edge (e fallbacks onde o código lê sandbox primeiro) |
+| `ASAAS_API_URL_SANDBOX` | Base URL sandbox (opcional) |
+| `ASAAS_WEBHOOK_TOKEN` | Edge `asaas-webhook` — **mesmo valor** do token do webhook Asaas **produção** (header `asaas-access-token`) |
+| `ASAAS_WEBHOOK_TOKEN_SANDBOX` | Idem para webhook **sandbox** / user-agent `Asaas_Hmlg` |
+
+**Comportamento do `asaas-webhook` com secrets ausentes:** se **nenhum** dos dois tokens (`ASAAS_WEBHOOK_TOKEN` / `ASAAS_WEBHOOK_TOKEN_SANDBOX`) estiver definido, a função **não processa** o evento, mas responde **200** com `note: ASAAS_WEBHOOK_TOKEN not configured` para **não penalizar** a fila de webhooks do Asaas. **401** quando o header `asaas-access-token` está vazio ou **não bate** com nenhum dos secrets.
+
+No **painel Asaas**, produção e sandbox têm **webhooks separados**; os dois podem apontar para a **mesma URL** da Edge (`…/functions/v1/asaas-webhook`), cada um com o seu token espelhado nos secrets acima.
 
 Opcionais que às vezes aparecem no `.env.example`:
 
@@ -111,7 +120,7 @@ Pacote mínimo que quase todo mundo usa:
 ## Webhook Asaas (`asaas-webhook`) — 401 nas Invocations
 
 - O Asaas **não manda** `Authorization: Bearer` com JWT Supabase. Se a função estiver com **JWT verification** ligada no projeto, a gateway devolve **401** antes de correr o código. **Deploy obrigatório:** `npx supabase functions deploy asaas-webhook --no-verify-jwt` (ou `npm run supabase:deploy-asaas-webhook`). O `supabase/config.toml` do repo já declara `verify_jwt = false` para esta função.
-- Depois do deploy, se ainda houver **401** com corpo JSON da função, verifica o header **`asaas-access-token`** vs secret **`ASAAS_WEBHOOK_TOKEN`**.
+- **401** com corpo JSON da função (*Missing or invalid asaas-access-token*): o valor do painel Asaas tem de bater com **`ASAAS_WEBHOOK_TOKEN`** (produção) ou **`ASAAS_WEBHOOK_TOKEN_SANDBOX`** (homologação). A função tenta os dois (ordem favorece sandbox se o `User-Agent` contiver `hmlg` ou `sandbox`).
 
 ## Checklist rápido das Edge Functions (Supabase)
 
@@ -119,11 +128,13 @@ Sugestão de base:
 
 - `SUPABASE_URL` (confere doc atual se já vem injetado)
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `ASAAS_API_KEY`, `ASAAS_API_URL`
+- `ASAAS_API_KEY`, `ASAAS_API_URL` (+ `ASAAS_API_KEY_SANDBOX`, `ASAAS_API_URL_SANDBOX` se usares sandbox)
 - `SHOP_FINANCE_WEBHOOK_SECRET`
-- `ASAAS_WEBHOOK_TOKEN`
+- `ASAAS_WEBHOOK_TOKEN` e, se usares sandbox, `ASAAS_WEBHOOK_TOKEN_SANDBOX`
 
 Opcionais loja externa: `ASAAS_SHOP_PROVISIONER_*`.
+
+Mais detalhe de fluxo: **[docs/FLUXO_ASAAS_WEBHOOK.md](./docs/FLUXO_ASAAS_WEBHOOK.md)**.
 
 ---
 
@@ -131,4 +142,4 @@ Opcionais loja externa: `ASAAS_SHOP_PROVISIONER_*`.
 
 - Produção e sandbox **separados** quando der.
 - Nada de print de `.env` no grupo do WhatsApp do cliente 😅
-- Mais contexto: [README.md](./README.md), [ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md), [`.env.example`](./.env.example) se existir no repo.
+- Mais contexto: [README.md](./README.md), [docs/FLUXO_ASAAS_WEBHOOK.md](./docs/FLUXO_ASAAS_WEBHOOK.md), [ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md), [`.env.example`](./.env.example) se existir no repo.

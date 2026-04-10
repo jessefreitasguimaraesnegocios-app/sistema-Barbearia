@@ -112,7 +112,7 @@ No Asaas, para chave de subconta automática: habilitar gerenciamento de chaves 
 
 - RPC **`security_check_rate_limit`** abuso em janela curta (`create-shop`, `create-payment`, `provision-wallets`).
 - **`asaas_webhook_receipts`** evita replay no webhook.
-- **`asaas-webhook`** é **fail-closed**: sem `ASAAS_WEBHOOK_TOKEN` configurado, **não** processa (melhor falhar fechado do que aceitar tudo).
+- **`asaas-webhook`**: sem tokens de webhook configurados (`ASAAS_WEBHOOK_TOKEN` / `ASAAS_WEBHOOK_TOKEN_SANDBOX`), **não** processa eventos de negócio, mas responde **200** com `note` para não penalizar a fila do Asaas; **401** se o token enviado for inválido. Ver **[docs/FLUXO_ASAAS_WEBHOOK.md](./docs/FLUXO_ASAAS_WEBHOOK.md)** e **[SECRETS_AND_KEYS.md](./SECRETS_AND_KEYS.md)**.
 
 ---
 

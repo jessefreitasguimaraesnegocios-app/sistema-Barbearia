@@ -141,9 +141,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setEmail(user.email ?? null);
+    setSessionUserId(user.id);
     const p = await fetchProfile(user.id);
     setProfile(p);
-    setSessionUserId(user.id);
   }, [fetchProfile]);
 
   useEffect(() => {
@@ -166,10 +166,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           if (session?.user) {
             setEmail(session.user.email ?? null);
+            if (!cancelled) setSessionUserId(session.user.id);
             const p = await fetchProfile(session.user.id);
             if (!cancelled) {
               setProfile(p);
-              setSessionUserId(session.user.id);
             }
           } else {
             setProfile(null);
@@ -193,27 +193,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
      * Não fazer await pesado direto no callback do GoTrue (risco de deadlock / fila interna).
      * @see https://supabase.com/docs/reference/javascript/auth-onauthstatechange
      */
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      window.setTimeout(() => {
-        if (cancelled) return;
-        void (async () => {
-          try {
-            if (session?.user) {
-              setEmail(session.user.email ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setEmail(session.user.email ?? null);
+        setSessionUserId(session.user.id);
+        window.setTimeout(() => {
+          if (cancelled) return;
+          void (async () => {
+            try {
               const p = await fetchProfile(session.user.id);
               if (cancelled) return;
               setProfile(p);
-              setSessionUserId(session.user.id);
-            } else {
-              setProfile(null);
-              setEmail(null);
-              setSessionUserId(null);
+            } catch (e) {
+              console.error('[AuthContext] onAuthStateChange fetchProfile', e);
+            } finally {
+              safeSetLoading(false);
             }
-          } finally {
-            safeSetLoading(false);
-          }
-        })();
-      }, 0);
+          })();
+        }, 0);
+        return;
+      }
+
+      const shouldClearSession =
+        event === 'SIGNED_OUT' ||
+        event === 'USER_DELETED' ||
+        (event === 'INITIAL_SESSION' && !session);
+      if (shouldClearSession) {
+        setProfile(null);
+        setEmail(null);
+        setSessionUserId(null);
+      }
+      safeSetLoading(false);
     });
 
     return () => {
@@ -229,10 +239,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password });
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao entrar.' };
+      setEmail(data.user.email ?? null);
+      setSessionUserId(data.user.id);
       const p = await fetchProfile(data.user.id);
       setProfile(p);
-      setSessionUserId(data.user.id);
-      setEmail(data.user.email ?? null);
       setLoading(false);
       return { error: null };
     } catch (e) {
@@ -245,10 +255,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signUp({ email: emailInput, password });
       if (error) return { error: error.message };
       if (!data.user) return { error: 'Erro ao criar conta.' };
+      setEmail(data.user.email ?? null);
+      setSessionUserId(data.user.id);
       const p = await fetchProfile(data.user.id);
       setProfile(p);
-      setSessionUserId(data.user.id);
-      setEmail(data.user.email ?? null);
       setLoading(false);
       return { error: null };
     } catch (e) {

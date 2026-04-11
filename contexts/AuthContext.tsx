@@ -214,9 +214,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // GoTrue pode emitir USER_DELETED; o tipo AuthChangeEvent do SDK às vezes não inclui.
+      const evt = event as string;
       const shouldClearSession =
         event === 'SIGNED_OUT' ||
-        event === 'USER_DELETED' ||
+        evt === 'USER_DELETED' ||
         (event === 'INITIAL_SESSION' && !session);
       if (shouldClearSession) {
         setProfile(null);

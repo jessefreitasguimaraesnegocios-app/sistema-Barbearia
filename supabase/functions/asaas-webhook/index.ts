@@ -54,16 +54,19 @@ function headerNamesForWebhookDebug(req: Request): string {
   return out.sort().join(", ") || "(nenhum relevante)";
 }
 
-async function tokensMatch(expected: string, received: string): Promise<boolean> {
-  try {
-    const a = new TextEncoder().encode(expected);
-    const b = new TextEncoder().encode(received);
-    if (a.length !== b.length) return false;
-    return await crypto.subtle.timingSafeEqual(a, b);
-  } catch (e) {
-    console.error("[asaas-webhook] tokensMatch error:", e);
-    return false;
+/**
+ * Comparação em tempo ~constante (sem `crypto.subtle.timingSafeEqual`: em alguns runtimes Edge o subtle
+ * não expõe timingSafeEqual e o match falhava → 401 incorreto).
+ */
+function tokensMatch(expected: string, received: string): boolean {
+  const a = new TextEncoder().encode(expected);
+  const b = new TextEncoder().encode(received);
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a[i] ^ b[i];
   }
+  return result === 0;
 }
 
 type WebhookRuntime = { mode: RuntimeMode; apiKey: string; apiUrl: string };
@@ -84,7 +87,7 @@ type ResolveWebhookAuth =
   | { ok: false; reason: "no_secrets" }
   | { ok: false; reason: "bad_token"; diag: WebhookAuthDiag };
 
-async function resolveWebhookRuntime(req: Request, receivedToken: string): Promise<ResolveWebhookAuth> {
+function resolveWebhookRuntime(req: Request, receivedToken: string): ResolveWebhookAuth {
   const sandTok = normalizeWebhookSecret(readAsaasApiKey("ASAAS_WEBHOOK_TOKEN_SANDBOX"));
   const prodTok = normalizeWebhookSecret(readAsaasApiKey("ASAAS_WEBHOOK_TOKEN"));
   if (!sandTok && !prodTok) {
@@ -111,7 +114,7 @@ async function resolveWebhookRuntime(req: Request, receivedToken: string): Promi
     : [...rows.filter((r) => r.mode === "production"), ...rows.filter((r) => r.mode === "sandbox")];
 
   for (const r of ordered) {
-    if (await tokensMatch(r.tok, receivedToken)) {
+    if (tokensMatch(r.tok, receivedToken)) {
       return { ok: true, runtime: { mode: r.mode, apiKey: r.apiKey, apiUrl: r.apiUrl } };
     }
   }
@@ -235,7 +238,7 @@ async function handleWebhook(req: Request): Promise<Response> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const receivedToken = readIncomingWebhookToken(req);
 
-  const auth = await resolveWebhookRuntime(req, receivedToken);
+  const auth = resolveWebhookRuntime(req, receivedToken);
   if (auth.ok === false && auth.reason === "no_secrets") {
     console.error("[asaas-webhook] ASAAS_WEBHOOK_TOKEN / _SANDBOX não configurados");
     return jsonResponse({ received: true, note: "ASAAS_WEBHOOK_TOKEN not configured" });

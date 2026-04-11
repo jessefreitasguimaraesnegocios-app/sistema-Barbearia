@@ -23,7 +23,27 @@ export function readAsaasBaseUrl(keys: string[], fallback: string): string {
   return fallback.replace(/\/$/, "");
 }
 
+/**
+ * Só remove prefixo `NOME_DA_VAR=` quando for colagem literal no campo do secret.
+ * Não usar stripAccidentalEnvAssignment genérico: chaves Asaas podem conter `=` (ex. padding) e seriam truncadas.
+ */
+function stripKnownAsaasSecretPrefix(value: string): string {
+  let v = value.trim().replace(/^["']|["']$/g, "").trim();
+  const prefixes = [
+    /^ASAAS_API_KEY_SANDBOX=/i,
+    /^ASAAS_API_KEY=/i,
+    /^ASAAS_WEBHOOK_TOKEN_SANDBOX=/i,
+    /^ASAAS_WEBHOOK_TOKEN=/i,
+  ];
+  for (const re of prefixes) {
+    if (re.test(v)) {
+      return v.replace(re, "").trim().replace(/^["']|["']$/g, "").trim();
+    }
+  }
+  return v;
+}
+
 export function readAsaasApiKey(primary: string, secondary?: string): string {
   const raw = readEnvTrim(primary) || (secondary ? readEnvTrim(secondary) : "");
-  return stripAccidentalEnvAssignment(raw);
+  return stripKnownAsaasSecretPrefix(raw);
 }

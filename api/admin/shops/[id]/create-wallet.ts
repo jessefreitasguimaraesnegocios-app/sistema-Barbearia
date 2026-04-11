@@ -1,7 +1,7 @@
 // Vercel Serverless: POST /api/admin/shops/:id/create-wallet
 // Cria subconta Asaas para loja que ainda não tem asaas_wallet_id (atualiza a loja com walletId)
 
-import { assertAdminFromRequest } from '../../../server-lib/admin-auth';
+import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');

@@ -1,7 +1,7 @@
 // Vercel Serverless: DELETE /api/admin/shops/:id
 // Exclui a loja (e em cascata: services, professionals, products, appointments). Perfis do dono ficam com shop_id null.
 
-import { assertAdminFromRequest } from '../../server-lib/admin-auth';
+import { assertAdminFromRequest } from '../../../lib/server/admin-auth';
 
 function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): string | null {
   const fromQuery = req.query?.id;

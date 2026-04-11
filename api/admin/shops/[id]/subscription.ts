@@ -1,8 +1,8 @@
 // Vercel Serverless: PATCH /api/admin/shops/:id/subscription
 // Atualiza subscription_active, subscription_amount, split_percent (prod) e split_percent_sandbox da loja (service role)
 
-import { insertFinancialAudit } from '../../../server-lib/financial-audit';
-import { assertAdminFromRequest } from '../../../server-lib/admin-auth';
+import { insertFinancialAudit } from '../../../../lib/server/financial-audit';
+import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 /** Mesmas colunas que `SHOPS_SELECT_ADMIN` (sem `asaas_api_key` — evita payload/serialização e vazamento). */
 const SHOP_ROW_SELECT_AFTER_PATCH =

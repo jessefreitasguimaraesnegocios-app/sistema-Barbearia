@@ -3,6 +3,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { resolveShopSplitPercent, resolveSplitPercentForRuntime } from '../../lib/payments/resolve-shop-split';
+import { validateOrderLineItemsStock } from '../../lib/validateOrderStock';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -328,6 +329,17 @@ export default async function handler(
           id: (existingPaymentData as { id?: string }).id ?? existing.asaas_payment_id,
           orderId: existing.id,
         });
+      }
+    }
+
+    if (recordType === 'order' && bodyOrder?.shopId && Array.isArray(bodyOrder.items)) {
+      const stockCheck = await validateOrderLineItemsStock(
+        supabase,
+        String(bodyOrder.shopId),
+        bodyOrder.items as Array<{ productId: string; quantity: number }>
+      );
+      if (stockCheck.ok === false) {
+        return res.status(stockCheck.status).json({ success: false, error: stockCheck.error });
       }
     }
 

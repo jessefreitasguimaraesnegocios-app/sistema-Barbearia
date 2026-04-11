@@ -95,6 +95,58 @@ function normalizeAsaasMobilePhone(rawPhone: unknown): string {
   return digits;
 }
 
+type OrderLineIn = { productId: string; quantity: number };
+
+/** Resposta de erro ou null se estoque OK (Edge não importa lib/ do repo). */
+async function validateOrderStockOrError(
+  admin: ReturnType<typeof createClient>,
+  shopId: string,
+  items: OrderLineIn[],
+): Promise<Response | null> {
+  const byPid = new Map<string, number>();
+  for (const it of items) {
+    const pid = String(it.productId ?? "").trim();
+    const q = Math.max(0, Math.floor(Number(it.quantity) || 0));
+    if (!pid || q <= 0) continue;
+    byPid.set(pid, (byPid.get(pid) || 0) + q);
+  }
+  if (byPid.size === 0) {
+    return new Response(JSON.stringify({ success: false, error: "Pedido sem itens válidos." }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const ids = [...byPid.keys()];
+  const { data: rows, error } = await admin.from("products").select("id, stock").in("id", ids).eq("shop_id", shopId);
+  if (error) {
+    return new Response(JSON.stringify({ success: false, error: "Falha ao validar estoque. Tente novamente." }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const stockMap = new Map<string, number>(
+    (rows || []).map((r: { id: string; stock?: number | null }) => [String(r.id), Math.max(0, Number(r.stock) || 0)]),
+  );
+  for (const [pid, need] of byPid) {
+    if (!stockMap.has(pid)) {
+      return new Response(JSON.stringify({ success: false, error: "Um ou mais produtos não pertencem a esta loja." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (stockMap.get(pid)! < need) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Estoque insuficiente para um ou mais itens. Atualize o carrinho e tente novamente.",
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -400,6 +452,15 @@ Deno.serve(async (req: Request) => {
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+    }
+
+    if (recordType === "order" && bodyOrder?.shopId && Array.isArray(bodyOrder.items)) {
+      const stockResp = await validateOrderStockOrError(
+        supabaseAdmin,
+        String(bodyOrder.shopId),
+        bodyOrder.items as OrderLineIn[],
+      );
+      if (stockResp) return stockResp;
     }
 
     const cpfCnpjDigits = (bodyCpfCnpj != null && String(bodyCpfCnpj).trim() !== "")

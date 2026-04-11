@@ -348,11 +348,19 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   };
 
   const addToCart = (product: Product) => {
-    const existing = cart.find(item => item.product.id === product.id);
+    const maxStock = Math.max(0, Math.floor(Number(product.stock) || 0));
+    if (maxStock <= 0) return;
+    const existing = cart.find((item) => item.product.id === product.id);
+    const inCart = existing?.quantity ?? 0;
+    if (inCart + 1 > maxStock) return;
     if (existing) {
-      setCart(cart.map(item => item.product.id === product.id ? {...item, quantity: item.quantity + 1} : item));
+      setCart(
+        cart.map((item) =>
+          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        )
+      );
     } else {
-      setCart([...cart, {product, quantity: 1}]);
+      setCart([...cart, { product, quantity: 1 }]);
     }
   };
 
@@ -361,13 +369,14 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   };
 
   const updateQuantity = (productId: string, delta: number) => {
-    setCart(cart.map(item => {
-      if (item.product.id === productId) {
-        const newQty = Math.max(1, item.quantity + delta);
+    setCart(
+      cart.map((item) => {
+        if (item.product.id !== productId) return item;
+        const maxStock = Math.max(0, Math.floor(Number(item.product.stock) || 0));
+        const newQty = Math.min(maxStock, Math.max(1, item.quantity + delta));
         return { ...item, quantity: newQty };
-      }
-      return item;
-    }));
+      })
+    );
   };
 
   const handleOrderPayment = async () => {
@@ -899,7 +908,12 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                </div>
                
                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:gap-6">
-                 {shop.products.map(product => (
+                 {shop.products.map((product) => {
+                   const stock = Math.max(0, Math.floor(Number(product.stock) || 0));
+                   const inCartQty = cart.find((c) => c.product.id === product.id)?.quantity ?? 0;
+                   const canAddMore = stock > 0 && inCartQty < stock;
+                   const outOfStock = stock <= 0;
+                   return (
                    <div key={product.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow group">
                       <div className="h-32 md:h-40 relative overflow-hidden">
                         <img src={product.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt={product.name} />
@@ -922,15 +936,24 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                             <span className="text-indigo-600 font-black">R$ {product.price.toFixed(2)}</span>
                           )}
                         </div>
-                        <button 
+                        <p className={`text-[10px] font-bold mt-1 ${outOfStock ? 'text-red-500' : 'text-gray-500'}`}>
+                          {outOfStock ? 'Esgotado' : `Estoque: ${stock} un.`}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={!canAddMore}
                           onClick={() => addToCart(product)}
-                          className="w-full mt-3 py-2 rounded-xl border-2 border-indigo-100 text-indigo-600 text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all"
+                          className={`w-full mt-2 py-2 rounded-xl border-2 text-xs font-bold transition-all ${
+                            canAddMore
+                              ? 'border-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                              : 'border-gray-100 text-gray-400 cursor-not-allowed bg-gray-50'
+                          }`}
                         >
-                          Adicionar
+                          {outOfStock ? 'Indisponível' : inCartQty >= stock && stock > 0 ? 'Máx. no carrinho' : 'Adicionar'}
                         </button>
                       </div>
                    </div>
-                 ))}
+                 );})}
                </div>
             </div>
           )}
@@ -967,7 +990,14 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-2 py-1">
                           <button onClick={() => updateQuantity(item.product.id, -1)} className="text-gray-500 hover:text-indigo-600"><i className="fas fa-minus text-[10px]"></i></button>
                           <span className="text-sm font-bold text-gray-900 min-w-[20px] text-center">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.product.id, 1)} className="text-gray-500 hover:text-indigo-600"><i className="fas fa-plus text-[10px]"></i></button>
+                          <button
+                            type="button"
+                            disabled={item.quantity >= Math.max(0, Math.floor(Number(item.product.stock) || 0))}
+                            onClick={() => updateQuantity(item.product.id, 1)}
+                            className="text-gray-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <i className="fas fa-plus text-[10px]"></i>
+                          </button>
                         </div>
                         <span className="font-black text-indigo-600">R$ {((item.product.promoPrice || item.product.price) * item.quantity).toFixed(2)}</span>
                       </div>

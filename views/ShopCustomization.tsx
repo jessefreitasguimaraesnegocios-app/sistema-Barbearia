@@ -992,6 +992,22 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                             className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
                           />
                         </div>
+                        <div className="flex-1 min-w-[100px]">
+                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">
+                            Estoque (un.)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={Number.isFinite(product.stock) ? product.stock : 0}
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.floor(Number(e.target.value)));
+                              if (!Number.isNaN(v)) updateProduct(product.id, { stock: v });
+                            }}
+                            className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200 font-semibold text-gray-800"
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-3">

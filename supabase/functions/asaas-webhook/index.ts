@@ -430,6 +430,13 @@ async function handleWebhook(req: Request): Promise<Response> {
         console.log("[asaas-webhook] subscription_active=true for platform subscription:", subId, subShops.map((s: { id: string }) => s.id));
       }
     }
+
+    const { error: stockErr } = await supabase.rpc("apply_product_stock_for_asaas_payment", {
+      p_payment_id: String(paymentId),
+    });
+    if (stockErr) {
+      console.error("[asaas-webhook] apply_product_stock_for_asaas_payment:", stockErr.message);
+    }
   } catch (e) {
     console.error("[asaas-webhook] payment handler error:", e);
     return jsonResponse({ received: true, note: "payment_handler_error_logged" });

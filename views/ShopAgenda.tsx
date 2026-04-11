@@ -254,7 +254,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         </p>
       </header>
 
-      <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
+      <section className="bg-white p-6 md:p-8 rounded-4xl border border-gray-100 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <h3 className="text-lg font-bold text-gray-900">
             {allowEditShopSchedule ? 'Horário de funcionamento' : 'Data da agenda'}
@@ -267,7 +267,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
               onChange={(e) => setSelectedDate(e.target.value)}
               min={minAgendaDate}
               max={maxAgendaDate}
-              className="p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+              className="p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-(--shop-primary)"
             />
           </div>
         </div>
@@ -292,7 +292,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                   type="time"
                   value={workdayStart}
                   onChange={(e) => setWorkdayStart(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-(--shop-primary)"
                 />
               </div>
               <div>
@@ -301,7 +301,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                   type="time"
                   value={workdayEnd}
                   onChange={(e) => setWorkdayEnd(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-(--shop-primary)"
                 />
               </div>
             </div>
@@ -310,7 +310,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                 type="checkbox"
                 checked={hasLunch}
                 onChange={() => setHasLunch(!hasLunch)}
-                className="w-5 h-5 rounded border-gray-300 accent-[var(--shop-primary)]"
+                className="w-5 h-5 rounded border-gray-300 accent-(--shop-primary)"
               />
               <span className="text-sm font-medium text-gray-700">Intervalo de almoço</span>
             </label>
@@ -322,7 +322,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     type="time"
                     value={lunchStart}
                     onChange={(e) => setLunchStart(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-(--shop-primary)"
                   />
                 </div>
                 <div>
@@ -331,7 +331,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     type="time"
                     value={lunchEnd}
                     onChange={(e) => setLunchEnd(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                    className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-(--shop-primary)"
                   />
                 </div>
               </div>
@@ -341,7 +341,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
               <select
                 value={slotMinutes}
                 onChange={(e) => setSlotMinutes(Number(e.target.value))}
-                className="w-full sm:w-48 p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-[var(--shop-primary)]"
+                className="w-full sm:w-48 p-3 rounded-xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-(--shop-primary)"
               >
                 {[15, 20, 30, 45, 60].map((n) => (
                   <option key={n} value={n}>
@@ -354,7 +354,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
               type="button"
               disabled={savingSchedule}
               onClick={handleSaveSchedule}
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[var(--shop-primary)] text-white font-bold hover:brightness-95 disabled:opacity-60"
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-(--shop-primary) text-white font-bold hover:brightness-95 disabled:opacity-60"
             >
               {savingSchedule ? 'Salvando…' : 'Salvar horários'}
             </button>
@@ -362,7 +362,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         )}
       </section>
 
-      <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
+      <section className="bg-white p-6 md:p-8 rounded-4xl border border-gray-100 shadow-sm space-y-4">
         <div>
           <h3 className="text-lg font-bold text-gray-900">Grade do dia</h3>
           <p className="text-sm text-gray-500">
@@ -409,7 +409,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         )}
       </section>
 
-      <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
+      <section className="bg-white p-6 md:p-8 rounded-4xl border border-gray-100 shadow-sm space-y-4">
         <h3 className="text-lg font-bold text-gray-900">Clientes agendados</h3>
         {upcomingList.length === 0 ? (
           <p className="text-gray-500 text-sm">Nenhum agendamento ativo a partir de hoje.</p>
@@ -437,7 +437,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                       {a.date.split('-').reverse().join('/')} às {a.time.slice(0, 5)} · {svc?.name ?? 'Serviço'} ·{' '}
                       {pro?.name ?? 'Profissional'}
                     </p>
-                    <p className="text-xs text-[var(--shop-primary)] font-semibold mt-1">
+                    <p className="text-xs text-(--shop-primary) font-semibold mt-1">
                       R$ {a.amount.toFixed(2).replace('.', ',')}
                     </p>
                   </div>
@@ -469,7 +469,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     <button
                       type="button"
                       onClick={() => openReschedule(a)}
-                      className="px-3 py-2 rounded-xl bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-[var(--shop-primary)] text-xs font-bold"
+                      className="px-3 py-2 rounded-xl bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) text-xs font-bold"
                     >
                       Remarcar
                     </button>
@@ -489,7 +489,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       </section>
 
       {rescheduleTarget && (
-        <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-2000 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
             <h4 className="font-bold text-lg text-gray-900">Remarcar</h4>
             <p className="text-sm text-gray-600">{rescheduleTarget.clientDisplayName}</p>
@@ -521,7 +521,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                 type="button"
                 disabled={rescheduleBusy}
                 onClick={submitReschedule}
-                className="px-4 py-2 rounded-xl bg-[var(--shop-primary)] text-white font-bold disabled:opacity-60"
+                className="px-4 py-2 rounded-xl bg-(--shop-primary) text-white font-bold disabled:opacity-60"
               >
                 {rescheduleBusy ? 'Salvando…' : 'Confirmar'}
               </button>
@@ -531,7 +531,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       )}
 
       {cancelTarget && (
-        <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-2000 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
             <h4 className="font-bold text-lg text-gray-900">Cancelar agendamento?</h4>
             <p className="text-sm text-gray-600">

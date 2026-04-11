@@ -72,10 +72,19 @@ type WebhookRuntime = { mode: RuntimeMode; apiKey: string; apiUrl: string };
  * Webhook ≠ toggle do admin: produção pode receber fila sandbox (Asaas_Hmlg) e vice-versa.
  * Aceita o token que bater (sandbox ou produção), com ordem por User-Agent.
  */
-async function resolveWebhookRuntime(
-  req: Request,
-  receivedToken: string,
-): Promise<{ ok: true; runtime: WebhookRuntime } | { ok: false; reason: "no_secrets" | "bad_token" }> {
+type WebhookAuthDiag = {
+  incoming_len: number;
+  sandbox_secret_len: number;
+  prod_secret_len: number;
+  header_keys: string;
+};
+
+type ResolveWebhookAuth =
+  | { ok: true; runtime: WebhookRuntime }
+  | { ok: false; reason: "no_secrets" }
+  | { ok: false; reason: "bad_token"; diag: WebhookAuthDiag };
+
+async function resolveWebhookRuntime(req: Request, receivedToken: string): Promise<ResolveWebhookAuth> {
   const sandTok = normalizeWebhookSecret(readAsaasApiKey("ASAAS_WEBHOOK_TOKEN_SANDBOX"));
   const prodTok = normalizeWebhookSecret(readAsaasApiKey("ASAAS_WEBHOOK_TOKEN"));
   if (!sandTok && !prodTok) {
@@ -106,19 +115,19 @@ async function resolveWebhookRuntime(
       return { ok: true, runtime: { mode: r.mode, apiKey: r.apiKey, apiUrl: r.apiUrl } };
     }
   }
+  const diag: WebhookAuthDiag = {
+    incoming_len: receivedToken.length,
+    sandbox_secret_len: sandTok.length,
+    prod_secret_len: prodTok.length,
+    header_keys: headerNamesForWebhookDebug(req),
+  };
   console.warn(
-    "[asaas-webhook] bad_token: incoming_len=",
-    receivedToken.length,
-    "sandbox_secret_len=",
-    sandTok.length,
-    "prod_secret_len=",
-    prodTok.length,
+    "[asaas-webhook] bad_token:",
+    diag,
     "sandbox_first_ua=",
     sandboxFirst,
-    "header_keys=",
-    headerNamesForWebhookDebug(req),
   );
-  return { ok: false, reason: "bad_token" };
+  return { ok: false, reason: "bad_token", diag };
 }
 
 function normalizeEventName(raw: unknown): string {
@@ -141,9 +150,10 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function unauthorized(message: string, hint?: string) {
+function unauthorized(message: string, hint?: string, extra?: Record<string, unknown>) {
   const body: Record<string, unknown> = { code: 401, message };
   if (hint) body.hint = hint;
+  if (extra) Object.assign(body, extra);
   return jsonResponse(body, 401);
 }
 
@@ -237,12 +247,13 @@ async function handleWebhook(req: Request): Promise<Response> {
         "Token de autenticação igual a ASAAS_WEBHOOK_TOKEN_SANDBOX (homologação) ou ASAAS_WEBHOOK_TOKEN (produção) no Supabase.",
     );
   }
-  if (auth.ok === false && auth.reason === "bad_token") {
+  if (!auth.ok && auth.reason === "bad_token") {
     return unauthorized(
       "Missing or invalid asaas-access-token",
-      "O token recebido não bate com ASAAS_WEBHOOK_TOKEN_SANDBOX nem ASAAS_WEBHOOK_TOKEN. Confira: (1) sandbox.asaas.com e app.asaas.com têm webhooks separados — " +
-        "cada token deve estar no secret certo; (2) após alterar o token no Asaas, clique Salvar; (3) mesmo texto no Supabase (sem aspas extras). " +
-        "Logs da função mostram incoming_len vs sandbox_secret_len e header_keys para diagnóstico.",
+      "O header asaas-access-token não bate com os secrets. Atenção: no Supabase a coluna Digest é só SHA256 de referência — " +
+        "NÃO copie esse hex como valor do secret nem para o Asaas. No secret deve ir o mesmo texto do campo «Token de autenticação» (ex.: Gerar token → copiar → colar no secret → Salvar no Asaas). " +
+        "Sandbox e produção são webhooks separados. Use o objeto diagnostics abaixo.",
+      { diagnostics: auth.diag },
     );
   }
   const runtime = auth.runtime;

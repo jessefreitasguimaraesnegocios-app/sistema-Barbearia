@@ -2,11 +2,22 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Appointment, ShopPartnerOrderRow } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { loadPartnerShopActivity, fetchPartnerAppointments } from '../services/supabase/partnerShopActivity';
+import { useRealtimeAppointments } from './useRealtimeAppointments';
 
 /** Agenda + pedidos da loja (parceiro), com filtro opcional por profissional (STAFF). */
 export function usePartnerData(shopId: string | undefined, staffProfessionalId: string | undefined) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [shopPartnerOrderRows, setShopPartnerOrderRows] = useState<ShopPartnerOrderRow[]>([]);
+
+  useRealtimeAppointments({
+    client: supabase,
+    enabled: Boolean(shopId),
+    channelName: `partner-appointments-${shopId ?? 'none'}-${staffProfessionalId ?? 'owner'}`,
+    postgresChangesFilter: shopId ? `shop_id=eq.${shopId}` : '',
+    sortMode: 'partner',
+    setAppointments,
+    staffProfessionalId: staffProfessionalId ?? undefined,
+  });
 
   const reloadPartnerData = useCallback(async () => {
     if (!shopId) {

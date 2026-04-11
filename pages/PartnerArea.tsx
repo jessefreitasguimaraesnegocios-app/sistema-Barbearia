@@ -22,12 +22,7 @@ export default function PartnerArea() {
   const [shopReloadKey, setShopReloadKey] = useState(0);
   const { shop: myShop, setShop: setMyShop, reloadShop } = useShop(user?.shopId, shopReloadKey);
   const staffProfessionalId = user?.professionalId;
-  const {
-    appointments,
-    shopPartnerOrderRows,
-    reloadPartnerData,
-    reloadAppointmentsOnly,
-  } = usePartnerData(myShop?.id, staffProfessionalId);
+  const { appointments, shopPartnerOrderRows, reloadPartnerData } = usePartnerData(myShop?.id, staffProfessionalId);
   const [currentView, setCurrentView] = useState<
     | 'shop-dashboard'
     | 'shop-agenda'
@@ -101,8 +96,8 @@ export default function PartnerArea() {
       alert('Não foi possível marcar o atendimento como concluído. Tente novamente.');
       return;
     }
-    await reloadAppointmentsOnly();
-  }, [myShop?.id, staffProfessionalId, reloadAppointmentsOnly]);
+    // Lista atualizada via Realtime (postgres_changes em appointments).
+  }, [myShop?.id, staffProfessionalId]);
 
   const markOrderDelivered = React.useCallback(
     async (orderId: string) => {
@@ -163,9 +158,8 @@ export default function PartnerArea() {
       if (staffProfessionalId) upd = upd.eq('professional_id', staffProfessionalId);
       const { error } = await upd;
       if (error) throw new Error(error.message);
-      await reloadAppointmentsOnly();
     },
-    [myShop?.id, staffProfessionalId, reloadAppointmentsOnly]
+    [myShop?.id, staffProfessionalId]
   );
 
   const cancelAppointmentPartner = React.useCallback(
@@ -179,9 +173,8 @@ export default function PartnerArea() {
       if (staffProfessionalId) upd = upd.eq('professional_id', staffProfessionalId);
       const { error } = await upd;
       if (error) throw new Error(error.message);
-      await reloadAppointmentsOnly();
     },
-    [myShop?.id, staffProfessionalId, reloadAppointmentsOnly]
+    [myShop?.id, staffProfessionalId]
   );
 
   if (loading) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
@@ -13,6 +13,8 @@ import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 import { isPartnerOrAdminRole } from '../lib/profileRole';
 import { fetchShopsForClientCatalog } from '../services/supabase/shops';
+import { mapRowToAppointment } from '../services/supabase/appointmentMapping';
+import { useRealtimeAppointments } from '../hooks/useRealtimeAppointments';
 
 export default function ClientArea() {
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
@@ -25,22 +27,26 @@ export default function ClientArea() {
   const [currentView, setCurrentView] = useState<'client-home' | 'shop-details' | 'client-appointments' | 'client-orders' | 'client-profile'>('client-home');
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
 
+  const isClientRealtimeSession =
+    Boolean(user?.id) &&
+    user?.role !== 'ADMIN' &&
+    user?.role !== 'SHOP' &&
+    user?.role !== 'STAFF' &&
+    user?.role !== 'PENDING';
+
+  useRealtimeAppointments({
+    client: supabase,
+    enabled: isClientRealtimeSession,
+    channelName: `client-appointments-${user?.id ?? 'anon'}`,
+    postgresChangesFilter: user?.id ? `client_id=eq.${user.id}` : '',
+    sortMode: 'client',
+    setAppointments,
+    clientUserId: user?.id,
+  });
+
   useEffect(() => {
     fetchShops();
   }, []);
-
-  const mapAppointment = (a: Record<string, unknown>): Appointment => ({
-    id: String(a.id),
-    clientId: String(a.client_id),
-    shopId: String(a.shop_id),
-    serviceId: String(a.service_id),
-    professionalId: String(a.professional_id),
-    date: String(a.date),
-    time: String(a.time),
-    status: (a.status as Appointment['status']) || 'PENDING',
-    amount: Number(a.amount),
-    tip: a.tip != null ? Number(a.tip) : undefined,
-  });
 
   const mapOrder = (o: Record<string, unknown>): Order => ({
     id: String(o.id),
@@ -52,30 +58,35 @@ export default function ClientArea() {
     date: o.created_at ? new Date(String(o.created_at)).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
   });
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     if (!user?.id) return;
     const { data } = await supabase.from('appointments').select('*').eq('client_id', user.id).order('date', { ascending: false });
-    setAppointments((data || []).map(mapAppointment));
-  };
+    setAppointments((data || []).map((a) => mapRowToAppointment(a as Record<string, unknown>)));
+  }, [user?.id]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     if (!user?.id) return;
     const { data } = await supabase.from('orders').select('*').eq('client_id', user.id).order('created_at', { ascending: false });
     setOrders((data || []).map(mapOrder));
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SHOP' || user?.role === 'STAFF' || user?.role === 'PENDING') return;
     if (!user?.id) return;
-    fetchAppointments();
-    fetchOrders();
-    const subA = supabase.channel('appointments').on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `client_id=eq.${user.id}` }, () => fetchAppointments()).subscribe();
-    const subO = supabase.channel('orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `client_id=eq.${user.id}` }, () => fetchOrders()).subscribe();
+    void fetchAppointments();
+    void fetchOrders();
+    const subO = supabase
+      .channel(`client-orders-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `client_id=eq.${user.id}` },
+        () => void fetchOrders()
+      )
+      .subscribe();
     return () => {
-      subA.unsubscribe();
-      subO.unsubscribe();
+      void supabase.removeChannel(subO);
     };
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, fetchAppointments, fetchOrders]);
 
   const fetchShops = async () => {
     const list = await fetchShopsForClientCatalog(supabase);
@@ -147,7 +158,7 @@ export default function ClientArea() {
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
-        <header className="flex-shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
+        <header className="shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <img src={APP_LOGO_SRC} alt="" className="w-10 h-10 rounded-xl object-cover shadow-sm bg-white" />
             <h1 className="font-display text-xl font-bold text-gray-800 leading-tight">{APP_NAME}</h1>

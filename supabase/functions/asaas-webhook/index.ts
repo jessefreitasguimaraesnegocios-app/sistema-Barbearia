@@ -22,11 +22,36 @@ const IGNORE_EVENTS = new Set<string>([
 /** Variantes / eventos de cobrança apagada (Asaas pode enviar só PAYMENT_DELETED). */
 const PAYMENT_DELETED_LIKE = new Set<string>(["PAYMENT_DELETED", "PAYMENT_REMOVED", "PAYMENT_DELETED_BY"]);
 
-/** Remove BOM / zero-width copy-paste noise (Slack, PDF, etc.). */
+/** Remove BOM / zero-width, aspas externas e normaliza Unicode (colagem de editores). */
 function normalizeWebhookSecret(raw: string): string {
-  return String(raw ?? "")
+  let s = String(raw ?? "")
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  try {
+    return s.normalize("NFC");
+  } catch {
+    return s;
+  }
+}
+
+/** Nomes de headers que podem carregar o token (só para log em falha; sem valores). */
+function headerNamesForWebhookDebug(req: Request): string {
+  const out: string[] = [];
+  for (const k of req.headers.keys()) {
+    const low = k.toLowerCase();
+    if (
+      low.includes("asaas") ||
+      low === "authorization" ||
+      low.includes("access-token") ||
+      low.includes("access_token")
+    ) {
+      out.push(k);
+    }
+  }
+  return out.sort().join(", ") || "(nenhum relevante)";
 }
 
 async function tokensMatch(expected: string, received: string): Promise<boolean> {
@@ -90,6 +115,8 @@ async function resolveWebhookRuntime(
     prodTok.length,
     "sandbox_first_ua=",
     sandboxFirst,
+    "header_keys=",
+    headerNamesForWebhookDebug(req),
   );
   return { ok: false, reason: "bad_token" };
 }
@@ -120,17 +147,40 @@ function unauthorized(message: string, hint?: string) {
   return jsonResponse(body, 401);
 }
 
-/** Token que o Asaas envia em `asaas-access-token` (ou Bearer no Authorization, se alguém configurar assim). */
+function tryDecodeURIComponentOnce(s: string): string {
+  if (!s.includes("%")) return s;
+  try {
+    return normalizeWebhookSecret(decodeURIComponent(s));
+  } catch {
+    return s;
+  }
+}
+
+/** Token que o Asaas envia em `asaas-access-token` (doc); fallbacks para proxies / variações. */
 function readIncomingWebhookToken(req: Request): string {
-  const directRaw = req.headers.get("asaas-access-token");
-  if (directRaw != null && directRaw !== "") {
+  const headerCandidates = [
+    "asaas-access-token",
+    "x-asaas-access-token",
+    "asaas_access_token",
+  ];
+  for (const name of headerCandidates) {
+    const directRaw = req.headers.get(name);
+    if (directRaw == null || directRaw === "") continue;
     let v = normalizeWebhookSecret(directRaw);
+    v = tryDecodeURIComponentOnce(v);
     if (/^Bearer\s+/i.test(v)) v = normalizeWebhookSecret(v.replace(/^Bearer\s+/i, ""));
     if (v) return v;
   }
+
   const auth = req.headers.get("authorization")?.trim();
-  if (auth && /^Bearer\s+/i.test(auth)) {
-    return normalizeWebhookSecret(auth.replace(/^Bearer\s+/i, ""));
+  if (auth) {
+    if (/^Bearer\s+/i.test(auth)) {
+      const v = tryDecodeURIComponentOnce(normalizeWebhookSecret(auth.replace(/^Bearer\s+/i, "")));
+      if (v) return v;
+    }
+    // Token cru em Authorization (sem "Bearer") — não confundir com JWT Supabase (costuma começar com eyJ)
+    const rawAuth = tryDecodeURIComponentOnce(normalizeWebhookSecret(auth));
+    if (rawAuth && !rawAuth.startsWith("eyJ")) return rawAuth;
   }
   return "";
 }
@@ -190,8 +240,9 @@ async function handleWebhook(req: Request): Promise<Response> {
   if (auth.ok === false && auth.reason === "bad_token") {
     return unauthorized(
       "Missing or invalid asaas-access-token",
-      "O token do webhook não bate com nenhum secret. Supabase → Secrets: ASAAS_WEBHOOK_TOKEN_SANDBOX (sandbox / Asaas_Hmlg) " +
-        "e/ou ASAAS_WEBHOOK_TOKEN (produção), com o MESMO valor do campo Token no webhook Asaas. Sem espaços a mais.",
+      "O token recebido não bate com ASAAS_WEBHOOK_TOKEN_SANDBOX nem ASAAS_WEBHOOK_TOKEN. Confira: (1) sandbox.asaas.com e app.asaas.com têm webhooks separados — " +
+        "cada token deve estar no secret certo; (2) após alterar o token no Asaas, clique Salvar; (3) mesmo texto no Supabase (sem aspas extras). " +
+        "Logs da função mostram incoming_len vs sandbox_secret_len e header_keys para diagnóstico.",
     );
   }
   const runtime = auth.runtime;

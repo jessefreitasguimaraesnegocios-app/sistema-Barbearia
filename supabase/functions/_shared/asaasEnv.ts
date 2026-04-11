@@ -1,3 +1,9 @@
+/** Runtime Deno na Edge; no VSCode o projeto Vite não traz tipos `Deno`. */
+function denoEnvGet(key: string): string | undefined {
+  const g = globalThis as unknown as { Deno?: { env: { get(k: string): string | undefined } } };
+  return g.Deno?.env.get(key);
+}
+
 /** Secret colado errado tipo "ASAAS_API_URL=https://..." no campo Value do Dashboard. */
 export function stripAccidentalEnvAssignment(value: string): string {
   const v = value.trim();
@@ -10,7 +16,7 @@ export function stripAccidentalEnvAssignment(value: string): string {
 }
 
 export function readEnvTrim(key: string): string {
-  return (Deno.env.get(key) ?? "").trim();
+  return (denoEnvGet(key) ?? "").trim();
 }
 
 export function readAsaasBaseUrl(keys: string[], fallback: string): string {

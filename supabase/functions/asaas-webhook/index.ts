@@ -22,6 +22,13 @@ const IGNORE_EVENTS = new Set<string>([
 /** Variantes / eventos de cobrança apagada (Asaas pode enviar só PAYMENT_DELETED). */
 const PAYMENT_DELETED_LIKE = new Set<string>(["PAYMENT_DELETED", "PAYMENT_REMOVED", "PAYMENT_DELETED_BY"]);
 
+/** Remove BOM / zero-width copy-paste noise (Slack, PDF, etc.). */
+function normalizeWebhookSecret(raw: string): string {
+  return String(raw ?? "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim();
+}
+
 async function tokensMatch(expected: string, received: string): Promise<boolean> {
   try {
     const a = new TextEncoder().encode(expected);
@@ -44,9 +51,9 @@ async function resolveWebhookRuntime(
   req: Request,
   receivedToken: string,
 ): Promise<{ ok: true; runtime: WebhookRuntime } | { ok: false; reason: "no_secrets" | "bad_token" }> {
-  const sandTok = readAsaasApiKey("ASAAS_WEBHOOK_TOKEN_SANDBOX");
-  const prodTok = readAsaasApiKey("ASAAS_WEBHOOK_TOKEN");
-  if (!sandTok.trim() && !prodTok.trim()) {
+  const sandTok = normalizeWebhookSecret(readAsaasApiKey("ASAAS_WEBHOOK_TOKEN_SANDBOX"));
+  const prodTok = normalizeWebhookSecret(readAsaasApiKey("ASAAS_WEBHOOK_TOKEN"));
+  if (!sandTok && !prodTok) {
     return { ok: false, reason: "no_secrets" };
   }
 
@@ -59,8 +66,8 @@ async function resolveWebhookRuntime(
 
   type Row = { mode: RuntimeMode; tok: string; apiKey: string; apiUrl: string };
   const rows: Row[] = [];
-  if (sandTok.trim()) rows.push({ mode: "sandbox", tok: sandTok.trim(), apiKey: sandKey, apiUrl: sandUrl });
-  if (prodTok.trim()) rows.push({ mode: "production", tok: prodTok.trim(), apiKey: prodKey, apiUrl: prodUrl });
+  if (sandTok) rows.push({ mode: "sandbox", tok: sandTok, apiKey: sandKey, apiUrl: sandUrl });
+  if (prodTok) rows.push({ mode: "production", tok: prodTok, apiKey: prodKey, apiUrl: prodUrl });
 
   const ua = (req.headers.get("user-agent") || "").toLowerCase();
   const sandboxFirst = ua.includes("hmlg") || ua.includes("sandbox");
@@ -74,6 +81,16 @@ async function resolveWebhookRuntime(
       return { ok: true, runtime: { mode: r.mode, apiKey: r.apiKey, apiUrl: r.apiUrl } };
     }
   }
+  console.warn(
+    "[asaas-webhook] bad_token: incoming_len=",
+    receivedToken.length,
+    "sandbox_secret_len=",
+    sandTok.length,
+    "prod_secret_len=",
+    prodTok.length,
+    "sandbox_first_ua=",
+    sandboxFirst,
+  );
   return { ok: false, reason: "bad_token" };
 }
 
@@ -105,11 +122,15 @@ function unauthorized(message: string, hint?: string) {
 
 /** Token que o Asaas envia em `asaas-access-token` (ou Bearer no Authorization, se alguém configurar assim). */
 function readIncomingWebhookToken(req: Request): string {
-  const direct = req.headers.get("asaas-access-token")?.trim();
-  if (direct) return direct;
+  const directRaw = req.headers.get("asaas-access-token");
+  if (directRaw != null && directRaw !== "") {
+    let v = normalizeWebhookSecret(directRaw);
+    if (/^Bearer\s+/i.test(v)) v = normalizeWebhookSecret(v.replace(/^Bearer\s+/i, ""));
+    if (v) return v;
+  }
   const auth = req.headers.get("authorization")?.trim();
   if (auth && /^Bearer\s+/i.test(auth)) {
-    return auth.replace(/^Bearer\s+/i, "").trim();
+    return normalizeWebhookSecret(auth.replace(/^Bearer\s+/i, ""));
   }
   return "";
 }

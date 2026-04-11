@@ -143,6 +143,21 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
   const [bookingBlocks, setBookingBlocks] = useState<BookingBlock[]>([]);
   const [loadingBookingBlocks, setLoadingBookingBlocks] = useState(false);
+  /** Recalcula horários “hoje” e cruza meia-noite; useMemo sozinho congelava `new Date()` dentro do memo. */
+  const [agendaClock, setAgendaClock] = useState(0);
+
+  useEffect(() => {
+    const tick = () => setAgendaClock((n) => n + 1);
+    const id = window.setInterval(tick, 60_000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
 
   const isProfileComplete = !!(
     user.name && user.email && user.cpfCnpj &&
@@ -157,6 +172,11 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     d.setDate(d.getDate() + i);
     return d.toISOString().slice(0, 10);
   });
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    if (selectedDate < todayStr) setSelectedDate(todayStr);
+  }, [agendaClock, todayStr, selectedDate]);
 
   const agendaSlotMinutes = shop.agendaSlotMinutes ?? 30;
   const hasShopLunch = Boolean(shop.lunchStart && shop.lunchEnd);
@@ -185,7 +205,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     if (selectedDate < todayStr) return [];
     if (selectedDate > todayStr) return daySlotList;
     return daySlotList.filter((t) => new Date(`${selectedDate}T${t}:00`) > now);
-  }, [selectedDate, daySlotList, todayStr]);
+  }, [selectedDate, daySlotList, todayStr, agendaClock]);
 
   const teamProIds = useMemo(() => shop.professionals.map((p) => p.id), [shop.professionals]);
 

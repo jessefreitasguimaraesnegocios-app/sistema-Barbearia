@@ -75,8 +75,28 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<PartnerAgendaAppointment | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  /** Mesmo problema que ShopDetails: data “hoje” e slots precisam atualizar após tempo na aba. */
+  const [agendaClock, setAgendaClock] = useState(0);
+
+  useEffect(() => {
+    const tick = () => setAgendaClock((n) => n + 1);
+    const id = window.setInterval(tick, 60_000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
   const minAgendaDate = todayLocalISO();
   const maxAgendaDate = addDaysLocalISO(minAgendaDate, 15);
+
+  useEffect(() => {
+    if (selectedDate < minAgendaDate) setSelectedDate(minAgendaDate);
+  }, [agendaClock, minAgendaDate, selectedDate]);
 
   useEffect(() => {
     setWorkdayStart(shop.workdayStart ?? '08:00');

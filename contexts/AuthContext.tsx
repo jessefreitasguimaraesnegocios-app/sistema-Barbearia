@@ -154,6 +154,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       safeSetLoading(false);
     }, 4000);
 
+    /** Abas em background pausam timers do GoTrue; ao voltar, força leitura da sessão e refresh se precisar. */
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible' || cancelled) return;
+      void supabase.auth.getSession();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     try {
       supabase.auth.getSession().then(async ({ data: { session } }) => {
         try {
@@ -182,23 +189,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       safeSetLoading(false);
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setEmail(session.user.email ?? null);
-        const p = await fetchProfile(session.user.id);
-        setProfile(p);
-        setSessionUserId(session.user.id);
-      } else {
-        setProfile(null);
-        setEmail(null);
-        setSessionUserId(null);
-      }
-      safeSetLoading(false);
+    /**
+     * Não fazer await pesado direto no callback do GoTrue (risco de deadlock / fila interna).
+     * @see https://supabase.com/docs/reference/javascript/auth-onauthstatechange
+     */
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        if (cancelled) return;
+        void (async () => {
+          try {
+            if (session?.user) {
+              setEmail(session.user.email ?? null);
+              const p = await fetchProfile(session.user.id);
+              if (cancelled) return;
+              setProfile(p);
+              setSessionUserId(session.user.id);
+            } else {
+              setProfile(null);
+              setEmail(null);
+              setSessionUserId(null);
+            }
+          } finally {
+            safeSetLoading(false);
+          }
+        })();
+      }, 0);
     });
 
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
+      document.removeEventListener('visibilitychange', onVisibility);
       subscription.unsubscribe();
     };
   }, [fetchProfile]);
@@ -249,7 +270,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    try {
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 10_000);
+        }),
+      ]);
+    } catch {
+      /* rede instável: limpa UI mesmo assim */
+    }
     setProfile(null);
     setEmail(null);
     setSessionUserId(null);

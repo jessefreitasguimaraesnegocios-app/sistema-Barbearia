@@ -491,6 +491,7 @@ export default function PartnerArea() {
               await saveAgendaSettings(p);
             } catch (e) {
               alert(e instanceof Error ? e.message : 'Erro ao salvar horários.');
+              throw e;
             }
           }}
           onReschedule={async (id, date, time) => {

@@ -69,6 +69,8 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   const [hasLunch, setHasLunch] = useState(Boolean(shop.lunchStart && shop.lunchEnd));
   const [slotMinutes, setSlotMinutes] = useState(shop.agendaSlotMinutes ?? 30);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  /** Dono: formulário de expediente recolhido por defeito para dar destaque à grade e à lista. */
+  const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<PartnerAgendaAppointment | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
@@ -186,6 +188,15 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       });
   }, [appointments]);
 
+  const resetScheduleFieldsFromShop = () => {
+    setWorkdayStart(shop.workdayStart ?? '08:00');
+    setWorkdayEnd(shop.workdayEnd ?? '20:00');
+    setLunchStart(shop.lunchStart ?? '12:00');
+    setLunchEnd(shop.lunchEnd ?? '14:00');
+    setHasLunch(Boolean(shop.lunchStart && shop.lunchEnd));
+    setSlotMinutes(shop.agendaSlotMinutes ?? 30);
+  };
+
   const handleSaveSchedule = async () => {
     setSavingSchedule(true);
     try {
@@ -196,6 +207,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         lunchEnd: hasLunch ? lunchEnd : null,
         agendaSlotMinutes: slotMinutes,
       });
+      if (allowEditShopSchedule) setScheduleEditorOpen(false);
     } finally {
       setSavingSchedule(false);
     }
@@ -257,7 +269,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       <section className="bg-white p-6 md:p-8 rounded-4xl border border-gray-100 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <h3 className="text-lg font-bold text-gray-900">
-            {allowEditShopSchedule ? 'Horário de funcionamento' : 'Data da agenda'}
+            {allowEditShopSchedule ? 'Dia da agenda' : 'Data da agenda'}
           </h3>
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Data da agenda</label>
@@ -283,8 +295,33 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
             . Slots de <strong>{slotMinutes}</strong> min.
           </p>
         )}
-        {allowEditShopSchedule && (
+        {allowEditShopSchedule && !scheduleEditorOpen && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100">
+            <div className="text-sm text-gray-700">
+              <span className="font-bold text-gray-900">Expediente:</span>{' '}
+              <strong>{workdayStart}</strong> – <strong>{workdayEnd}</strong>
+              {hasLunch && lunchStart && lunchEnd ? (
+                <>
+                  {' '}
+                  · Almoço <strong>{lunchStart}</strong>–<strong>{lunchEnd}</strong>
+                </>
+              ) : (
+                <> · Sem intervalo de almoço</>
+              )}
+              <> · Grade <strong>{slotMinutes}</strong> min</>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScheduleEditorOpen(true)}
+              className="shrink-0 px-5 py-2.5 rounded-xl border-2 border-[color-mix(in_srgb,var(--shop-primary)_40%,transparent)] text-(--shop-primary) font-bold text-sm hover:bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] transition-colors"
+            >
+              Editar horários
+            </button>
+          </div>
+        )}
+        {allowEditShopSchedule && scheduleEditorOpen && (
           <>
+            <p className="text-xs text-gray-500 -mt-2">Ajuste abertura, fechamento, almoço e tamanho da faixa na grade.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Abre às</label>
@@ -350,14 +387,27 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                 ))}
               </select>
             </div>
-            <button
-              type="button"
-              disabled={savingSchedule}
-              onClick={handleSaveSchedule}
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-(--shop-primary) text-white font-bold hover:brightness-95 disabled:opacity-60"
-            >
-              {savingSchedule ? 'Salvando…' : 'Salvar horários'}
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                disabled={savingSchedule}
+                onClick={handleSaveSchedule}
+                className="px-6 py-3 rounded-2xl bg-(--shop-primary) text-white font-bold hover:brightness-95 disabled:opacity-60"
+              >
+                {savingSchedule ? 'Salvando…' : 'Salvar horários'}
+              </button>
+              <button
+                type="button"
+                disabled={savingSchedule}
+                onClick={() => {
+                  resetScheduleFieldsFromShop();
+                  setScheduleEditorOpen(false);
+                }}
+                className="px-6 py-3 rounded-2xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+            </div>
           </>
         )}
       </section>

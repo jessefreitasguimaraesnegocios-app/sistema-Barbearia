@@ -1,0 +1,22 @@
+---
+description: Sempre fazer deploy das Supabase Edge Functions após alterações em supabase/functions
+alwaysApply: true
+---
+
+# Deploy obrigatório — Supabase Edge Functions
+
+Quando alterares **qualquer** ficheiro em `supabase/functions/` (incluindo `supabase/functions/_shared/`):
+
+1. **Antes de dar a tarefa como concluída**, executa na raiz do repositório o deploy das funções afetadas (não delegues só instruções ao utilizador). Em PowerShell usa `;` entre comandos.
+
+2. **Scripts úteis** (ver `package.json`):
+   - **`npm run supabase:functions-deploy`** — faz deploy de todas as funções em cadeia (`create-shop`, `create-payment`, `process-shop-finance`, `shop-finance-webhook`, `asaas-webhook`), com `--no-verify-jwt` onde o projeto já define.
+   - **`npm run supabase:deploy-asaas-webhook`** — só `asaas-webhook` (rápido quando só mudaste esse fluxo).
+
+3. **Ficheiro partilhado `_shared/asaasEnv.ts`**: é importado por `create-payment`, `asaas-webhook` e `process-shop-finance`. Se o mudares, faz deploy **dessas três** (ou corre `npm run supabase:functions-deploy` para garantir).
+
+4. Se mudaste **só** uma função (ex.: só `create-payment/index.ts`), podes fazer deploy só dela:  
+   `npx supabase functions deploy create-payment --no-verify-jwt`  
+   (e o mesmo padrão para as outras, conforme `supabase/config.toml` para `verify_jwt`.)
+
+5. Se o **deploy falhar** (CLI não ligado, auth, rede), descreve o erro e o próximo passo; **não** assumes que o código já está em produção no Supabase.

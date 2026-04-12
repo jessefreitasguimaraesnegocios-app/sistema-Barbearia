@@ -1,8 +1,38 @@
 // Vercel Serverless: GET /api/partner/wallet (saldo + opcional histórico) | POST /api/partner/wallet (saque)
 // Usa a chave da subconta (asaas_api_key) para GET /v3/finance/balance, GET /v3/financialTransactions e POST /v3/transfers.
 
-import { createClient } from '@supabase/supabase-js';
-import { insertFinancialAudit } from '../../lib/server/financial-audit';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+/** Inline: evita import de `lib/` na Vercel (Node não executa .ts copiado só com includeFiles). */
+async function insertFinancialAudit(
+  supabase: SupabaseClient,
+  row: {
+    shop_id: string;
+    actor_user_id?: string | null;
+    action: string;
+    amount?: number | null;
+    result: string;
+    asaas_transfer_id?: string | null;
+    error_message?: string | null;
+    metadata?: Record<string, unknown> | null;
+    ip?: string | null;
+    user_agent?: string | null;
+  }
+): Promise<void> {
+  const { error } = await supabase.from('financial_audit_logs').insert({
+    shop_id: row.shop_id,
+    actor_user_id: row.actor_user_id ?? null,
+    action: row.action,
+    amount: row.amount ?? null,
+    result: row.result,
+    asaas_transfer_id: row.asaas_transfer_id ?? null,
+    error_message: row.error_message ?? null,
+    metadata: row.metadata ?? null,
+    ip: row.ip ?? null,
+    user_agent: row.user_agent ?? null,
+  });
+  if (error) console.error('[financial_audit] insert failed', error);
+}
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

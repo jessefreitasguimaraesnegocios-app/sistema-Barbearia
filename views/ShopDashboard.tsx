@@ -1,11 +1,30 @@
 
 import React, { useState } from 'react';
-import { Shop, Appointment, Order } from '../types';
+import { Shop, Order, PartnerAgendaAppointment } from '../types';
 import { shouldShowPartnerAsaasSetupBanner } from '../lib/partnerOnboardingBanner';
+
+/** Igual à Agenda: só entra com pagamento confirmado; COMPLETED mantém o dia visível após atendimento. */
+function isPaidOrCompletedAppointment(a: PartnerAgendaAppointment): boolean {
+  return a.status === 'PAID' || a.status === 'COMPLETED';
+}
+
+function orderCountsForRevenue(o: Order): boolean {
+  return o.status === 'PAID' || o.status === 'DELIVERED';
+}
+
+function parseOrderDatePtBr(dateStr: string): Date | null {
+  const p = dateStr.split('/');
+  if (p.length !== 3) return null;
+  const da = parseInt(p[0], 10);
+  const mo = parseInt(p[1], 10);
+  const yr = parseInt(p[2], 10);
+  if (!Number.isFinite(da) || !Number.isFinite(mo) || !Number.isFinite(yr)) return null;
+  return new Date(yr, mo - 1, da);
+}
 
 interface ShopDashboardProps {
   shop: Shop;
-  appointments: Appointment[];
+  appointments: PartnerAgendaAppointment[];
   orders: Order[];
   onMarkAppointmentCompleted?: (appointmentId: string) => Promise<void>;
   /** Funcionário: agenda já filtrada; esconde filtro por equipe e banner de onboarding da loja. */
@@ -29,34 +48,42 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   // Filtrar dados da loja
   const myApts = appointments.filter(a => a.shopId === shop.id);
   const myOrders = orders.filter(o => o.shopId === shop.id);
+  const revenueOrders = myOrders.filter(orderCountsForRevenue);
 
   // Filtragem por período para o resumo financeiro
   const getPeriodData = (p: Period) => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     
-    let filteredApts = myApts;
-    let filteredOrders = myOrders;
+    const paidLikeApts = myApts.filter(isPaidOrCompletedAppointment);
+    let filteredApts = paidLikeApts;
+    let filteredOrders = revenueOrders;
 
     if (p === 'TODAY') {
-      filteredApts = myApts.filter(a => a.date === todayStr);
-      // Para orders, como o mock usa dd/mm/aaaa ou data local, vamos simplificar a detecção de hoje
+      filteredApts = paidLikeApts.filter(a => a.date === todayStr);
       const localDateStr = now.toLocaleDateString('pt-BR');
-      filteredOrders = myOrders.filter(o => o.date === localDateStr);
+      filteredOrders = revenueOrders.filter(o => o.date === localDateStr);
     } else if (p === 'WEEK') {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(now.getDate() - 7);
-      filteredApts = myApts.filter(a => new Date(a.date) >= sevenDaysAgo);
-      // No mock de ordens, as datas são strings. Em um app real usaríamos timestamps.
-      filteredOrders = myOrders; // Mantendo para fins de UI no mock
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+      filteredApts = paidLikeApts.filter(a => new Date(a.date) >= sevenDaysAgo);
+      filteredOrders = revenueOrders.filter((o) => {
+        const d = parseOrderDatePtBr(o.date);
+        return d != null && !Number.isNaN(d.getTime()) && d >= sevenDaysAgo;
+      });
     } else if (p === 'MONTH') {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(now.getDate() - 30);
-      filteredApts = myApts.filter(a => new Date(a.date) >= thirtyDaysAgo);
-      filteredOrders = myOrders;
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+      filteredApts = paidLikeApts.filter(a => new Date(a.date) >= thirtyDaysAgo);
+      filteredOrders = revenueOrders.filter((o) => {
+        const d = parseOrderDatePtBr(o.date);
+        return d != null && !Number.isNaN(d.getTime()) && d >= thirtyDaysAgo;
+      });
     }
 
-    const servicesRevenue = filteredApts.reduce((sum, a) => sum + (a.status === 'PAID' || a.status === 'COMPLETED' ? a.amount : 0), 0);
+    const servicesRevenue = filteredApts.reduce((sum, a) => sum + a.amount, 0);
     const productsRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
 
     return {
@@ -69,17 +96,20 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
 
   const financialSummary = getPeriodData(period);
 
-  // Dados para a Timeline de Hoje
+  // Dados para a Timeline de Hoje (mesma regra da Agenda: só pagos; COMPLETED = já atendidos no dia)
   const today = new Date().toISOString().split('T')[0];
   const todayApts = myApts
-    .filter(a => a.date === today)
+    .filter((a) => a.date === today && isPaidOrCompletedAppointment(a))
     .sort((a, b) => a.time.localeCompare(b.time));
 
   const filteredApts = filterPro === 'ALL' 
     ? todayApts 
     : todayApts.filter(a => a.professionalId === filterPro);
 
-  const nextApt = todayApts.find(a => a.status === 'PAID' || a.status === 'PENDING');
+  const nextApt = todayApts.find((a) => a.status === 'PAID');
+
+  const clientLabel = (a: PartnerAgendaAppointment) =>
+    a.clientDisplayName?.trim() || `Cliente #${a.clientId.slice(0, 4)}`;
 
   return (
     <div className="space-y-8 animate-fade-in pb-20">
@@ -194,10 +224,10 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
               </div>
               <div className="flex items-center gap-4 mb-6 pt-2">
                 <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 text-xl font-bold">
-                  {nextApt.clientId.substr(0, 1).toUpperCase()}
+                  {clientLabel(nextApt).charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h4 className="font-black text-gray-900 text-xl">Cliente #{nextApt.clientId.substr(0, 4)}</h4>
+                  <h4 className="font-black text-gray-900 text-xl">{clientLabel(nextApt)}</h4>
                   <p className="text-indigo-600 font-bold flex items-center gap-2">
                     <i className="fas fa-clock"></i> {nextApt.time} (em 15 min)
                   </p>
@@ -302,7 +332,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                          </div>
                          <div className="w-px h-10 bg-gray-100 hidden sm:block"></div>
                          <div>
-                            <h4 className="font-bold text-gray-900">Cliente #{apt.clientId.substr(0, 4)}</h4>
+                            <h4 className="font-bold text-gray-900">{clientLabel(apt)}</h4>
                             <p className="text-sm text-gray-500">{service?.name}</p>
                          </div>
                       </div>

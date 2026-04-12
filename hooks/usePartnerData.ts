@@ -3,6 +3,7 @@ import type { Appointment, ShopPartnerOrderRow } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { loadPartnerShopActivity, fetchPartnerAppointments } from '../services/supabase/partnerShopActivity';
 import { useRealtimeAppointments } from './useRealtimeAppointments';
+import { useRealtimePartnerOrders } from './useRealtimePartnerOrders';
 
 /** Agenda + pedidos da loja (parceiro), com filtro opcional por profissional (STAFF). */
 export function usePartnerData(shopId: string | undefined, staffProfessionalId: string | undefined) {
@@ -18,6 +19,8 @@ export function usePartnerData(shopId: string | undefined, staffProfessionalId: 
     setAppointments,
     staffProfessionalId: staffProfessionalId ?? undefined,
   });
+
+  useRealtimePartnerOrders(supabase, shopId, setShopPartnerOrderRows);
 
   const reloadPartnerData = useCallback(async () => {
     if (!shopId) {

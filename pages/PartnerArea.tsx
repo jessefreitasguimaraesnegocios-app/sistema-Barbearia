@@ -22,7 +22,7 @@ export default function PartnerArea() {
   const [shopReloadKey, setShopReloadKey] = useState(0);
   const { shop: myShop, setShop: setMyShop, reloadShop } = useShop(user?.shopId, shopReloadKey);
   const staffProfessionalId = user?.professionalId;
-  const { appointments, shopPartnerOrderRows, reloadPartnerData } = usePartnerData(myShop?.id, staffProfessionalId);
+  const { appointments, shopPartnerOrderRows } = usePartnerData(myShop?.id, staffProfessionalId);
   const [currentView, setCurrentView] = useState<
     | 'shop-dashboard'
     | 'shop-agenda'
@@ -112,9 +112,9 @@ export default function PartnerArea() {
         alert('Não foi possível marcar o pedido como entregue. Tente novamente.');
         return;
       }
-      await reloadPartnerData();
+      // Lista atualizada via Realtime em `orders`.
     },
-    [myShop?.id, reloadPartnerData]
+    [myShop?.id]
   );
 
   const saveAgendaSettings = React.useCallback(
@@ -475,7 +475,7 @@ export default function PartnerArea() {
       {currentView === 'shop-dashboard' && (
         <ShopDashboard
           shop={myShop}
-          appointments={appointments}
+          appointments={agendaAppointments}
           orders={dashboardOrders}
           onMarkAppointmentCompleted={markAppointmentCompleted}
           staffMode={isStaff}

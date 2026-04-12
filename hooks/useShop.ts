@@ -20,5 +20,37 @@ export function useShop(shopId: string | undefined, reloadKey = 0) {
     void reloadShop();
   }, [shopId, reloadKey, reloadShop]);
 
+  useEffect(() => {
+    if (!shopId) return;
+
+    const channel = supabase
+      .channel(`shop-bundle-rt-${shopId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shops', filter: `id=eq.${shopId}` },
+        () => void reloadShop()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'services', filter: `shop_id=eq.${shopId}` },
+        () => void reloadShop()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'professionals', filter: `shop_id=eq.${shopId}` },
+        () => void reloadShop()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products', filter: `shop_id=eq.${shopId}` },
+        () => void reloadShop()
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [shopId, reloadShop]);
+
   return { shop, setShop, reloadShop };
 }

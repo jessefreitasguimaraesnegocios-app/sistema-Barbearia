@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Shop, Order, PartnerAgendaAppointment } from '../types';
 import { shouldShowPartnerAsaasSetupBanner } from '../lib/partnerOnboardingBanner';
@@ -20,6 +19,38 @@ function parseOrderDatePtBr(dateStr: string): Date | null {
   const yr = parseInt(p[2], 10);
   if (!Number.isFinite(da) || !Number.isFinite(mo) || !Number.isFinite(yr)) return null;
   return new Date(yr, mo - 1, da);
+}
+
+function ClientAppointmentAvatar({
+  apt,
+  sizeClass = 'w-14 h-14 rounded-2xl text-xl',
+}: {
+  apt: PartnerAgendaAppointment;
+  sizeClass?: string;
+}) {
+  const url = apt.clientAvatarUrl?.trim();
+  const letter = (apt.clientDisplayName?.trim() || `Cliente #${apt.clientId.slice(0, 4)}`)
+    .charAt(0)
+    .toUpperCase();
+  const [imgFailed, setImgFailed] = useState(false);
+  if (url && !imgFailed) {
+    return (
+      <img
+        src={url}
+        alt=""
+        className={`${sizeClass} object-cover shrink-0 bg-gray-100 border border-gray-100`}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+  return (
+    <div
+      className={`${sizeClass} shrink-0 bg-gray-100 flex items-center justify-center text-gray-400 font-bold border border-gray-100`}
+      aria-hidden
+    >
+      {letter}
+    </div>
+  );
 }
 
 interface ShopDashboardProps {
@@ -223,9 +254,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                 Próximo Cliente
               </div>
               <div className="flex items-center gap-4 mb-6 pt-2">
-                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 text-xl font-bold">
-                  {clientLabel(nextApt).charAt(0).toUpperCase()}
-                </div>
+                <ClientAppointmentAvatar apt={nextApt} />
                 <div>
                   <h4 className="font-black text-gray-900 text-xl">{clientLabel(nextApt)}</h4>
                   <p className="text-indigo-600 font-bold flex items-center gap-2">
@@ -331,6 +360,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                             <p className="text-[10px] font-bold text-gray-400 uppercase mt-1">Hórario</p>
                          </div>
                          <div className="w-px h-10 bg-gray-100 hidden sm:block"></div>
+                         <ClientAppointmentAvatar apt={apt} sizeClass="w-10 h-10 rounded-xl text-sm" />
                          <div>
                             <h4 className="font-bold text-gray-900">{clientLabel(apt)}</h4>
                             <p className="text-sm text-gray-500">{service?.name}</p>

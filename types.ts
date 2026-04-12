@@ -118,6 +118,8 @@ export interface Appointment {
 export interface PartnerAgendaAppointment extends Appointment {
   clientDisplayName: string;
   clientPhone: string | null;
+  /** Foto do perfil (`profiles.avatar_url`); ausente ou inválida → inicial no UI. */
+  clientAvatarUrl?: string | null;
 }
 
 export interface Order {

@@ -63,10 +63,16 @@ export default function PartnerArea() {
     const clientIds = [...new Set(appointments.map((a) => a.clientId))];
     let cancelled = false;
     (async () => {
-      const { data: profs } = await supabase.from('profiles').select('id, full_name, phone').in('id', clientIds);
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone, avatar_url')
+        .in('id', clientIds);
       if (cancelled) return;
       const map = new Map(
-        (profs ?? []).map((p: { id: string; full_name?: string | null; phone?: string | null }) => [String(p.id), p])
+        (profs ?? []).map(
+          (p: { id: string; full_name?: string | null; phone?: string | null; avatar_url?: string | null }) =>
+            [String(p.id), p]
+        )
       );
       const rows: PartnerAgendaAppointment[] = appointments.map((a) => {
         const pr = map.get(a.clientId);
@@ -74,6 +80,7 @@ export default function PartnerArea() {
           ...a,
           clientDisplayName: pr?.full_name?.trim() || `Cliente #${a.clientId.slice(0, 8)}`,
           clientPhone: pr?.phone?.trim() || null,
+          clientAvatarUrl: pr?.avatar_url?.trim() || null,
         };
       });
       setAgendaAppointments(rows);

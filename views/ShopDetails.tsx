@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Shop, Service, Professional, Appointment, User, Product, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
 import {
@@ -13,6 +13,8 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | und
 const PAYMENT_API_URL = SUPABASE_URL
   ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/create-payment`
   : '/api/payments/create';
+
+const PIX_COPIED_TOAST_MS = 1500;
 
 /** Garante access_token fresco (evita POST na Edge sem Bearer → 401). */
 async function ensurePaymentAccessToken(): Promise<string> {
@@ -164,6 +166,17 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   /** Fluxo carrinho (loja): carrinho → tela dedicada PIX → aprovado → home. */
   type OrderPayPhase = 'idle' | 'pix' | 'approved';
   const [orderPayPhase, setOrderPayPhase] = useState<OrderPayPhase>('idle');
+
+  const [pixCopiedToast, setPixCopiedToast] = useState(false);
+  const pixCopiedToastTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pixCopiedToastTimerRef.current != null) {
+        window.clearTimeout(pixCopiedToastTimerRef.current);
+      }
+    };
+  }, []);
 
   // Store States
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
@@ -543,6 +556,26 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     return () => window.clearTimeout(t);
   }, [orderPayPhase, onOrder]);
 
+  function showPixCopiedToast() {
+    if (pixCopiedToastTimerRef.current != null) {
+      window.clearTimeout(pixCopiedToastTimerRef.current);
+    }
+    setPixCopiedToast(true);
+    pixCopiedToastTimerRef.current = window.setTimeout(() => {
+      setPixCopiedToast(false);
+      pixCopiedToastTimerRef.current = null;
+    }, PIX_COPIED_TOAST_MS);
+  }
+
+  async function copyPixPayload(payload: string) {
+    try {
+      await navigator.clipboard.writeText(payload);
+      showPixCopiedToast();
+    } catch {
+      /* sem toast: clipboard pode falhar fora de HTTPS ou sem permissão */
+    }
+  }
+
   function renderPixPayPanel(ctx: InlinePayPix, opts?: { showAutoReturnHint?: boolean }) {
     const showHint = opts?.showAutoReturnHint !== false;
     const imgSrc = pixQrImageSrc(ctx.encodedImage);
@@ -573,7 +606,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             />
             <button
               type="button"
-              onClick={() => void navigator.clipboard.writeText(ctx.payload)}
+              onClick={() => void copyPixPayload(ctx.payload)}
               className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-colors"
             >
               <i className="fas fa-copy mr-2" />
@@ -1300,6 +1333,17 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             </div>
           </div>
         )}
+
+      {pixCopiedToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-8 left-1/2 z-[140] -translate-x-1/2 px-5 py-3 rounded-2xl bg-gray-900 text-white text-sm font-bold shadow-xl animate-fade-in flex items-center gap-2 pointer-events-none"
+        >
+          <i className="fas fa-check-circle text-emerald-400" aria-hidden />
+          PIX copiado!
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -147,7 +147,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [paymentCustomerEmail, setPaymentCustomerEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  /** PIX gerado: mostra QR + copia e cola no mesmo ecrã; confirmação via Realtime (PAID). */
+  /** PIX gerado: mostra QR + copia e cola na mesma tela; confirmação via Realtime (PAID). */
   type InlinePayPix = {
     kind: 'booking' | 'order';
     payload: string;
@@ -158,9 +158,12 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     isDuplicate?: boolean;
   };
   const [inlinePayPix, setInlinePayPix] = useState<InlinePayPix | null>(null);
-  /** Fluxo agendamento: resumo → ecrã dedicado PIX → “Pagamento Aprovado!” → home. */
+  /** Fluxo agendamento: resumo → tela dedicada PIX → “Pagamento Aprovado!” → home. */
   type BookingPayPhase = 'idle' | 'pix' | 'approved';
   const [bookingPayPhase, setBookingPayPhase] = useState<BookingPayPhase>('idle');
+  /** Fluxo carrinho (loja): carrinho → tela dedicada PIX → aprovado → home. */
+  type OrderPayPhase = 'idle' | 'pix' | 'approved';
+  const [orderPayPhase, setOrderPayPhase] = useState<OrderPayPhase>('idle');
 
   // Store States
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
@@ -472,6 +475,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         recordId: orderId,
         isDuplicate: Boolean((data as { duplicate?: unknown }).duplicate),
       });
+      setIsCartOpen(false);
+      setOrderPayPhase('pix');
       onRefetchAppointmentsAndOrders?.();
     } catch (error) {
       console.error("Order payment error:", error);
@@ -504,10 +509,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
               setBookingPayPhase('approved');
               return;
             }
-            setInlinePayPix(null);
-            setCart([]);
-            setIsCartOpen(false);
-            onOrder();
+            setOrderPayPhase('approved');
           }
         }
       )
@@ -517,7 +519,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     };
   }, [inlinePayPix?.recordId, inlinePayPix?.kind, onBook, onOrder]);
 
-  const BOOKING_APPROVED_MS = 2200;
+  const PAYMENT_APPROVED_SCREEN_MS = 2200;
   useEffect(() => {
     if (bookingPayPhase !== 'approved') return;
     const t = window.setTimeout(() => {
@@ -525,9 +527,21 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       setBookingPayPhase('idle');
       setStep(1);
       onBook();
-    }, BOOKING_APPROVED_MS);
+    }, PAYMENT_APPROVED_SCREEN_MS);
     return () => window.clearTimeout(t);
   }, [bookingPayPhase, onBook]);
+
+  useEffect(() => {
+    if (orderPayPhase !== 'approved') return;
+    const t = window.setTimeout(() => {
+      setInlinePayPix((prev) => (prev?.kind === 'order' ? null : prev));
+      setOrderPayPhase('idle');
+      setCart([]);
+      setIsCartOpen(false);
+      onOrder();
+    }, PAYMENT_APPROVED_SCREEN_MS);
+    return () => window.clearTimeout(t);
+  }, [orderPayPhase, onOrder]);
 
   function renderPixPayPanel(ctx: InlinePayPix, opts?: { showAutoReturnHint?: boolean }) {
     const showHint = opts?.showAutoReturnHint !== false;
@@ -591,8 +605,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       </div>
     );
   }
-
-  const orderPixLocked = inlinePayPix?.kind === 'order';
 
   return (
     <div className="max-w-4xl mx-auto pb-24">
@@ -800,7 +812,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                           Pagamento Aprovado!
                         </h2>
                         <p className="text-gray-500 mt-3 text-center text-sm md:text-base">
-                          A redirecionar para o início…
+                          Redirecionando para o início…
                         </p>
                       </div>
                     ) : bookingPayPhase === 'pix' && inlinePayPix?.kind === 'booking' ? (
@@ -1069,7 +1081,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       </div>
 
       {/* Cart Summary Drawer / Modal */}
-      {isCartOpen && (
+      {isCartOpen && orderPayPhase === 'idle' && (
         <div className="fixed inset-0 z-100 bg-black/40 backdrop-blur-sm flex justify-end animate-fade-in">
           <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-left">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
@@ -1082,7 +1094,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {orderPixLocked && inlinePayPix ? <div className="pb-2">{renderPixPayPanel(inlinePayPix)}</div> : null}
               {cart.length > 0 ? (
                 cart.map(item => (
                   <div key={item.product.id} className="flex gap-4 group">
@@ -1092,9 +1103,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         <h4 className="font-bold text-gray-900 text-sm">{item.product.name}</h4>
                         <button
                           type="button"
-                          disabled={orderPixLocked}
                           onClick={() => removeFromCart(item.product.id)}
-                          className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="text-gray-300 hover:text-red-500 transition-colors"
                         >
                           <i className="fas fa-trash-alt text-xs"></i>
                         </button>
@@ -1104,16 +1114,15 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-2 py-1">
                           <button
                             type="button"
-                            disabled={orderPixLocked}
                             onClick={() => updateQuantity(item.product.id, -1)}
-                            className="text-gray-500 hover:text-indigo-600 disabled:opacity-30"
+                            className="text-gray-500 hover:text-indigo-600"
                           >
                             <i className="fas fa-minus text-[10px]"></i>
                           </button>
                           <span className="text-sm font-bold text-gray-900 min-w-[20px] text-center">{item.quantity}</span>
                           <button
                             type="button"
-                            disabled={orderPixLocked || item.quantity >= Math.max(0, Math.floor(Number(item.product.stock) || 0))}
+                            disabled={item.quantity >= Math.max(0, Math.floor(Number(item.product.stock) || 0))}
                             onClick={() => updateQuantity(item.product.id, 1)}
                             className="text-gray-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed"
                           >
@@ -1209,15 +1218,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                   </div>
                 </div>
 
-                {orderPixLocked ? (
-                  <div className="py-4 text-center space-y-2 rounded-2xl bg-emerald-50 border border-emerald-100">
-                    <p className="text-sm text-emerald-900 font-semibold flex items-center justify-center gap-2">
-                      <i className="fas fa-spinner fa-spin text-emerald-600" />
-                      Aguardando confirmação do PIX…
-                    </p>
-                    <p className="text-[10px] text-gray-600">Ao confirmar, você volta ao início automaticamente.</p>
-                  </div>
-                ) : (
                 <button
                   disabled={isOrderProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
                   onClick={handleOrderPayment}
@@ -1229,7 +1229,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     <><i className="fas fa-credit-card"></i> Pagar R$ {cartTotal.toFixed(2)}</>
                   )}
                 </button>
-                )}
                 <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest font-bold">Pagamento processado por BeautyPay</p>
               </div>
             )}
@@ -1238,7 +1237,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       )}
 
       {/* Floating Cart Button */}
-      {cart.length > 0 && activeTab === 'STORE' && !isCartOpen && (
+      {cart.length > 0 && activeTab === 'STORE' && !isCartOpen && orderPayPhase === 'idle' && (
         <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-slate-900 text-white p-4 rounded-3xl shadow-2xl z-60 flex items-center justify-between animate-bounce-in">
            <div className="flex items-center gap-4">
               <div className="relative">
@@ -1260,6 +1259,47 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
            </button>
         </div>
       )}
+
+      {/* Pedido (loja): tela cheia PIX → Pagamento Aprovado → home */}
+      {(orderPayPhase === 'pix' || orderPayPhase === 'approved') &&
+        inlinePayPix?.kind === 'order' && (
+          <div className="fixed inset-0 z-[130] bg-white/97 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+            <div className="w-full max-w-lg py-4">
+              {orderPayPhase === 'approved' ? (
+                <div className="flex flex-col items-center justify-center py-16 md:py-20 px-4">
+                  <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                    <i className="fas fa-check text-5xl md:text-6xl text-green-600" />
+                  </div>
+                  <h2 className="text-2xl md:text-4xl font-black text-gray-900 text-center tracking-tight">
+                    Pagamento Aprovado!
+                  </h2>
+                  <p className="text-gray-500 mt-3 text-center text-sm md:text-base">
+                    Redirecionando para o início…
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="text-center space-y-1">
+                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Pague com PIX</h3>
+                    <p className="text-sm text-gray-500">
+                      Pedido em <strong>{shop.name}</strong> · use o QR ou o código no app do banco.
+                    </p>
+                  </div>
+                  {renderPixPayPanel(inlinePayPix, { showAutoReturnHint: false })}
+                  <div className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-100">
+                    <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
+                      <i className="fas fa-spinner fa-spin text-emerald-600" />
+                      Aguardando confirmação do PIX…
+                    </p>
+                    <p className="text-xs text-gray-600 text-center px-3">
+                      Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e você vai ao início.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
     </div>
   );
 };

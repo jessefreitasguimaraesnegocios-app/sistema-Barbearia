@@ -917,58 +917,52 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                       </div>
                       )}
 
-                      {/* Lado Direito: Pagamento PIX (único método disponível) */}
-                      <div className="space-y-4">
-                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Forma de Pagamento</h4>
-                         <div className="flex items-center gap-4 p-4 rounded-2xl border-2 border-indigo-600 bg-indigo-50">
-                            <div className="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center">
-                              <i className="fas fa-qrcode"></i>
+                      {/* Ação: só o botão até gerar PIX; depois QR + aguardando */}
+                      <div className="flex flex-col justify-end gap-4 md:min-h-[120px]">
+                        {!bookingPixLocked ? (
+                          <button
+                            type="button"
+                            disabled={
+                              isProcessing ||
+                              (!isProfileComplete &&
+                                ((customerCpf.replace(/\D/g, '').length !== 11 &&
+                                  customerCpf.replace(/\D/g, '').length !== 14) ||
+                                  !(paymentCustomerName || user.name || '').trim() ||
+                                  !(paymentCustomerEmail || user.email || '').trim()))
+                            }
+                            onClick={handleBooking}
+                            className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isProcessing ? (
+                              <>
+                                <i className="fas fa-spinner fa-spin"></i> Processando Pagamento...
+                              </>
+                            ) : (
+                              <>
+                                <i className="fas fa-shield-check"></i> Finalizar Agendamento
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <div className="space-y-4">
+                            {inlinePayPix ? renderPixPayPanel(inlinePayPix) : null}
+                            <div className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-100">
+                              <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
+                                <i className="fas fa-spinner fa-spin text-emerald-600" />
+                                Aguardando confirmação do PIX…
+                              </p>
+                              <p className="text-xs text-gray-600 text-center px-3">
+                                Ao confirmar no banco, você volta ao início automaticamente.
+                              </p>
                             </div>
-                            <div className="text-left">
-                              <p className="font-bold text-gray-900">PIX</p>
-                              <p className="text-[10px] text-gray-500">Único método disponível no momento</p>
-                            </div>
-                            <i className="fas fa-check-circle ml-auto text-indigo-600"></i>
-                         </div>
-                         {bookingPixLocked && inlinePayPix ? (
-                           renderPixPayPanel(inlinePayPix)
-                         ) : (
-                           <div className="animate-fade-in bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
-                             <div className="w-32 h-32 bg-white border border-gray-100 mx-auto mb-4 p-2 flex items-center justify-center">
-                               <i className="fas fa-qrcode text-6xl text-gray-300"></i>
-                             </div>
-                             <p className="text-[10px] text-gray-400 font-medium mb-3 uppercase">
-                               Toque em &quot;Finalizar Agendamento&quot; para gerar o PIX aqui.
-                             </p>
-                           </div>
-                         )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {bookingPixLocked ? (
-                      <div className="mt-8 flex flex-col items-center gap-3 py-4 rounded-3xl bg-emerald-50 border border-emerald-100">
-                        <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
-                          <i className="fas fa-spinner fa-spin text-emerald-600" />
-                          Aguardando confirmação do PIX…
-                        </p>
-                        <p className="text-xs text-gray-600 text-center px-4">
-                          Ao confirmar no banco, você volta ao início automaticamente.
-                        </p>
-                      </div>
-                    ) : (
-                    <button 
-                      disabled={isProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
-                      onClick={handleBooking}
-                      className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed mt-8"
-                    >
-                      {isProcessing ? (
-                        <><i className="fas fa-spinner fa-spin"></i> Processando Pagamento...</>
-                      ) : (
-                        <><i className="fas fa-shield-check"></i> Finalizar Agendamento</>
-                      )}
-                    </button>
-                    )}
-                    <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest font-bold">Ambiente 100% Seguro</p>
+                    <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest font-bold mt-4">
+                      Ambiente 100% Seguro
+                    </p>
                   </div>
                 )}
               </div>

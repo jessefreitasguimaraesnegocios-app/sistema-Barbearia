@@ -158,7 +158,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     isDuplicate?: boolean;
   };
   const [inlinePayPix, setInlinePayPix] = useState<InlinePayPix | null>(null);
-  
+  /** Fluxo agendamento: resumo → ecrã dedicado PIX → “Pagamento Aprovado!” → home. */
+  type BookingPayPhase = 'idle' | 'pix' | 'approved';
+  const [bookingPayPhase, setBookingPayPhase] = useState<BookingPayPhase>('idle');
+
   // Store States
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -357,6 +360,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         recordId: appointmentId,
         isDuplicate: Boolean((data as { duplicate?: unknown }).duplicate),
       });
+      setBookingPayPhase('pix');
       onRefetchAppointmentsAndOrders?.();
     } catch (error) {
       console.error("Payment error:", error);
@@ -496,15 +500,14 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         (payload) => {
           const st = (payload.new as { status?: string })?.status;
           if (st === 'PAID') {
-            setInlinePayPix(null);
             if (kind === 'booking') {
-              setStep(1);
-              onBook();
-            } else {
-              setCart([]);
-              setIsCartOpen(false);
-              onOrder();
+              setBookingPayPhase('approved');
+              return;
             }
+            setInlinePayPix(null);
+            setCart([]);
+            setIsCartOpen(false);
+            onOrder();
           }
         }
       )
@@ -514,7 +517,20 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     };
   }, [inlinePayPix?.recordId, inlinePayPix?.kind, onBook, onOrder]);
 
-  function renderPixPayPanel(ctx: InlinePayPix) {
+  const BOOKING_APPROVED_MS = 2200;
+  useEffect(() => {
+    if (bookingPayPhase !== 'approved') return;
+    const t = window.setTimeout(() => {
+      setInlinePayPix((prev) => (prev?.kind === 'booking' ? null : prev));
+      setBookingPayPhase('idle');
+      setStep(1);
+      onBook();
+    }, BOOKING_APPROVED_MS);
+    return () => window.clearTimeout(t);
+  }, [bookingPayPhase, onBook]);
+
+  function renderPixPayPanel(ctx: InlinePayPix, opts?: { showAutoReturnHint?: boolean }) {
+    const showHint = opts?.showAutoReturnHint !== false;
     const imgSrc = pixQrImageSrc(ctx.encodedImage);
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-4 text-left">
@@ -562,14 +578,20 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             Abrir página Asaas (alternativa)
           </a>
         ) : null}
-        <p className="text-[10px] text-emerald-900 text-center leading-relaxed">
-          Pague no app do seu banco. Quando o pagamento for confirmado, você volta ao <strong>início</strong> automaticamente.
-        </p>
+        {showHint ? (
+          <p className="text-[10px] text-emerald-900 text-center leading-relaxed">
+            Pague no app do seu banco. Quando o pagamento for confirmado, você volta ao <strong>início</strong>{' '}
+            automaticamente.
+          </p>
+        ) : (
+          <p className="text-[10px] text-gray-600 text-center leading-relaxed">
+            Pague no app do seu banco. Aguarde a confirmação do pagamento.
+          </p>
+        )}
       </div>
     );
   }
 
-  const bookingPixLocked = inlinePayPix?.kind === 'booking';
   const orderPixLocked = inlinePayPix?.kind === 'order';
 
   return (
@@ -769,11 +791,44 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
                 {step === 4 && (
                   <div className="animate-fade-in space-y-6">
+                    {bookingPayPhase === 'approved' ? (
+                      <div className="flex flex-col items-center justify-center py-16 md:py-24 px-4 animate-fade-in">
+                        <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                          <i className="fas fa-check text-5xl md:text-6xl text-green-600" />
+                        </div>
+                        <h2 className="text-2xl md:text-4xl font-black text-gray-900 text-center tracking-tight">
+                          Pagamento Aprovado!
+                        </h2>
+                        <p className="text-gray-500 mt-3 text-center text-sm md:text-base">
+                          A redirecionar para o início…
+                        </p>
+                      </div>
+                    ) : bookingPayPhase === 'pix' && inlinePayPix?.kind === 'booking' ? (
+                      <div className="max-w-lg mx-auto px-2 space-y-6">
+                        <div className="text-center space-y-1">
+                          <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Pague com PIX</h3>
+                          <p className="text-sm text-gray-500">
+                            {shop.name} · use o QR ou o código abaixo no app do seu banco.
+                          </p>
+                        </div>
+                        {renderPixPayPanel(inlinePayPix, { showAutoReturnHint: false })}
+                        <div className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-100">
+                          <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
+                            <i className="fas fa-spinner fa-spin text-emerald-600" />
+                            Aguardando confirmação do PIX…
+                          </p>
+                          <p className="text-xs text-gray-600 text-center px-3">
+                            Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e você vai ao início.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-xl md:text-2xl font-bold text-gray-900">Resumo e Pagamento</h3>
                       <button
                         type="button"
-                        disabled={bookingPixLocked}
+                        disabled={bookingPayPhase !== 'idle'}
                         onClick={() => setStep(3)}
                         className="text-indigo-600 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                       >
@@ -826,7 +881,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                                 <button
                                   key={percent}
                                   type="button"
-                                  disabled={bookingPixLocked}
+                                  disabled={bookingPayPhase !== 'idle'}
                                   onClick={() => setTipAmount(amount)}
                                   className={`py-2 rounded-xl border-2 text-[10px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                                     (percent === 0 && tipAmount === 0) || (percent !== 0 && tipAmount === amount)
@@ -842,7 +897,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                           <div className="mt-3">
                             <input
                               type="number"
-                              disabled={bookingPixLocked}
+                              disabled={bookingPayPhase !== 'idle'}
                               placeholder="Outro valor (R$)"
                               className="w-full p-3 rounded-xl bg-gray-50 border-none text-xs focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
                               onChange={(e) => {
@@ -916,53 +971,37 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         </div>
                       </div>
                       )}
-
-                      {/* Ação: só o botão até gerar PIX; depois QR + aguardando */}
-                      <div className="flex flex-col justify-end gap-4 md:min-h-[120px]">
-                        {!bookingPixLocked ? (
-                          <button
-                            type="button"
-                            disabled={
-                              isProcessing ||
-                              (!isProfileComplete &&
-                                ((customerCpf.replace(/\D/g, '').length !== 11 &&
-                                  customerCpf.replace(/\D/g, '').length !== 14) ||
-                                  !(paymentCustomerName || user.name || '').trim() ||
-                                  !(paymentCustomerEmail || user.email || '').trim()))
-                            }
-                            onClick={handleBooking}
-                            className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isProcessing ? (
-                              <>
-                                <i className="fas fa-spinner fa-spin"></i> Processando Pagamento...
-                              </>
-                            ) : (
-                              <>
-                                <i className="fas fa-shield-check"></i> Finalizar Agendamento
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <div className="space-y-4">
-                            {inlinePayPix ? renderPixPayPanel(inlinePayPix) : null}
-                            <div className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-100">
-                              <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
-                                <i className="fas fa-spinner fa-spin text-emerald-600" />
-                                Aguardando confirmação do PIX…
-                              </p>
-                              <p className="text-xs text-gray-600 text-center px-3">
-                                Ao confirmar no banco, você volta ao início automaticamente.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      disabled={
+                        isProcessing ||
+                        (!isProfileComplete &&
+                          ((customerCpf.replace(/\D/g, '').length !== 11 &&
+                            customerCpf.replace(/\D/g, '').length !== 14) ||
+                            !(paymentCustomerName || user.name || '').trim() ||
+                            !(paymentCustomerEmail || user.email || '').trim()))
+                      }
+                      onClick={handleBooking}
+                      className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin"></i> Processando Pagamento...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-shield-check"></i> Finalizar Agendamento
+                        </>
+                      )}
+                    </button>
 
                     <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest font-bold mt-4">
                       Ambiente 100% Seguro
                     </p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

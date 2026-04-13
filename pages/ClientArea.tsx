@@ -12,14 +12,13 @@ import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 import { isPartnerOrAdminRole } from '../lib/profileRole';
-import { fetchShopsForClientCatalog } from '../services/supabase/shops';
 import { mapRowToAppointment } from '../services/supabase/appointmentMapping';
 import { useRealtimeAppointments } from '../hooks/useRealtimeAppointments';
+import { useClientCatalogShops } from '../hooks/useClientCatalogShops';
 
 export default function ClientArea() {
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [showSignUp, setShowSignUp] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -44,9 +43,15 @@ export default function ClientArea() {
     clientUserId: user?.id,
   });
 
+  const { shops } = useClientCatalogShops({ client: supabase, enabled: true });
+
   useEffect(() => {
-    fetchShops();
-  }, []);
+    setSelectedShop((prev) => {
+      if (!prev) return prev;
+      const next = shops.find((s) => s.id === prev.id);
+      return next ?? prev;
+    });
+  }, [shops]);
 
   const mapOrder = (o: Record<string, unknown>): Order => ({
     id: String(o.id),
@@ -87,11 +92,6 @@ export default function ClientArea() {
       void supabase.removeChannel(subO);
     };
   }, [user?.id, user?.role, fetchAppointments, fetchOrders]);
-
-  const fetchShops = async () => {
-    const list = await fetchShopsForClientCatalog(supabase);
-    setShops(list);
-  };
 
   if (loading) {
     return (

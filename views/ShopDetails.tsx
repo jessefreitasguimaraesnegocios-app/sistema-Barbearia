@@ -99,6 +99,22 @@ function pickInvoiceUrl(data: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
+function pickPixQrFromResponse(data: Record<string, unknown>): { encodedImage: string; payload: string } | null {
+  const raw = data.pixQrCode;
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as { encodedImage?: unknown; payload?: unknown };
+  const payload = typeof o.payload === 'string' ? o.payload.trim() : '';
+  if (!payload) return null;
+  const encodedImage = typeof o.encodedImage === 'string' ? o.encodedImage.trim() : '';
+  return { encodedImage, payload };
+}
+
+function pixQrImageSrc(encodedImage: string): string | null {
+  if (!encodedImage) return null;
+  if (encodedImage.startsWith('data:')) return encodedImage;
+  return `data:image/png;base64,${encodedImage}`;
+}
+
 function buildIdempotencyKey(prefix: 'booking' | 'order', parts: Array<string | number>): string {
   const raw = `${prefix}|${parts.map((p) => String(p)).join('|')}`;
   let hash = 0;
@@ -131,10 +147,17 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [paymentCustomerEmail, setPaymentCustomerEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Pagamento PIX pendente: exibe link para pagar e botão "Já paguei" exibe link para pagar e botão "Já paguei"
-  type PaymentPendingBooking = { invoiceUrl: string; amount: number; type: 'booking'; pendingBooking: Appointment; isDuplicate?: boolean };
-  type PaymentPendingOrder = { invoiceUrl: string; amount: number; type: 'order'; pendingOrder: Order; isDuplicate?: boolean };
-  const [paymentPending, setPaymentPending] = useState<PaymentPendingBooking | PaymentPendingOrder | null>(null);
+  /** PIX gerado: mostra QR + copia e cola no mesmo ecrã; confirmação via Realtime (PAID). */
+  type InlinePayPix = {
+    kind: 'booking' | 'order';
+    payload: string;
+    encodedImage: string;
+    invoiceUrl?: string;
+    amount: number;
+    recordId?: string;
+    isDuplicate?: boolean;
+  };
+  const [inlinePayPix, setInlinePayPix] = useState<InlinePayPix | null>(null);
   
   // Store States
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
@@ -311,33 +334,28 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       });
       console.log("Asaas Split Payment Response:", data);
 
-      const invoiceUrl = pickInvoiceUrl(data);
-      if (!invoiceUrl) {
+      const invoiceUrl = pickInvoiceUrl(data as Record<string, unknown>);
+      const pix = pickPixQrFromResponse(data as Record<string, unknown>);
+      const appointmentId =
+        typeof (data as { appointmentId?: unknown }).appointmentId === 'string'
+          ? (data as { appointmentId: string }).appointmentId
+          : undefined;
+
+      if (!pix?.payload && !invoiceUrl) {
         setIsProcessing(false);
-        alert('Cobrança criada, mas o link de pagamento não foi retornado. Tente novamente ou entre em contato.');
+        alert('Cobrança criada, mas não foi possível obter o PIX nem o link de pagamento. Tente novamente ou entre em contato.');
         return;
       }
 
-      const newApt: Appointment = {
-        id: Math.random().toString(36).substr(2, 9),
-        clientId: user.id,
-        shopId: shop.id,
-        serviceId: selectedService.id,
-        professionalId: selectedPro.id,
-        date: selectedDate,
-        time: normalizedTime,
-        status: 'PENDING',
-        amount: totalAmount,
-        tip: tipAmount > 0 ? tipAmount : undefined
-      };
-
       setIsProcessing(false);
-      setPaymentPending({
+      setInlinePayPix({
+        kind: 'booking',
+        payload: pix?.payload ?? '',
+        encodedImage: pix?.encodedImage ?? '',
         invoiceUrl,
         amount: totalAmount,
-        type: 'booking',
-        pendingBooking: { ...newApt, status: 'PAID' },
-        isDuplicate: Boolean(data?.duplicate),
+        recordId: appointmentId,
+        isDuplicate: Boolean((data as { duplicate?: unknown }).duplicate),
       });
       onRefetchAppointmentsAndOrders?.();
     } catch (error) {
@@ -427,34 +445,28 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       });
       console.log("Asaas Split Order Response:", data);
 
-      const invoiceUrl = pickInvoiceUrl(data);
-      if (!invoiceUrl) {
+      const invoiceUrl = pickInvoiceUrl(data as Record<string, unknown>);
+      const pix = pickPixQrFromResponse(data as Record<string, unknown>);
+      const orderId =
+        typeof (data as { orderId?: unknown }).orderId === 'string'
+          ? (data as { orderId: string }).orderId
+          : undefined;
+
+      if (!pix?.payload && !invoiceUrl) {
         setIsOrderProcessing(false);
-        alert('Cobrança criada, mas o link de pagamento não foi retornado. Tente novamente ou entre em contato.');
+        alert('Cobrança criada, mas não foi possível obter o PIX nem o link de pagamento. Tente novamente ou entre em contato.');
         return;
       }
 
-      const newOrder: Order = {
-        id: Math.random().toString(36).substr(2, 9),
-        clientId: user.id,
-        shopId: shop.id,
-        items: cart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          price: item.product.promoPrice || item.product.price
-        })),
-        total: cartTotal,
-        status: 'PAID',
-        date: new Date().toLocaleDateString('pt-BR')
-      };
-
       setIsOrderProcessing(false);
-      setPaymentPending({
+      setInlinePayPix({
+        kind: 'order',
+        payload: pix?.payload ?? '',
+        encodedImage: pix?.encodedImage ?? '',
         invoiceUrl,
         amount: cartTotal,
-        type: 'order',
-        pendingOrder: newOrder,
-        isDuplicate: Boolean(data?.duplicate),
+        recordId: orderId,
+        isDuplicate: Boolean((data as { duplicate?: unknown }).duplicate),
       });
       onRefetchAppointmentsAndOrders?.();
     } catch (error) {
@@ -466,62 +478,99 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.product.promoPrice || item.product.price) * item.quantity, 0);
 
-  // Tela: complete o pagamento PIX (link + "Já paguei, finalizar")
-  if (paymentPending) {
-    const handlePaid = () => {
-      const pending = paymentPending;
-      setPaymentPending(null);
-      if (pending.type === 'booking') {
-        onBook();
-      } else {
-        setCart([]);
-        setIsCartOpen(false);
-        onOrder();
-      }
+  useEffect(() => {
+    if (!inlinePayPix?.recordId) return;
+    const recordId = inlinePayPix.recordId;
+    const kind = inlinePayPix.kind;
+    const table = kind === 'booking' ? 'appointments' : 'orders';
+    const channel = supabase
+      .channel(`inline-pix-${kind}-${recordId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table,
+          filter: `id=eq.${recordId}`,
+        },
+        (payload) => {
+          const st = (payload.new as { status?: string })?.status;
+          if (st === 'PAID') {
+            setInlinePayPix(null);
+            if (kind === 'booking') {
+              setStep(1);
+              onBook();
+            } else {
+              setCart([]);
+              setIsCartOpen(false);
+              onOrder();
+            }
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
     };
+  }, [inlinePayPix?.recordId, inlinePayPix?.kind, onBook, onOrder]);
+
+  function renderPixPayPanel(ctx: InlinePayPix) {
+    const imgSrc = pixQrImageSrc(ctx.encodedImage);
     return (
-      <div className="fixed inset-0 z-120 bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-fade-in">
-        <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-8 max-w-md w-full text-center space-y-6">
-          <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
-            <i className="fas fa-qrcode text-3xl text-emerald-600"></i>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900">Pague com PIX</h2>
-          <p className="text-gray-500 text-sm">
-            A cobrança foi gerada. Abra a página abaixo para ver o QR Code ou o código PIX Copia e Cola, pague no app do seu banco e depois clique em &quot;Já paguei&quot;.
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-4 text-left">
+        {ctx.isDuplicate && (
+          <p className="text-amber-800 text-xs font-semibold bg-amber-50 border border-amber-200 rounded-xl p-2">
+            Esta cobrança já existia e foi reaproveitada com segurança. Use o mesmo PIX abaixo.
           </p>
-          {paymentPending.isDuplicate && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-left">
-              <p className="text-amber-800 text-xs font-semibold">
-                Esta cobrança já existia e foi reaproveitada com segurança. Use o mesmo link PIX abaixo.
-              </p>
-            </div>
-          )}
-          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-            <p className="text-sm text-gray-500 mb-1">Valor a pagar</p>
-            <p className="text-3xl font-black text-indigo-600">R$ {paymentPending.amount.toFixed(2).replace('.', ',')}</p>
+        )}
+        <div className="bg-white rounded-xl p-3 border border-gray-100">
+          <p className="text-xs text-gray-500">Valor a pagar</p>
+          <p className="text-2xl font-black text-indigo-600">R$ {ctx.amount.toFixed(2).replace('.', ',')}</p>
+        </div>
+        {imgSrc ? (
+          <div className="flex justify-center bg-white p-4 rounded-xl border border-gray-100">
+            <img src={imgSrc} alt="QR Code PIX" className="w-52 h-52 object-contain" />
           </div>
+        ) : null}
+        {ctx.payload ? (
+          <>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Pix copia e cola</p>
+            <textarea
+              readOnly
+              rows={4}
+              className="w-full text-[11px] font-mono p-3 rounded-xl border border-gray-200 bg-white leading-relaxed"
+              value={ctx.payload}
+            />
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard.writeText(ctx.payload)}
+              className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-colors"
+            >
+              <i className="fas fa-copy mr-2" />
+              Copiar código PIX
+            </button>
+          </>
+        ) : null}
+        {ctx.invoiceUrl ? (
           <a
-            href={paymentPending.invoiceUrl}
+            href={ctx.invoiceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors"
+            className="flex items-center justify-center gap-2 text-sm text-indigo-600 font-semibold hover:underline"
           >
-            <i className="fas fa-external-link-alt mr-2"></i> Abrir página de pagamento PIX
+            <i className="fas fa-external-link-alt" />
+            Abrir página Asaas (alternativa)
           </a>
-          <button
-            type="button"
-            onClick={handlePaid}
-            className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-colors"
-          >
-            <i className="fas fa-check mr-2"></i> Já paguei, finalizar
-          </button>
-          <p className="text-xs text-gray-400">
-            Ao clicar em &quot;Já paguei&quot;, seu agendamento/pedido será confirmado na lista.
-          </p>
-        </div>
+        ) : null}
+        <p className="text-[10px] text-emerald-900 text-center leading-relaxed">
+          Pague no app do seu banco. Quando o pagamento for confirmado, você volta ao <strong>início</strong> automaticamente.
+        </p>
       </div>
     );
   }
+
+  const bookingPixLocked = inlinePayPix?.kind === 'booking';
+  const orderPixLocked = inlinePayPix?.kind === 'order';
 
   return (
     <div className="max-w-4xl mx-auto pb-24">
@@ -722,7 +771,14 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                   <div className="animate-fade-in space-y-6">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-xl md:text-2xl font-bold text-gray-900">Resumo e Pagamento</h3>
-                      <button onClick={() => setStep(3)} className="text-indigo-600 text-xs font-medium">Alterar data</button>
+                      <button
+                        type="button"
+                        disabled={bookingPixLocked}
+                        onClick={() => setStep(3)}
+                        className="text-indigo-600 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Alterar data
+                      </button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -769,8 +825,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                               return (
                                 <button
                                   key={percent}
+                                  type="button"
+                                  disabled={bookingPixLocked}
                                   onClick={() => setTipAmount(amount)}
-                                  className={`py-2 rounded-xl border-2 text-[10px] font-bold transition-all ${
+                                  className={`py-2 rounded-xl border-2 text-[10px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                                     (percent === 0 && tipAmount === 0) || (percent !== 0 && tipAmount === amount)
                                       ? 'bg-indigo-600 border-indigo-600 text-white'
                                       : 'bg-white border-gray-100 text-gray-500 hover:border-indigo-200'
@@ -784,8 +842,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                           <div className="mt-3">
                             <input
                               type="number"
+                              disabled={bookingPixLocked}
                               placeholder="Outro valor (R$)"
-                              className="w-full p-3 rounded-xl bg-gray-50 border-none text-xs focus:ring-2 focus:ring-indigo-600"
+                              className="w-full p-3 rounded-xl bg-gray-50 border-none text-xs focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
                               onChange={(e) => {
                                 const val = parseFloat(e.target.value);
                                 if (!isNaN(val)) setTipAmount(val);
@@ -871,17 +930,32 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                             </div>
                             <i className="fas fa-check-circle ml-auto text-indigo-600"></i>
                          </div>
-                         <div className="animate-fade-in bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
-                            <div className="w-32 h-32 bg-white border border-gray-100 mx-auto mb-4 p-2 flex items-center justify-center">
-                              <i className="fas fa-qrcode text-6xl text-gray-800"></i>
-                            </div>
-                            <p className="text-[10px] text-gray-400 font-medium mb-3 uppercase">
-                              O QR Code e o PIX Copia e Cola aparecem após gerar a cobrança.
-                            </p>
-                         </div>
+                         {bookingPixLocked && inlinePayPix ? (
+                           renderPixPayPanel(inlinePayPix)
+                         ) : (
+                           <div className="animate-fade-in bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
+                             <div className="w-32 h-32 bg-white border border-gray-100 mx-auto mb-4 p-2 flex items-center justify-center">
+                               <i className="fas fa-qrcode text-6xl text-gray-300"></i>
+                             </div>
+                             <p className="text-[10px] text-gray-400 font-medium mb-3 uppercase">
+                               Toque em &quot;Finalizar Agendamento&quot; para gerar o PIX aqui.
+                             </p>
+                           </div>
+                         )}
                       </div>
                     </div>
 
+                    {bookingPixLocked ? (
+                      <div className="mt-8 flex flex-col items-center gap-3 py-4 rounded-3xl bg-emerald-50 border border-emerald-100">
+                        <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
+                          <i className="fas fa-spinner fa-spin text-emerald-600" />
+                          Aguardando confirmação do PIX…
+                        </p>
+                        <p className="text-xs text-gray-600 text-center px-4">
+                          Ao confirmar no banco, você volta ao início automaticamente.
+                        </p>
+                      </div>
+                    ) : (
                     <button 
                       disabled={isProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
                       onClick={handleBooking}
@@ -893,6 +967,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         <><i className="fas fa-shield-check"></i> Finalizar Agendamento</>
                       )}
                     </button>
+                    )}
                     <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest font-bold">Ambiente 100% Seguro</p>
                   </div>
                 )}
@@ -974,6 +1049,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {orderPixLocked && inlinePayPix ? <div className="pb-2">{renderPixPayPanel(inlinePayPix)}</div> : null}
               {cart.length > 0 ? (
                 cart.map(item => (
                   <div key={item.product.id} className="flex gap-4 group">
@@ -981,18 +1057,30 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     <div className="flex-1 space-y-1">
                       <div className="flex justify-between items-start">
                         <h4 className="font-bold text-gray-900 text-sm">{item.product.name}</h4>
-                        <button onClick={() => removeFromCart(item.product.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                        <button
+                          type="button"
+                          disabled={orderPixLocked}
+                          onClick={() => removeFromCart(item.product.id)}
+                          className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
                           <i className="fas fa-trash-alt text-xs"></i>
                         </button>
                       </div>
                       <p className="text-[10px] text-gray-400 font-bold uppercase">{item.product.category}</p>
                       <div className="flex justify-between items-center pt-2">
                         <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-2 py-1">
-                          <button onClick={() => updateQuantity(item.product.id, -1)} className="text-gray-500 hover:text-indigo-600"><i className="fas fa-minus text-[10px]"></i></button>
+                          <button
+                            type="button"
+                            disabled={orderPixLocked}
+                            onClick={() => updateQuantity(item.product.id, -1)}
+                            className="text-gray-500 hover:text-indigo-600 disabled:opacity-30"
+                          >
+                            <i className="fas fa-minus text-[10px]"></i>
+                          </button>
                           <span className="text-sm font-bold text-gray-900 min-w-[20px] text-center">{item.quantity}</span>
                           <button
                             type="button"
-                            disabled={item.quantity >= Math.max(0, Math.floor(Number(item.product.stock) || 0))}
+                            disabled={orderPixLocked || item.quantity >= Math.max(0, Math.floor(Number(item.product.stock) || 0))}
                             onClick={() => updateQuantity(item.product.id, 1)}
                             className="text-gray-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed"
                           >
@@ -1088,6 +1176,15 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                   </div>
                 </div>
 
+                {orderPixLocked ? (
+                  <div className="py-4 text-center space-y-2 rounded-2xl bg-emerald-50 border border-emerald-100">
+                    <p className="text-sm text-emerald-900 font-semibold flex items-center justify-center gap-2">
+                      <i className="fas fa-spinner fa-spin text-emerald-600" />
+                      Aguardando confirmação do PIX…
+                    </p>
+                    <p className="text-[10px] text-gray-600">Ao confirmar, você volta ao início automaticamente.</p>
+                  </div>
+                ) : (
                 <button
                   disabled={isOrderProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
                   onClick={handleOrderPayment}
@@ -1099,6 +1196,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     <><i className="fas fa-credit-card"></i> Pagar R$ {cartTotal.toFixed(2)}</>
                   )}
                 </button>
+                )}
                 <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest font-bold">Pagamento processado por BeautyPay</p>
               </div>
             )}

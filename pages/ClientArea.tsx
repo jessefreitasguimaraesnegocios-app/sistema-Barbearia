@@ -230,13 +230,13 @@ export default function ClientArea() {
           onRefetchAppointmentsAndOrders={refetchAppointmentsAndOrders}
           onBook={() => {
             refetchAppointmentsAndOrders();
-            addNotification('Aguardando pagamento', 'Assim que o PIX for confirmado, seu agendamento aparecerá como pago.', 'INFO');
-            setCurrentView('client-appointments');
+            addNotification('Pagamento confirmado', 'Seu agendamento foi registrado como pago.', 'SUCCESS');
+            setCurrentView('client-home');
           }}
           onOrder={() => {
             refetchAppointmentsAndOrders();
-            addNotification('Aguardando pagamento', 'Assim que o PIX for confirmado, seu pedido aparecerá como pago.', 'INFO');
-            setCurrentView('client-orders');
+            addNotification('Pagamento confirmado', 'Seu pedido foi registrado como pago.', 'SUCCESS');
+            setCurrentView('client-home');
           }}
           onBack={() => setCurrentView('client-home')}
         />

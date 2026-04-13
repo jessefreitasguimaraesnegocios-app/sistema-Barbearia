@@ -77,6 +77,29 @@ function normalizeAsaasMobilePhone(rawPhone: unknown): string {
   return digits;
 }
 
+async function fetchAsaasPixQrCode(
+  apiBaseUrl: string,
+  apiKey: string,
+  paymentId: string,
+): Promise<{ encodedImage: string; payload: string } | null> {
+  const base = apiBaseUrl.replace(/\/$/, '');
+  const url = `${base}/payments/${encodeURIComponent(paymentId)}/pixQrCode`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', access_token: apiKey },
+  });
+  if (!res.ok) return null;
+  try {
+    const j = (await res.json()) as { encodedImage?: string; payload?: string };
+    const payload = typeof j.payload === 'string' ? j.payload.trim() : '';
+    if (!payload) return null;
+    const enc = typeof j.encodedImage === 'string' ? j.encodedImage.trim() : '';
+    return { encodedImage: enc, payload };
+  } catch {
+    return null;
+  }
+}
+
 interface CreatePaymentBody {
   amount: number;
   tip?: number;
@@ -286,6 +309,11 @@ export default async function handler(
             /* ignore invalid JSON */
           }
         }
+        const dupPixBook = await fetchAsaasPixQrCode(
+          ASAAS_API_URL,
+          ASAAS_API_KEY,
+          String(existing.asaas_payment_id),
+        );
         return res.status(200).json({
           success: true,
           duplicate: true,
@@ -293,6 +321,7 @@ export default async function handler(
           invoiceUrl: (existingPaymentData as { invoiceUrl?: string }).invoiceUrl,
           id: (existingPaymentData as { id?: string }).id ?? existing.asaas_payment_id,
           appointmentId: existing.id,
+          ...(dupPixBook ? { pixQrCode: dupPixBook } : {}),
         });
       }
     }
@@ -321,6 +350,11 @@ export default async function handler(
             /* ignore invalid JSON */
           }
         }
+        const dupPixOrd = await fetchAsaasPixQrCode(
+          ASAAS_API_URL,
+          ASAAS_API_KEY,
+          String(existing.asaas_payment_id),
+        );
         return res.status(200).json({
           success: true,
           duplicate: true,
@@ -328,6 +362,7 @@ export default async function handler(
           invoiceUrl: (existingPaymentData as { invoiceUrl?: string }).invoiceUrl,
           id: (existingPaymentData as { id?: string }).id ?? existing.asaas_payment_id,
           orderId: existing.id,
+          ...(dupPixOrd ? { pixQrCode: dupPixOrd } : {}),
         });
       }
     }
@@ -508,6 +543,10 @@ export default async function handler(
       }
     }
 
+    const newPid =
+      asaasPaymentId != null && String(asaasPaymentId).trim() !== '' ? String(asaasPaymentId) : '';
+    const pixQrCode = newPid ? await fetchAsaasPixQrCode(ASAAS_API_URL, ASAAS_API_KEY, newPid) : null;
+
     return res.status(200).json({
       success: true,
       payment: paymentData,
@@ -515,6 +554,7 @@ export default async function handler(
       id: (paymentData as { id?: string }).id,
       appointmentId: recordType === 'booking' ? recordId : undefined,
       orderId: recordType === 'order' ? recordId : undefined,
+      ...(pixQrCode ? { pixQrCode } : {}),
     });
   } catch (e) {
     console.error('[api/payments/create]', e);

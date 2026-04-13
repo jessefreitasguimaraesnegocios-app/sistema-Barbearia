@@ -43,6 +43,30 @@ function resolveShopSplitPercent(mode: RuntimeMode, shop: Record<string, unknown
   return resolveSplitPercentForRuntime(mode, shop, 95);
 }
 
+/** QR + payload PIX (Asaas v3). */
+async function fetchAsaasPixQrCode(
+  apiBaseUrl: string,
+  apiKey: string,
+  paymentId: string,
+): Promise<{ encodedImage: string; payload: string } | null> {
+  const base = apiBaseUrl.replace(/\/$/, "");
+  const url = `${base}/payments/${encodeURIComponent(paymentId)}/pixQrCode`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", access_token: apiKey },
+  });
+  if (!res.ok) return null;
+  try {
+    const j = (await res.json()) as { encodedImage?: string; payload?: string };
+    const payload = typeof j.payload === "string" ? j.payload.trim() : "";
+    if (!payload) return null;
+    const enc = typeof j.encodedImage === "string" ? j.encodedImage.trim() : "";
+    return { encodedImage: enc, payload };
+  } catch {
+    return null;
+  }
+}
+
 async function resolveAsaasRuntimeConfig(
   supabaseAdmin: ReturnType<typeof createClient>,
 ): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string }> {
@@ -406,6 +430,8 @@ Deno.serve(async (req: Request) => {
           const txt = await paymentGetRes.text();
           try { existingPaymentData = JSON.parse(txt); } catch (_) {}
         }
+        const dupPayId = String(existing.asaas_payment_id);
+        const dupPix = await fetchAsaasPixQrCode(asaasBaseUrl, asaasApiKey, dupPayId);
         return new Response(
           JSON.stringify({
             success: true,
@@ -414,6 +440,7 @@ Deno.serve(async (req: Request) => {
             invoiceUrl: existingPaymentData.invoiceUrl,
             id: existingPaymentData.id ?? existing.asaas_payment_id,
             appointmentId: existing.id,
+            ...(dupPix ? { pixQrCode: dupPix } : {}),
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -440,6 +467,8 @@ Deno.serve(async (req: Request) => {
           const txt = await paymentGetRes.text();
           try { existingPaymentData = JSON.parse(txt); } catch (_) {}
         }
+        const dupOrdPayId = String(existing.asaas_payment_id);
+        const dupOrdPix = await fetchAsaasPixQrCode(asaasBaseUrl, asaasApiKey, dupOrdPayId);
         return new Response(
           JSON.stringify({
             success: true,
@@ -448,6 +477,7 @@ Deno.serve(async (req: Request) => {
             invoiceUrl: existingPaymentData.invoiceUrl,
             id: existingPaymentData.id ?? existing.asaas_payment_id,
             orderId: existing.id,
+            ...(dupOrdPix ? { pixQrCode: dupOrdPix } : {}),
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -676,6 +706,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const newPayId = asaasPaymentId != null && String(asaasPaymentId).trim() !== ""
+      ? String(asaasPaymentId)
+      : "";
+    const pixQrCode = newPayId
+      ? await fetchAsaasPixQrCode(asaasBaseUrl, asaasApiKey, newPayId)
+      : null;
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -684,6 +721,7 @@ Deno.serve(async (req: Request) => {
         id: paymentData.id,
         appointmentId: recordType === "booking" ? recordId : undefined,
         orderId: recordType === "order" ? recordId : undefined,
+        ...(pixQrCode ? { pixQrCode } : {}),
       }),
       {
         status: 200,

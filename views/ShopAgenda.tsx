@@ -500,7 +500,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                       R$ {a.amount.toFixed(2).replace('.', ',')}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => openReschedule(a)}
@@ -508,16 +508,6 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     >
                       Remarcar
                     </button>
-                    {wa && (
-                      <a
-                        href={wa}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#25D366] text-white text-xs font-bold hover:bg-[#20bd5a]"
-                      >
-                        <i className="fab fa-whatsapp" /> WhatsApp
-                      </a>
-                    )}
                     {waReminder && (
                       <a
                         href={waReminder}
@@ -527,6 +517,16 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                         title="Abre o WhatsApp com lembrete de 15 minutos"
                       >
                         <i className="fas fa-clock" /> Lembrete 15 min
+                      </a>
+                    )}
+                    {wa && (
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#25D366] text-white text-xs font-bold hover:bg-[#20bd5a]"
+                      >
+                        <i className="fab fa-whatsapp" /> WhatsApp
                       </a>
                     )}
                     {!a.clientPhone && (

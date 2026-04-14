@@ -29,37 +29,34 @@
   --scrollbar-thumb: #c5cad6;
   --scrollbar-thumb-hover: #9aa1b2;
   --logo-toggle-glow: rgba(99, 102, 241, 0.35);
-  --logo-toggle-chip-bg: linear-gradient(145deg, #fafafa, #e4e4e7);
-  --logo-toggle-chip-border: rgba(0, 0, 0, 0.06);
 }
 
 html.dark {
   color-scheme: dark;
-  --app-canvas: #0a0a0b;
-  --app-canvas-gradient: radial-gradient(1000px 520px at 8% -8%, rgba(99, 102, 241, 0.14), transparent 52%),
-    radial-gradient(800px 420px at 92% 4%, rgba(56, 189, 248, 0.08), transparent 48%), #0a0a0b;
-  --app-sidebar: rgba(18, 18, 20, 0.88);
-  --app-sidebar-solid: #121212;
-  --app-elevated: #161616;
-  --app-muted-surface: #141414;
-  --app-border: rgba(255, 255, 255, 0.07);
-  --app-border-strong: rgba(255, 255, 255, 0.11);
-  --app-text: #f4f4f5;
-  --app-text-secondary: #c4c4cc;
+  /* Preto máximo no canvas; camadas só um degrau acima para profundidade */
+  --app-canvas: #000000;
+  --app-canvas-gradient: radial-gradient(1000px 520px at 8% -8%, rgba(99, 102, 241, 0.1), transparent 52%),
+    radial-gradient(800px 420px at 92% 4%, rgba(56, 189, 248, 0.05), transparent 48%), #000000;
+  --app-sidebar: rgba(0, 0, 0, 0.92);
+  --app-sidebar-solid: #000000;
+  --app-elevated: #0a0a0a;
+  --app-muted-surface: #050505;
+  --app-border: rgba(255, 255, 255, 0.08);
+  --app-border-strong: rgba(255, 255, 255, 0.12);
+  --app-text: #fafafa;
+  --app-text-secondary: #d4d4d8;
   --app-text-muted: #a1a1aa;
-  --app-nav-hover: rgba(255, 255, 255, 0.055);
-  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --app-shadow-md: 0 18px 50px -24px rgba(0, 0, 0, 0.65);
-  --app-glass-bg: rgba(24, 24, 28, 0.55);
-  --app-glass-border: rgba(255, 255, 255, 0.08);
+  --app-nav-hover: rgba(255, 255, 255, 0.06);
+  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --app-shadow-md: 0 20px 50px -20px rgba(0, 0, 0, 0.75);
+  --app-glass-bg: rgba(8, 8, 10, 0.72);
+  --app-glass-border: rgba(255, 255, 255, 0.07);
   --app-focus-ring: rgba(129, 140, 248, 0.5);
-  --app-focus-ring-offset: #0c0c0e;
-  --scrollbar-track: #141416;
+  --app-focus-ring-offset: #000000;
+  --scrollbar-track: #000000;
   --scrollbar-thumb: #3f3f46;
   --scrollbar-thumb-hover: #52525b;
-  --logo-toggle-glow: rgba(129, 140, 248, 0.42);
-  --logo-toggle-chip-bg: linear-gradient(145deg, #27272a, #18181b);
-  --logo-toggle-chip-border: rgba(255, 255, 255, 0.1);
+  --logo-toggle-glow: rgba(129, 140, 248, 0.38);
 }
 
 @layer base {
@@ -124,6 +121,15 @@ html.dark #root .bg-gray-50 {
 }
 html.dark #root .bg-gray-50\/80 {
   background-color: color-mix(in oklab, var(--app-muted-surface) 88%, transparent);
+}
+html.dark #root .bg-gray-50\/70 {
+  background-color: color-mix(in oklab, var(--app-muted-surface) 96%, #0a0a0a);
+}
+html.dark #root .hover\:bg-gray-100\/80:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+html.dark #root .bg-white\/90 {
+  background-color: color-mix(in oklab, var(--app-elevated) 97%, transparent);
 }
 html.dark #root .bg-gray-100 {
   background-color: #1f1f22;
@@ -204,6 +210,7 @@ html.dark #root .border-emerald-100 {
   border-color: rgba(52, 211, 153, 0.22);
 }
 html.dark #root .text-emerald-600,
+html.dark #root .text-emerald-700,
 html.dark #root .text-emerald-800 {
   color: #6ee7b7;
 }

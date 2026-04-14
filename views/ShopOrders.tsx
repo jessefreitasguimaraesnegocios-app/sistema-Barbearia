@@ -232,11 +232,14 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
               const when = order.handedOverAtIso ? formatHandoverDetail(order.handedOverAtIso) : '';
               const who = order.handedOverByLabel?.trim() || 'Equipe';
               return (
-                <li key={order.id} className="rounded-2xl border border-gray-100 bg-gray-50/70 overflow-hidden">
+                <li
+                  key={order.id}
+                  className="rounded-2xl border border-gray-100 bg-gray-50/70 overflow-hidden dark:border-zinc-800 dark:bg-zinc-950/90"
+                >
                   <button
                     type="button"
                     onClick={() => toggleHistory(order.id)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-100/80 transition-colors"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-100/80 transition-colors dark:hover:bg-zinc-900/95"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-bold text-gray-900 truncate">{order.clientDisplayName}</p>
@@ -258,7 +261,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
                     </span>
                   </button>
                   {open ? (
-                    <div className="px-4 pb-4 pt-0 border-t border-gray-100 bg-white/90">
+                    <div className="px-4 pb-4 pt-0 border-t border-gray-100 bg-white/90 dark:border-zinc-800 dark:bg-zinc-950/95">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-3 mb-2">
                         Resumo da compra (no momento da retirada)
                       </p>

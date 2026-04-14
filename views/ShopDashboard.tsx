@@ -157,23 +157,24 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   const revenueOrders = myOrders.filter(orderCountsForRevenue);
 
   // Filtragem por período para o resumo financeiro
+  /** Em `staffMode`, produtos da lojinha aparecem no card mas não entram no total (só serviços do profissional). */
   const getPeriodData = (p: Period) => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
-    
+
     const paidLikeApts = myApts.filter(isPaidOrCompletedAppointment);
     let filteredApts = paidLikeApts;
     let filteredOrders = revenueOrders;
 
     if (p === 'TODAY') {
-      filteredApts = paidLikeApts.filter(a => a.date === todayStr);
+      filteredApts = paidLikeApts.filter((a) => a.date === todayStr);
       const localDateStr = now.toLocaleDateString('pt-BR');
-      filteredOrders = revenueOrders.filter(o => o.date === localDateStr);
+      filteredOrders = revenueOrders.filter((o) => o.date === localDateStr);
     } else if (p === 'WEEK') {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(now.getDate() - 7);
       sevenDaysAgo.setHours(0, 0, 0, 0);
-      filteredApts = paidLikeApts.filter(a => new Date(a.date) >= sevenDaysAgo);
+      filteredApts = paidLikeApts.filter((a) => new Date(a.date) >= sevenDaysAgo);
       filteredOrders = revenueOrders.filter((o) => {
         const d = parseOrderDatePtBr(o.date);
         return d != null && !Number.isNaN(d.getTime()) && d >= sevenDaysAgo;
@@ -182,7 +183,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(now.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
-      filteredApts = paidLikeApts.filter(a => new Date(a.date) >= thirtyDaysAgo);
+      filteredApts = paidLikeApts.filter((a) => new Date(a.date) >= thirtyDaysAgo);
       filteredOrders = revenueOrders.filter((o) => {
         const d = parseOrderDatePtBr(o.date);
         return d != null && !Number.isNaN(d.getTime()) && d >= thirtyDaysAgo;
@@ -191,12 +192,13 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
 
     const servicesRevenue = filteredApts.reduce((sum, a) => sum + a.amount, 0);
     const productsRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
+    const total = staffMode ? servicesRevenue : servicesRevenue + productsRevenue;
 
     return {
       servicesRevenue,
       productsRevenue,
-      total: servicesRevenue + productsRevenue,
-      count: filteredApts.length + filteredOrders.length
+      total,
+      count: filteredApts.length + filteredOrders.length,
     };
   };
 
@@ -290,7 +292,11 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h3 className="text-xl font-bold text-gray-900">Resumo Financeiro</h3>
-            <p className="text-gray-400 text-xs">Acompanhe seu desempenho em tempo real.</p>
+            <p className="text-gray-400 text-xs">
+              {staffMode
+                ? 'Seus serviços; valor da lojinha só para referência (não entra no seu total).'
+                : 'Acompanhe seu desempenho em tempo real.'}
+            </p>
           </div>
           <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
             <button onClick={() => setPeriod('TODAY')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${period === 'TODAY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}>Hoje</button>
@@ -315,7 +321,9 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
               <i className="fas fa-shopping-bag"></i>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Produtos</p>
+              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                Produtos{staffMode ? ' (loja)' : ''}
+              </p>
               <p className="text-xl font-black text-gray-900">R$ {financialSummary.productsRevenue.toFixed(2)}</p>
             </div>
           </div>
@@ -327,6 +335,12 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Faturamento Total</p>
               <p className="text-xl font-black">R$ {financialSummary.total.toFixed(2)}</p>
+              {staffMode ? (
+                <p className="text-[10px] text-gray-500 mt-1.5 leading-snug">
+                  Igual a <span className="text-gray-400 font-semibold">Serviços</span> — vendas da loja não somam no
+                  seu total.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

@@ -99,6 +99,8 @@ export interface Shop {
   lunchEnd?: string | null;
   /** Intervalo entre faixas de horário na grade (minutos) */
   agendaSlotMinutes?: number;
+  /** `shops.updated_at` — útil para sincronizar UI (ex.: agenda) após Realtime/refetch */
+  rowUpdatedAt?: string;
 }
 
 export interface Appointment {

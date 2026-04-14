@@ -113,6 +113,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
     shop.lunchStart,
     shop.lunchEnd,
     shop.agendaSlotMinutes,
+    shop.rowUpdatedAt,
   ]);
 
   const slots = useMemo(

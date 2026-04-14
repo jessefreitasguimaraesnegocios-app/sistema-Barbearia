@@ -136,6 +136,10 @@ interface ShopDetailsProps {
   onBack: () => void;
 }
 
+function ymdLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointmentsAndOrders, onBook, onOrder, onBack }) => {
   const [activeTab, setActiveTab] = useState<'SERVICES' | 'STORE'>('SERVICES');
   const [step, setStep] = useState(1);
@@ -266,11 +270,11 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   );
 
   const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayStr = ymdLocal(today);
+  /** Datas locais (evita `toISOString()` UTC deslocar o dia vs. “hoje” em BRT). */
   const availableDates = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    return d.toISOString().slice(0, 10);
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    return ymdLocal(d);
   });
 
   useEffect(() => {
@@ -296,6 +300,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       shop.lunchEnd,
       hasShopLunch,
       agendaSlotMinutes,
+      shop.rowUpdatedAt,
     ]
   );
 

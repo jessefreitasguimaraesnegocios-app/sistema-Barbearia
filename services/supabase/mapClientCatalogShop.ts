@@ -53,6 +53,7 @@ export function mapClientCatalogRow(s: Record<string, unknown>): Shop {
       s.agenda_slot_minutes != null && Number(s.agenda_slot_minutes) > 0
         ? Number(s.agenda_slot_minutes)
         : 30,
+    rowUpdatedAt: s.updated_at != null ? String(s.updated_at) : undefined,
     services: ((s.services as Record<string, unknown>[]) || []).map((sv) => ({
       id: String(sv.id),
       name: String(sv.name),

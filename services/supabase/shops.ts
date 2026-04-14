@@ -5,7 +5,7 @@ import { mapClientCatalogRow } from './mapClientCatalogShop';
 import { mapAdminShopRow } from './mapAdminShopRow';
 
 export const SHOPS_SELECT_PARTNER_SINGLE =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error, updated_at';
 
 export const PROFESSIONALS_SELECT_PARTNER =
   'id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, split_percent_sandbox, user_id';
@@ -109,6 +109,30 @@ export async function fetchClientCatalogUpdatedSince(client: SupabaseClient, sin
   if (error) throw error;
   if (!data?.length) return [];
   return data.map((row) => mapClientCatalogEntry(row as Record<string, unknown>));
+}
+
+const CLIENT_CATALOG_BY_ID_CHUNK = 40;
+
+/** Refetch de lojas por id (Realtime): evita buraco do sync só com `gt(updated_at, maxGlobal)` quando outra loja tem carimbo mais recente. */
+export async function fetchClientCatalogByShopIds(
+  client: SupabaseClient,
+  shopIds: string[]
+): Promise<ClientCatalogEntry[]> {
+  const unique = [...new Set(shopIds.map((id) => id.trim()).filter(Boolean))];
+  if (!unique.length) return [];
+  const out: ClientCatalogEntry[] = [];
+  for (let i = 0; i < unique.length; i += CLIENT_CATALOG_BY_ID_CHUNK) {
+    const chunk = unique.slice(i, i + CLIENT_CATALOG_BY_ID_CHUNK);
+    const { data, error } = await client
+      .from('shops')
+      .select(SHOPS_SELECT_CLIENT_CATALOG)
+      .in('id', chunk);
+    if (error) throw error;
+    if (data?.length) {
+      out.push(...data.map((row) => mapClientCatalogEntry(row as Record<string, unknown>)));
+    }
+  }
+  return out;
 }
 
 export async function fetchShopsForAdmin(client: SupabaseClient): Promise<Shop[]> {

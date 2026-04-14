@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import type { Shop } from '../types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClientCatalogEntry } from '../services/supabase/shops';
 import {
   CLIENT_CATALOG_PAGE_SIZE,
+  fetchClientCatalogByShopIds,
   fetchClientCatalogPage,
   fetchClientCatalogUpdatedSince,
 } from '../services/supabase/shops';
@@ -27,10 +29,17 @@ type UseClientCatalogShopsOptions = {
  * Catálogo público: pinta primeiro do localStorage, sincroniza com API em background
  * (páginas + incremental por `updated_at`) e mantém Realtime com debounce.
  */
+function addShopIdFromRealtimeRow(ref: MutableRefObject<Set<string>>, row: Record<string, unknown> | null | undefined) {
+  const sid = row?.shop_id ?? row?.shopId;
+  if (sid != null && String(sid).trim()) ref.current.add(String(sid));
+}
+
 export function useClientCatalogShops({ client, enabled }: UseClientCatalogShopsOptions) {
   const [shops, setShops] = useState<Shop[]>(() => entriesToShops(readClientCatalogCache()?.entries ?? []));
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
   const rtTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Lojas tocadas por Realtime; merge só com `updated_at > maxGlobal` perde mudanças se outra loja tem carimbo mais novo. */
+  const pendingRealtimeShopIdsRef = useRef<Set<string>>(new Set());
 
   const applyMergedEntries = useCallback((merged: ClientCatalogEntry[]) => {
     writeClientCatalogCache(merged);
@@ -84,6 +93,40 @@ export function useClientCatalogShops({ client, enabled }: UseClientCatalogShops
     const flushRealtime = () => {
       void (async () => {
         try {
+          const cached = readClientCatalogCache();
+          const since = cached?.maxRowUpdatedAt;
+          const pendingIds = [...pendingRealtimeShopIdsRef.current];
+          pendingRealtimeShopIdsRef.current.clear();
+
+          if (!cached?.entries?.length) {
+            await syncFromNetwork();
+            return;
+          }
+
+          let accumulated = mergeCatalogEntries([], cached.entries);
+          let changed = false;
+
+          if (since && since > '1970-01-01T00:00:00.001Z') {
+            const incoming = await fetchClientCatalogUpdatedSince(client, since);
+            if (incoming.length) {
+              accumulated = mergeCatalogEntries(accumulated, incoming);
+              changed = true;
+            }
+          }
+
+          if (pendingIds.length) {
+            const byIds = await fetchClientCatalogByShopIds(client, pendingIds);
+            if (byIds.length) {
+              accumulated = mergeCatalogEntries(accumulated, byIds);
+              changed = true;
+            }
+          }
+
+          if (changed) {
+            applyMergedEntries(accumulated);
+            return;
+          }
+
           await syncFromNetwork();
         } catch {
           /* noop */
@@ -117,11 +160,22 @@ export function useClientCatalogShops({ client, enabled }: UseClientCatalogShops
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'shops' }, (p) => onShopDelete(p))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shops' }, (p) => {
         if (p.eventType === 'DELETE') return;
+        const row = (p.new ?? p.old) as Record<string, unknown> | undefined;
+        if (row?.id != null) pendingRealtimeShopIdsRef.current.add(String(row.id));
         scheduleFlush();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => scheduleFlush())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, () => scheduleFlush())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => scheduleFlush())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, (p) => {
+        addShopIdFromRealtimeRow(pendingRealtimeShopIdsRef, (p.new ?? p.old) as Record<string, unknown> | undefined);
+        scheduleFlush();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, (p) => {
+        addShopIdFromRealtimeRow(pendingRealtimeShopIdsRef, (p.new ?? p.old) as Record<string, unknown> | undefined);
+        scheduleFlush();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (p) => {
+        addShopIdFromRealtimeRow(pendingRealtimeShopIdsRef, (p.new ?? p.old) as Record<string, unknown> | undefined);
+        scheduleFlush();
+      })
       .subscribe();
 
     return () => {

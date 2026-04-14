@@ -100,5 +100,6 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
       d.agenda_slot_minutes != null && Number(d.agenda_slot_minutes) > 0
         ? Number(d.agenda_slot_minutes)
         : 30,
+    rowUpdatedAt: d.updated_at != null ? String(d.updated_at) : undefined,
   };
 }

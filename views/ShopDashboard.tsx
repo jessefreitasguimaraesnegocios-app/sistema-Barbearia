@@ -210,7 +210,11 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   const filteredApts =
     filterPro === 'ALL' ? agendaDayApts : agendaDayApts.filter((a) => a.professionalId === filterPro);
 
-  const nextApt = agendaDayApts.find((a) => a.status === 'PAID');
+  /** Próximo cliente / Iniciar atendimento: só dia civil atual — nunca amanhã ou data futura (grade pode pré-visualizar o dia seguinte). */
+  const realTodayApts = myApts
+    .filter((a) => a.date === realTodayKey && isPaidOrCompletedAppointment(a))
+    .sort((a, b) => a.time.localeCompare(b.time));
+  const nextApt = realTodayApts.find((a) => a.status === 'PAID');
 
   const clientLabel = (a: PartnerAgendaAppointment) =>
     a.clientDisplayName?.trim() || `Cliente #${a.clientId.slice(0, 4)}`;

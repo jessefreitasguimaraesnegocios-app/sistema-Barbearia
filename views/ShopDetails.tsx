@@ -271,16 +271,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
   const today = new Date();
   const todayStr = ymdLocal(today);
-  /** Datas locais (evita `toISOString()` UTC deslocar o dia vs. “hoje” em BRT). */
-  const availableDates = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
-    return ymdLocal(d);
-  });
-
-  useEffect(() => {
-    if (!selectedDate) return;
-    if (selectedDate < todayStr) setSelectedDate(todayStr);
-  }, [agendaClock, todayStr, selectedDate]);
 
   const agendaSlotMinutes = shop.agendaSlotMinutes ?? 30;
   const hasShopLunch = Boolean(shop.lunchStart && shop.lunchEnd);
@@ -303,6 +293,39 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       shop.rowUpdatedAt,
     ]
   );
+
+  /** Próximos 14 dias locais com pelo menos um slot de agenda ainda elegível (ex.: “hoje” some quando já passou o último horário). */
+  const bookingEligibleDates = useMemo(() => {
+    void agendaClock;
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dates = Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      return ymdLocal(d);
+    });
+    const todayStrNow = ymdLocal(now);
+    return dates.filter((date) => {
+      if (date < todayStrNow) return false;
+      if (date > todayStrNow) return daySlotList.length > 0;
+      return daySlotList.some((t) => new Date(`${date}T${t}:00`) > now);
+    });
+  }, [daySlotList, agendaClock]);
+
+  useEffect(() => {
+    if (bookingEligibleDates.length === 0) {
+      if (selectedDate) {
+        setSelectedDate('');
+        setSelectedTime('');
+      }
+      return;
+    }
+    const invalid = Boolean(selectedDate && !bookingEligibleDates.includes(selectedDate));
+    const needDefaultOnStep3 = step === 3 && !selectedDate;
+    if (invalid || needDefaultOnStep3) {
+      setSelectedDate(bookingEligibleDates[0]);
+      setSelectedTime('');
+    }
+  }, [bookingEligibleDates, selectedDate, step]);
 
   const availableTimes = useMemo(() => {
     void agendaClock;
@@ -812,18 +835,29 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     </div>
                     
                     <div className="space-y-6">
-                      <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-                        {availableDates.map(date => (
-                          <button 
-                            key={date}
-                            onClick={() => { setSelectedDate(date); setSelectedTime(''); }}
-                            className={`shrink-0 w-16 md:w-20 py-3 md:py-4 rounded-2xl border-2 transition-all flex flex-col items-center ${selectedDate === date ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-500'}`}
-                          >
-                            <span className="text-[10px] md:text-xs font-medium uppercase">{new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
-                            <span className="text-lg md:text-xl font-bold">{new Date(date + 'T12:00:00').getDate()}</span>
-                          </button>
-                        ))}
-                      </div>
+                      {bookingEligibleDates.length === 0 ? (
+                        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-4">
+                          Não há datas com horário disponível nos próximos dias para esta loja.
+                        </p>
+                      ) : (
+                        <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+                          {bookingEligibleDates.map((date) => (
+                            <button
+                              key={date}
+                              onClick={() => {
+                                setSelectedDate(date);
+                                setSelectedTime('');
+                              }}
+                              className={`shrink-0 w-16 md:w-20 py-3 md:py-4 rounded-2xl border-2 transition-all flex flex-col items-center ${selectedDate === date ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-500'}`}
+                            >
+                              <span className="text-[10px] md:text-xs font-medium uppercase">
+                                {new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}
+                              </span>
+                              <span className="text-lg md:text-xl font-bold">{new Date(date + 'T12:00:00').getDate()}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       {selectedDate && (
                         <div className="space-y-2">

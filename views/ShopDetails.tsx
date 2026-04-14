@@ -750,18 +750,28 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         </div>
 
         {/* Tab Selection */}
-        <div className="flex border-b border-gray-100 p-2 gap-2 bg-gray-50/50">
-          <button 
+        <div className="flex border-b border-gray-100 p-2 gap-2 bg-gray-50/50 dark:border-zinc-800 dark:bg-zinc-900/75">
+          <button
+            type="button"
             onClick={() => setActiveTab('SERVICES')}
-            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'SERVICES' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+              activeTab === 'SERVICES'
+                ? 'bg-white text-indigo-600 shadow-sm dark:bg-zinc-950 dark:text-indigo-400 dark:shadow-md dark:ring-1 dark:ring-white/10'
+                : 'text-gray-600 hover:text-gray-900 dark:text-zinc-300 dark:hover:text-zinc-50'
+            }`}
           >
-            <i className="fas fa-scissors"></i> Serviços
+            <i className="fas fa-scissors" aria-hidden /> Serviços
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => setActiveTab('STORE')}
-            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'STORE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+              activeTab === 'STORE'
+                ? 'bg-white text-indigo-600 shadow-sm dark:bg-zinc-950 dark:text-indigo-400 dark:shadow-md dark:ring-1 dark:ring-white/10'
+                : 'text-gray-600 hover:text-gray-900 dark:text-zinc-300 dark:hover:text-zinc-50'
+            }`}
           >
-            <i className="fas fa-shopping-bag"></i> Loja
+            <i className="fas fa-shopping-bag" aria-hidden /> Loja
           </button>
         </div>
 

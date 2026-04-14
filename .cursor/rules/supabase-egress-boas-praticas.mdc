@@ -1,0 +1,32 @@
+---
+description: Boas práticas obrigatórias — egress Supabase, queries e Realtime (PostgREST + dados mínimos)
+alwaysApply: true
+---
+
+# Egress e eficiência com Supabase (obrigatório em todo o código novo ou alterado)
+
+**Egress** inclui PostgREST (`.from().select()`), Auth, Realtime, Storage e Edge Functions. Ao implementar ou alterar qualquer fluxo que fale com o Supabase, segue isto por defeito.
+
+## Consultas à base (PostgREST)
+
+1. **`select` explícito** — Nunca uses `select('*')` em código novo; lista só colunas que o tipo/UI precisa (constantes partilhadas tipo `*_SELECT_*` em `services/supabase/`).
+2. **Listas grandes** — Paginação (`.range`) ou janela temporal (`gte`/`lte` em datas); “carregar mais” na UI quando fizer sentido.
+3. **N+1** — Não faças um `from()` por item em loop; agrega `client_id` / ids e usa **um** `.in('id', ids)` (ou RPC única) para perfis e relações.
+4. **Catálogo / embeds** — Evita embutir relações ou colunas que a vista não usa; o catálogo público já usa `SHOPS_SELECT_CLIENT_CATALOG` enxuto — mantém o padrão ao estender.
+
+## Realtime (`postgres_changes`)
+
+1. **Sem refetch da lista inteira** por evento — Preferir merge local na state (como `useRealtimeOrders`, `useRealtimeAppointments`, `useRealtimePartnerOrders`).
+2. **Atualização granular** — Se só uma tabela mudou (ex.: só `products`), evita refazer bundle completo; atualiza só esse conjunto de dados.
+3. **Payload** — Usa `payload.new` / `payload.old` para patch; só volta a um `select` amplo se for inevitável e documenta o motivo.
+
+## TanStack Query / cache
+
+- Primeira página com `staleTime` razoável + invalidação após ações críticas (ex.: pós-pagamento), como na área cliente — não duplicar GETs ao navegar sem necessidade.
+
+## Referência no repositório
+
+- **`docs/MELHORIAS_EGRESS_E_PERFORMANCE.md`** — alterações já feitas (padrões concretos).
+- **`docs/SUPABASE_EGRESS_E_ALTERACOES.md`** — contexto histórico e checklist.
+
+Antes de concluir uma tarefa que toque em dados: confirma mentalmente **menos bytes por resposta**, **menos pedidos repetidos** e **Realtime sem lista cheia a cada evento**.

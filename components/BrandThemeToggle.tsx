@@ -4,18 +4,14 @@ import { subscribeThemeClass, toggleDocumentTheme } from '../lib/appTheme';
 
 type Size = 'md' | 'sm';
 
-const sizeClasses: Record<Size, { wrap: string; inner: string; badge: string; icon: string }> = {
+const sizeClasses: Record<Size, { wrap: string; inner: string }> = {
   md: {
     wrap: 'h-11 w-11 rounded-xl p-[3px]',
     inner: 'rounded-[10px]',
-    badge: 'h-5 w-5 -bottom-0.5 -right-0.5',
-    icon: 'text-[9px]',
   },
   sm: {
     wrap: 'h-9 w-9 rounded-lg p-[2px]',
     inner: 'rounded-lg',
-    badge: 'h-4 w-4 -bottom-0.5 -right-0.5',
-    icon: 'text-[7px]',
   },
 };
 
@@ -51,12 +47,6 @@ export function BrandThemeToggle({ size = 'md' }: { size?: Size }) {
           alt=""
           className="h-full w-full object-cover transition-[filter,transform] duration-500 group-hover:brightness-105 dark:brightness-110"
         />
-        <span
-          className={`pointer-events-none absolute ${s.badge} flex items-center justify-center rounded-full border border-white/70 bg-linear-to-br from-zinc-800 to-zinc-950 text-amber-200 shadow-md transition-transform duration-300 group-hover:scale-110 dark:border-amber-200/40 dark:from-amber-300 dark:to-amber-500 dark:text-zinc-950`}
-          aria-hidden
-        >
-          <i className={`fas ${isDark ? 'fa-sun' : 'fa-moon'} ${s.icon}`} />
-        </span>
       </span>
     </button>
   );

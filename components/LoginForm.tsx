@@ -114,21 +114,21 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           {emailSuggestionsOpen && (
             <div
               ref={emailListRef}
-              className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"
+              className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-900"
             >
               {filteredEmailDomains.length ? (
-                filteredEmailDomains.map(domain => (
+                filteredEmailDomains.map((domain) => (
                   <button
                     key={domain}
                     type="button"
-                    className="w-full text-left px-4 py-3 hover:bg-indigo-50 text-gray-800 text-sm"
+                    className="w-full px-4 py-3 text-left text-sm text-gray-800 hover:bg-indigo-50 hover:text-gray-900 focus-visible:outline-none focus-visible:bg-indigo-50 focus-visible:text-gray-900 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white dark:focus-visible:bg-zinc-700 dark:focus-visible:text-white"
                     onClick={() => handleEmailSuggestionSelect(domain)}
                   >
                     {domain}
                   </button>
                 ))
               ) : (
-                <div className="px-4 py-3 text-gray-500 text-sm">Nenhum domínio encontrado</div>
+                <div className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-400">Nenhum domínio encontrado</div>
               )}
             </div>
           )}

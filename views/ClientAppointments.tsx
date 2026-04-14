@@ -1,6 +1,44 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Appointment, Shop, User } from '../types';
+
+function ShopAppointmentThumb({
+  shop,
+  dimmed,
+}: {
+  shop: Shop | undefined;
+  dimmed: boolean;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const url = shop?.profileImage?.trim();
+  const wrap = `w-20 h-20 rounded-2xl shrink-0 border border-gray-100 bg-gray-50 transition-all overflow-hidden ${
+    dimmed ? 'scale-90 opacity-50' : ''
+  }`;
+
+  if (url && !imgFailed) {
+    return (
+      <img
+        src={url}
+        alt=""
+        className={`${wrap} object-cover`}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`${wrap} flex items-center justify-center text-indigo-600 text-2xl`}>
+      <i
+        className={
+          shop?.type === 'BARBER'
+            ? 'fas fa-cut'
+            : shop?.type === 'MANICURE'
+              ? 'fas fa-hand-sparkles'
+              : 'fas fa-heart'
+        }
+      />
+    </div>
+  );
+}
 
 interface ClientAppointmentsProps {
   appointments: Appointment[];
@@ -42,17 +80,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, s
                     </div>
                   </div>
                 )}
-                <div className={`w-20 h-20 bg-gray-50 rounded-2xl shrink-0 flex items-center justify-center text-indigo-600 text-2xl transition-all ${apt.status === 'CANCELLED' ? 'scale-90 opacity-50' : ''}`}>
-                  <i
-                    className={
-                      shop?.type === 'BARBER'
-                        ? 'fas fa-cut'
-                        : shop?.type === 'MANICURE'
-                          ? 'fas fa-hand-sparkles'
-                          : 'fas fa-heart'
-                    }
-                  ></i>
-                </div>
+                <ShopAppointmentThumb shop={shop} dimmed={apt.status === 'CANCELLED'} />
                 <div className="flex-1 space-y-4">
                   <div>
                     <div className="flex justify-between items-start">

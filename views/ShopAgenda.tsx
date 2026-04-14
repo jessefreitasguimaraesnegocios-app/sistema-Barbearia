@@ -501,6 +501,13 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openReschedule(a)}
+                      className="px-3 py-2 rounded-xl bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) text-xs font-bold"
+                    >
+                      Remarcar
+                    </button>
                     {wa && (
                       <a
                         href={wa}
@@ -525,13 +532,6 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     {!a.clientPhone && (
                       <span className="text-[10px] text-gray-400 self-center">Sem telefone no perfil</span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => openReschedule(a)}
-                      className="px-3 py-2 rounded-xl bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) text-xs font-bold"
-                    >
-                      Remarcar
-                    </button>
                   </div>
                 </li>
               );

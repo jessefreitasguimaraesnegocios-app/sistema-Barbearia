@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Appointment, Order, ShopPartnerOrderRow } from '../../types';
+import type { Appointment, Order, ShopOrderHandoverItemSnapshot, ShopPartnerOrderRow } from '../../types';
 import { mapRowToAppointment } from './appointmentMapping';
 
 export async function fetchPartnerAppointments(
@@ -25,7 +25,9 @@ export async function fetchPartnerOrdersWithProfiles(
 ): Promise<ShopPartnerOrderRow[]> {
   const { data: ordRows, error: ordErr } = await client
     .from('orders')
-    .select('id, client_id, shop_id, items, total, status, created_at')
+    .select(
+      'id, client_id, shop_id, items, total, status, created_at, handed_over_at, handed_over_by_user_id, handed_over_by_label, handed_over_items_snapshot'
+    )
     .eq('shop_id', shopId)
     .order('created_at', { ascending: false });
   if (ordErr || !ordRows) return [];
@@ -45,6 +47,24 @@ export async function fetchPartnerOrdersWithProfiles(
     const createdRaw = r.created_at ? String(r.created_at) : new Date().toISOString();
     const prof = profById.get(pid);
     const nameFromProf = prof?.full_name?.trim();
+    let handedOverItemsSnapshot: ShopOrderHandoverItemSnapshot[] | null = null;
+    const snap = r.handed_over_items_snapshot;
+    if (Array.isArray(snap)) {
+      const parsed: ShopOrderHandoverItemSnapshot[] = [];
+      for (const el of snap) {
+        if (!el || typeof el !== 'object') continue;
+        const x = el as Record<string, unknown>;
+        const productId = String(x.productId ?? x.product_id ?? '').trim();
+        if (!productId) continue;
+        parsed.push({
+          productId,
+          quantity: Math.max(0, Math.floor(Number(x.quantity) || 0)),
+          price: Number(x.price) || 0,
+          name: x.name != null ? String(x.name) : undefined,
+        });
+      }
+      handedOverItemsSnapshot = parsed.length ? parsed : null;
+    }
     return {
       id: String(r.id),
       clientId: pid,
@@ -56,6 +76,10 @@ export async function fetchPartnerOrdersWithProfiles(
       createdAtIso: createdRaw,
       clientDisplayName: nameFromProf || `Cliente #${pid.slice(0, 8)}`,
       clientAvatarUrl: prof?.avatar_url?.trim() || null,
+      handedOverAtIso: r.handed_over_at != null ? String(r.handed_over_at) : null,
+      handedOverByUserId: r.handed_over_by_user_id != null ? String(r.handed_over_by_user_id) : null,
+      handedOverByLabel: r.handed_over_by_label != null ? String(r.handed_over_by_label) : null,
+      handedOverItemsSnapshot: handedOverItemsSnapshot?.length ? handedOverItemsSnapshot : null,
     };
   });
 }

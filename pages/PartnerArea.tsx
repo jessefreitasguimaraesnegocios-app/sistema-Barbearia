@@ -9,7 +9,7 @@ import ShopWallet from '../views/ShopWallet';
 import ShopOrders from '../views/ShopOrders';
 import ShopAgenda, { type AgendaSchedulePayload } from '../views/ShopAgenda';
 import { LoginForm } from '../components/LoginForm';
-import { Shop, Order, PartnerAgendaAppointment } from '../types';
+import { Shop, Order, PartnerAgendaAppointment, type ShopOrderHandoverItemSnapshot } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
 import { isClientOnlyRole } from '../lib/profileRole';
@@ -108,10 +108,31 @@ export default function PartnerArea() {
 
   const markOrderDelivered = React.useCallback(
     async (orderId: string) => {
-      if (!myShop?.id) return;
+      if (!myShop?.id || !user?.id) return;
+      const row = shopPartnerOrderRows.find((o) => o.id === orderId);
+      if (!row || row.status !== 'PAID') return;
+
+      const handedOverByLabel =
+        staffProfessionalId != null
+          ? myShop.professionals.find((p) => p.id === staffProfessionalId)?.name?.trim() || 'Equipe'
+          : user.name?.trim() || 'Dono da loja';
+
+      const handedOverItemsSnapshot: ShopOrderHandoverItemSnapshot[] = row.items.map((it) => ({
+        productId: it.productId,
+        quantity: it.quantity,
+        price: it.price,
+        name: myShop.products.find((p) => p.id === it.productId)?.name,
+      }));
+
       const { error } = await supabase
         .from('orders')
-        .update({ status: 'DELIVERED' })
+        .update({
+          status: 'DELIVERED',
+          handed_over_at: new Date().toISOString(),
+          handed_over_by_user_id: user.id,
+          handed_over_by_label: handedOverByLabel,
+          handed_over_items_snapshot: handedOverItemsSnapshot,
+        })
         .eq('id', orderId)
         .eq('shop_id', myShop.id)
         .eq('status', 'PAID');
@@ -121,7 +142,7 @@ export default function PartnerArea() {
       }
       // Lista atualizada via Realtime em `orders`.
     },
-    [myShop?.id]
+    [myShop, shopPartnerOrderRows, staffProfessionalId, user?.id, user?.name]
   );
 
   const saveAgendaSettings = React.useCallback(

@@ -132,11 +132,23 @@ export interface Order {
   date: string;
 }
 
+/** Linha guardada em `orders.handed_over_items_snapshot` ao marcar retirada. */
+export type ShopOrderHandoverItemSnapshot = {
+  productId: string;
+  quantity: number;
+  price: number;
+  name?: string;
+};
+
 /** Pedido da lojinha com dados do cliente (área do parceiro). */
 export interface ShopPartnerOrderRow extends Order {
   createdAtIso: string;
   clientDisplayName: string;
   clientAvatarUrl: string | null;
+  handedOverAtIso?: string | null;
+  handedOverByUserId?: string | null;
+  handedOverByLabel?: string | null;
+  handedOverItemsSnapshot?: ShopOrderHandoverItemSnapshot[] | null;
 }
 
 export interface AppNotification {

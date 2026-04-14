@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Shop, ShopPartnerOrderRow } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Shop, ShopPartnerOrderRow, type ShopOrderHandoverItemSnapshot } from '../types';
 
 interface ShopOrdersProps {
   shop: Shop;
@@ -21,13 +21,85 @@ function formatOrderWhen(iso: string): string {
   }
 }
 
+function formatHandoverDetail(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
+/** Histórico “do dia”: mesma data local que `now` (zera visualmente à meia-noite). */
+function isSameLocalCalendarDay(iso: string, now: Date): boolean {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
+function lineItemsForHistory(
+  order: ShopPartnerOrderRow,
+  shop: Shop
+): { label: string; qty: number; lineTotal: number }[] {
+  const snap = order.handedOverItemsSnapshot;
+  if (snap?.length) {
+    return snap.map((it: ShopOrderHandoverItemSnapshot) => ({
+      label: it.name?.trim() || 'Produto',
+      qty: it.quantity,
+      lineTotal: it.price * it.quantity,
+    }));
+  }
+  return order.items.map((it) => {
+    const name = shop.products.find((p) => p.id === it.productId)?.name ?? 'Produto';
+    return { label: name, qty: it.quantity, lineTotal: it.price * it.quantity };
+  });
+}
+
 const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }) => {
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [dayTick, setDayTick] = useState(0);
+  const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setDayTick((n) => n + 1), 60_000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') setDayTick((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
+  const now = useMemo(() => new Date(), [dayTick]);
 
   const paidOrders = useMemo(
     () => orders.filter((o) => o.status === 'PAID').sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso)),
     [orders]
   );
+
+  const handoverHistoryToday = useMemo(() => {
+    return orders
+      .filter(
+        (o) =>
+          o.status === 'DELIVERED' &&
+          o.handedOverAtIso &&
+          isSameLocalCalendarDay(o.handedOverAtIso, now)
+      )
+      .sort((a, b) => (b.handedOverAtIso ?? '').localeCompare(a.handedOverAtIso ?? ''));
+  }, [orders, now]);
 
   const handleDelivered = async (orderId: string) => {
     setDeliveringId(orderId);
@@ -36,6 +108,10 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
     } finally {
       setDeliveringId(null);
     }
+  };
+
+  const toggleHistory = (id: string) => {
+    setOpenHistoryId((prev) => (prev === id ? null : id));
   };
 
   return (
@@ -132,6 +208,87 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
           })}
         </ul>
       )}
+
+      <section className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-5 md:p-6 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Histórico de retiradas (hoje)</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Quem liberou o pedido e o resumo no momento da confirmação. A lista considera só retiradas marcadas{' '}
+              <strong>hoje</strong> (meia-noite local zera o painel).
+            </p>
+          </div>
+        </div>
+
+        {handoverHistoryToday.length === 0 ? (
+          <p className="text-sm text-gray-400 py-6 text-center">
+            Ainda não há retiradas registadas hoje. Ao confirmar &quot;Pedido retirado&quot;, o registo aparece aqui.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {handoverHistoryToday.map((order) => {
+              const open = openHistoryId === order.id;
+              const lines = lineItemsForHistory(order, shop);
+              const when = order.handedOverAtIso ? formatHandoverDetail(order.handedOverAtIso) : '';
+              const who = order.handedOverByLabel?.trim() || 'Equipe';
+              return (
+                <li key={order.id} className="rounded-2xl border border-gray-100 bg-gray-50/70 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleHistory(order.id)}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-100/80 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-gray-900 truncate">{order.clientDisplayName}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        <span className="text-emerald-700 font-semibold">Retirado</span>
+                        {when ? ` · ${when}` : ''}
+                        {' · '}
+                        <span className="text-gray-600">por {who}</span>
+                      </p>
+                      <p className="text-xs font-black text-gray-800 mt-1">
+                        Total R$ {order.total.toFixed(2).replace('.', ',')}
+                      </p>
+                    </div>
+                    <span
+                      className="shrink-0 w-8 h-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500"
+                      aria-hidden
+                    >
+                      <i className={`fas fa-chevron-${open ? 'up' : 'down'} text-xs`} />
+                    </span>
+                  </button>
+                  {open ? (
+                    <div className="px-4 pb-4 pt-0 border-t border-gray-100 bg-white/90">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-3 mb-2">
+                        Resumo da compra (no momento da retirada)
+                      </p>
+                      <ul className="space-y-1.5 text-sm text-gray-700">
+                        {lines.map((ln, i) => (
+                          <li key={i} className="flex justify-between gap-3">
+                            <span>
+                              <span className="font-semibold text-gray-900">{ln.label}</span>
+                              <span className="text-gray-400"> × {ln.qty}</span>
+                            </span>
+                            <span className="font-medium text-indigo-600 whitespace-nowrap">
+                              R$ {ln.lineTotal.toFixed(2).replace('.', ',')}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-3 pt-2 border-t border-gray-100 text-right text-sm">
+                        <span className="text-gray-500">Total </span>
+                        <span className="font-black text-gray-900">
+                          R$ {order.total.toFixed(2).replace('.', ',')}
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 };

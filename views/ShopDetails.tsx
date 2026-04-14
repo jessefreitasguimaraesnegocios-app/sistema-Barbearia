@@ -667,34 +667,38 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     const showHint = opts?.showAutoReturnHint !== false;
     const imgSrc = pixQrImageSrc(ctx.encodedImage);
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-4 text-left">
+      <div className="space-y-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 p-4 text-left dark:border-emerald-800/50 dark:bg-emerald-950/35">
         {ctx.isDuplicate && (
-          <p className="text-amber-800 text-xs font-semibold bg-amber-50 border border-amber-200 rounded-xl p-2">
+          <p className="rounded-xl border border-amber-400/80 bg-amber-100 p-3 text-sm font-semibold text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/70 dark:text-amber-100">
             Esta cobrança já existia e foi reaproveitada com segurança. Use o mesmo PIX abaixo.
           </p>
         )}
-        <div className="bg-white rounded-xl p-3 border border-gray-100">
-          <p className="text-xs text-gray-500">Valor a pagar</p>
-          <p className="text-2xl font-black text-indigo-600">R$ {ctx.amount.toFixed(2).replace('.', ',')}</p>
+        <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Valor a pagar</p>
+          <p className="text-2xl font-black text-indigo-700 dark:text-indigo-300">
+            R$ {ctx.amount.toFixed(2).replace('.', ',')}
+          </p>
         </div>
         {imgSrc ? (
-          <div className="flex justify-center bg-white p-4 rounded-xl border border-gray-100">
-            <img src={imgSrc} alt="QR Code PIX" className="w-52 h-52 object-contain" />
+          <div className="flex justify-center rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+            <img src={imgSrc} alt="QR Code PIX" className="h-52 w-52 object-contain" />
           </div>
         ) : null}
         {ctx.payload ? (
           <>
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Pix copia e cola</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+              Pix copia e cola
+            </p>
             <textarea
               readOnly
               rows={4}
-              className="w-full text-[11px] font-mono p-3 rounded-xl border border-gray-200 bg-white leading-relaxed"
+              className="w-full rounded-xl border border-zinc-200 bg-white p-3 font-mono text-[11px] leading-relaxed text-zinc-900 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
               value={ctx.payload}
             />
             <button
               type="button"
               onClick={() => void copyPixPayload(ctx.payload)}
-              className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-colors"
+              className="w-full rounded-xl bg-zinc-900 py-3 text-sm font-bold text-white transition-colors hover:bg-zinc-800 dark:bg-indigo-600 dark:hover:bg-indigo-500"
             >
               <i className="fas fa-copy mr-2" />
               Copiar código PIX
@@ -706,19 +710,19 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             href={ctx.invoiceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 text-sm text-indigo-600 font-semibold hover:underline"
+            className="flex items-center justify-center gap-2 text-sm font-semibold text-indigo-700 underline-offset-2 hover:underline dark:text-indigo-300"
           >
             <i className="fas fa-external-link-alt" />
             Abrir página Asaas (alternativa)
           </a>
         ) : null}
         {showHint ? (
-          <p className="text-[10px] text-emerald-900 text-center leading-relaxed">
-            Pague no app do seu banco. Quando o pagamento for confirmado, você volta ao <strong>início</strong>{' '}
+          <p className="text-center text-[10px] leading-relaxed text-zinc-800 dark:text-zinc-300">
+            Pague no app do seu banco. Quando o pagamento for confirmado, você volta ao <strong className="text-zinc-950 dark:text-white">início</strong>{' '}
             automaticamente.
           </p>
         ) : (
-          <p className="text-[10px] text-gray-600 text-center leading-relaxed">
+          <p className="text-center text-[10px] leading-relaxed text-zinc-700 dark:text-zinc-300">
             Pague no app do seu banco. Aguarde a confirmação do pagamento.
           </p>
         )}
@@ -957,20 +961,21 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         </p>
                       </div>
                     ) : bookingPayPhase === 'pix' && inlinePayPix?.kind === 'booking' ? (
-                      <div className="max-w-lg mx-auto px-2 space-y-6">
-                        <div className="text-center space-y-1">
-                          <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Pague com PIX</h3>
-                          <p className="text-sm text-gray-500">
-                            {shop.name} · use o QR ou o código abaixo no app do seu banco.
+                      <div className="mx-auto max-w-lg space-y-6 px-2">
+                        <div className="space-y-1 text-center">
+                          <h3 className="text-2xl font-bold text-zinc-900 md:text-3xl dark:text-zinc-50">Pague com PIX</h3>
+                          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                            <strong className="text-zinc-800 dark:text-zinc-100">{shop.name}</strong> · use o QR ou o
+                            código abaixo no app do seu banco.
                           </p>
                         </div>
                         {renderPixPayPanel(inlinePayPix, { showAutoReturnHint: false })}
-                        <div className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-100">
-                          <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
-                            <i className="fas fa-spinner fa-spin text-emerald-600" />
+                        <div className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 py-4 dark:border-emerald-800/50 dark:bg-emerald-950/40">
+                          <p className="flex items-center gap-2 text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+                            <i className="fas fa-spinner fa-spin text-emerald-600 dark:text-emerald-400" />
                             Aguardando confirmação do PIX…
                           </p>
-                          <p className="text-xs text-gray-600 text-center px-3">
+                          <p className="px-3 text-center text-xs text-zinc-700 dark:text-zinc-400">
                             Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e você vai ao início.
                           </p>
                         </div>
@@ -1444,35 +1449,36 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       {/* Pedido (loja): tela cheia PIX → Pagamento Aprovado → home */}
       {(orderPayPhase === 'pix' || orderPayPhase === 'approved') &&
         inlinePayPix?.kind === 'order' && (
-          <div className="fixed inset-0 z-130 bg-white/97 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+          <div className="fixed inset-0 z-130 flex animate-fade-in items-center justify-center overflow-y-auto bg-zinc-100/95 p-4 text-zinc-900 backdrop-blur-md dark:bg-zinc-950/95 dark:text-zinc-50">
             <div className="w-full max-w-lg py-4">
               {orderPayPhase === 'approved' ? (
-                <div className="flex flex-col items-center justify-center py-16 md:py-20 px-4">
-                  <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                    <i className="fas fa-check text-5xl md:text-6xl text-green-600" />
+                <div className="flex flex-col items-center justify-center px-4 py-16 md:py-20">
+                  <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-green-100 shadow-inner dark:bg-green-950/50 md:h-28 md:w-28">
+                    <i className="fas fa-check text-5xl text-green-600 dark:text-green-400 md:text-6xl" />
                   </div>
-                  <h2 className="text-2xl md:text-4xl font-black text-gray-900 text-center tracking-tight">
+                  <h2 className="text-center text-2xl font-black tracking-tight text-zinc-900 md:text-4xl dark:text-zinc-50">
                     Pagamento Aprovado!
                   </h2>
-                  <p className="text-gray-500 mt-3 text-center text-sm md:text-base">
+                  <p className="mt-3 text-center text-sm text-zinc-600 md:text-base dark:text-zinc-400">
                     Redirecionando para o início…
                   </p>
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="text-center space-y-1">
-                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Pague com PIX</h3>
-                    <p className="text-sm text-gray-500">
-                      Pedido em <strong>{shop.name}</strong> · use o QR ou o código no app do banco.
+                  <div className="space-y-1 text-center">
+                    <h3 className="text-2xl font-bold text-zinc-900 md:text-3xl dark:text-zinc-50">Pague com PIX</h3>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                      Pedido em <strong className="text-zinc-800 dark:text-zinc-100">{shop.name}</strong> · use o QR ou
+                      o código no app do banco.
                     </p>
                   </div>
                   {renderPixPayPanel(inlinePayPix, { showAutoReturnHint: false })}
-                  <div className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-100">
-                    <p className="text-sm text-emerald-900 font-semibold flex items-center gap-2">
-                      <i className="fas fa-spinner fa-spin text-emerald-600" />
+                  <div className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 py-4 dark:border-emerald-800/50 dark:bg-emerald-950/40">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+                      <i className="fas fa-spinner fa-spin text-emerald-600 dark:text-emerald-400" />
                       Aguardando confirmação do PIX…
                     </p>
-                    <p className="text-xs text-gray-600 text-center px-3">
+                    <p className="px-3 text-center text-xs text-zinc-700 dark:text-zinc-400">
                       Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e você vai ao início.
                     </p>
                   </div>

@@ -242,6 +242,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   );
 
   const availableTimes = useMemo(() => {
+    void agendaClock;
     const now = new Date();
     if (!selectedDate) return daySlotList;
     if (selectedDate < todayStr) return [];
@@ -298,7 +299,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       selectedPro.id
     );
     if (fullyBooked || selectedProBusy) setSelectedTime('');
-  }, [selectedTime, selectedPro?.id, bookingBlocks, agendaSlotMinutes, teamProIds]);
+  }, [selectedTime, selectedPro, bookingBlocks, agendaSlotMinutes, teamProIds]);
 
   const handleBooking = async () => {
     if (!selectedService || !selectedPro || !selectedDate || !selectedTime) return;
@@ -1271,7 +1272,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
       {/* Floating Cart Button — full-bleed row + inner max-width (evita conflito translate do bounceIn com centering) */}
       {cart.length > 0 && activeTab === 'STORE' && !isCartOpen && orderPayPhase === 'idle' && (
-        <div className="fixed bottom-20 left-0 right-0 z-[60] flex justify-center px-3 sm:px-4 md:bottom-6 pointer-events-none">
+        <div className="fixed bottom-20 left-0 right-0 z-60 flex justify-center px-3 sm:px-4 md:bottom-6 pointer-events-none">
           <div className="pointer-events-auto flex w-full max-w-xl items-center justify-between gap-3 rounded-3xl bg-slate-900 p-3 text-white shadow-2xl sm:p-4 animate-modal-bounce-in">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <div className="relative shrink-0">
@@ -1299,7 +1300,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       {/* Pedido (loja): tela cheia PIX → Pagamento Aprovado → home */}
       {(orderPayPhase === 'pix' || orderPayPhase === 'approved') &&
         inlinePayPix?.kind === 'order' && (
-          <div className="fixed inset-0 z-[130] bg-white/97 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+          <div className="fixed inset-0 z-130 bg-white/97 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
             <div className="w-full max-w-lg py-4">
               {orderPayPhase === 'approved' ? (
                 <div className="flex flex-col items-center justify-center py-16 md:py-20 px-4">
@@ -1341,7 +1342,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-8 left-1/2 z-[140] -translate-x-1/2 px-5 py-3 rounded-2xl bg-gray-900 text-white text-sm font-bold shadow-xl animate-fade-in flex items-center gap-2 pointer-events-none"
+          className="fixed bottom-8 left-1/2 z-140 -translate-x-1/2 px-5 py-3 rounded-2xl bg-gray-900 text-white text-sm font-bold shadow-xl animate-fade-in flex items-center gap-2 pointer-events-none"
         >
           <i className="fas fa-check-circle text-emerald-400" aria-hidden />
           PIX copiado!

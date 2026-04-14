@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AppQueryProvider } from './contexts/AppQueryProvider';
 import ClientArea from './pages/ClientArea';
 import PartnerArea from './pages/PartnerArea';
 import AdminArea from './pages/AdminArea';
@@ -20,10 +21,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </ThemeProvider>
+    <AppQueryProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
+    </AppQueryProvider>
   );
 }

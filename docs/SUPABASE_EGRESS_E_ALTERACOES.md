@@ -60,11 +60,31 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 ### 4. Catálogo público de lojas (contexto, pouco código alterado neste doc)
 
 - O **maior peso** de egress pode continuar a vir de **`SHOPS_SELECT_CLIENT_CATALOG`** (lojas com `services`, `professionals`, `products` embutidos) + **Realtime** + **imagens** (Storage/CDN).
-- Não está tudo “desfeito” num único doc: se no futuro quiseres **máximo conforto offline/lista completa**, aumentas página ou reduzes aninhamento (ex.: lista light sem produtos até abrir a loja).
+- O hook **`useClientCatalogShops`** já usa **localStorage** (`lib/clientCatalogCache`) para pintar rápido e sincronizar em background — isso **não** é TanStack Query; é cache próprio do catálogo.
 
 ---
 
-### 5. Avisos do Tailwind (Problems no editor)
+### 5. TanStack Query — cache da primeira página + invalidação após pagamento
+
+**Ideia (Supabase em linguagem simples):** “menos pedidos repetidos à rede” **sem** estragar fluxos em que o utilizador **acabou de pagar** e precisa ver lista fresca.
+
+| Ficheiro | Função |
+|----------|--------|
+| `package.json` | Dependência `@tanstack/react-query`. |
+| `contexts/AppQueryProvider.tsx` | `QueryClientProvider` + defaults (`refetchOnWindowFocus: false`, `staleTime` base 30s, `retry: 1`). |
+| `App.tsx` | Envolves a app com `AppQueryProvider` (fora de `ThemeProvider` / `AuthProvider`). |
+| `lib/clientAreaQueryKeys.ts` | Chaves estáveis: `appointmentsP1(clientId)`, `ordersP1(clientId)`. |
+| `lib/clientAreaCacheConfig.ts` | `CLIENT_AREA_FIRST_PAGE_STALE_MS` (**25s**) — quanto tempo a **primeira página** pode servir-se do cache **sem** novo GET. |
+| `services/supabase/fetchClientAreaFirstPages.ts` | `fetchClientAppointmentsFirstPage` / `fetchClientOrdersFirstPage` (mesma query que antes, centralizada). |
+| `pages/ClientArea.tsx` | `fetchAppointmentsFirstPage` / `fetchOrdersFirstPage` passam a `queryClient.fetchQuery(...)` com `staleTime` acima. Após **pagamento** (`onBook` / `onOrder` / `onRefetchAppointmentsAndOrders`), chama-se **`invalidateQueries`** nessas chaves e de seguida **`fetchQuery`** — **rede obrigatoriamente fresca**, independentemente do stale. |
+
+**Porque `staleTime` curto (25s)?** O **Realtime** continua a atualizar a lista em memória; um cache longo na primeira página podia, em casos raros, servir um snapshot antigo ao voltar à home **sem** invalidação. 25s equilibra **menos GET duplicados** ao navegar vs **frescura razoável**.
+
+**O que ainda não está em TanStack Query:** “Carregar mais” (offset seguinte), catálogo (`useClientCatalogShops`), área parceiro — podem ser fases futuras.
+
+---
+
+### 6. Avisos do Tailwind (Problems no editor)
 
 - Ajustes de sintaxe canónica (v4), ex.: `text-[var(--app-text)]` → `text-(--app-text)`, `dark:[color-scheme:dark]` → `dark:scheme-dark`, etc.
 - **Não alteram** egress nem Supabase; são só **lint / consistência de classes**.
@@ -79,6 +99,7 @@ Ficheiros tocados nessa limpeza (memória útil): `components/Layout.tsx`, `Logi
 - [ ] Manter `select` explícito (boa prática mesmo com plano pago) ou relaxar para `*` só onde fizer sentido operacional.
 - [ ] Manter **merge Realtime** em `orders` (costuma ser win em qualquer plano); só voltar a refetch total se tiveres um motivo forte.
 - [ ] Rever **imagens** (CDN, cache HTTP, tamanhos) — costuma ser o maior egress fora do JSON.
+- [ ] Aumentar `CLIENT_AREA_FIRST_PAGE_STALE_MS` só se aceitares menos pedidos à rede e possível desfasagem rara vs Realtime; após pagamento a invalidação continua a mandar na rede.
 
 ---
 
@@ -88,7 +109,9 @@ Ficheiros tocados nessa limpeza (memória útil): `components/Layout.tsx`, `Logi
 - Colunas pedidos cliente: `services/supabase/orderMapping.ts` → `ORDERS_SELECT_CLIENT`
 - Colunas agendamentos cliente: `services/supabase/clientListQueries.ts` → `APPOINTMENTS_SELECT_CLIENT`
 - Bundle parceiro serviços/produtos: `services/supabase/shops.ts` → `SERVICES_SELECT_PARTNER_BUNDLE`, `PRODUCTS_SELECT_PARTNER_BUNDLE`
+- Stale da primeira página (TanStack): `lib/clientAreaCacheConfig.ts` → `CLIENT_AREA_FIRST_PAGE_STALE_MS`
+- Chaves de invalidação: `lib/clientAreaQueryKeys.ts` → `appointmentsP1` / `ordersP1`
 
 ---
 
-*Última atualização: documento escrito para arquivo das decisões de otimização de egress e UX (paginação / Realtime).*
+*Última atualização: inclui TanStack Query (primeira página cliente + invalidação pós-pagamento), além de paginação / Realtime / egress.*

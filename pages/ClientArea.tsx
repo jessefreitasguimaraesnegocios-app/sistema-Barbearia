@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
@@ -23,8 +24,15 @@ import {
   CLIENT_LIST_PAGE_SIZE,
   sortAppointmentsClientList,
 } from '../services/supabase/clientListQueries';
+import { clientAreaQueryKeys } from '../lib/clientAreaQueryKeys';
+import { CLIENT_AREA_FIRST_PAGE_STALE_MS } from '../lib/clientAreaCacheConfig';
+import {
+  fetchClientAppointmentsFirstPage,
+  fetchClientOrdersFirstPage,
+} from '../services/supabase/fetchClientAreaFirstPages';
 
 export default function ClientArea() {
+  const queryClient = useQueryClient();
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -79,20 +87,19 @@ export default function ClientArea() {
   const fetchAppointmentsFirstPage = useCallback(async () => {
     if (!user?.id) return;
     appointmentsNextOffset.current = 0;
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(APPOINTMENTS_SELECT_CLIENT)
-      .eq('client_id', user.id)
-      .order('date', { ascending: false })
-      .order('time', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(0, CLIENT_LIST_PAGE_SIZE - 1);
-    if (error) return;
-    const rows = data || [];
-    setAppointments(rows.map((a) => mapRowToAppointment(a as Record<string, unknown>)));
-    appointmentsNextOffset.current = rows.length;
-    setAppointmentsHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
-  }, [user?.id]);
+    try {
+      const rows = await queryClient.fetchQuery({
+        queryKey: clientAreaQueryKeys.appointmentsP1(user.id),
+        queryFn: () => fetchClientAppointmentsFirstPage(supabase, user.id),
+        staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
+      });
+      setAppointments(rows);
+      appointmentsNextOffset.current = rows.length;
+      setAppointmentsHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
+    } catch {
+      /* mantém lista em memória */
+    }
+  }, [user?.id, queryClient]);
 
   const loadMoreAppointments = useCallback(async () => {
     if (!user?.id || appointmentsLoadingMore || !appointmentsHasMore) return;
@@ -131,18 +138,19 @@ export default function ClientArea() {
   const fetchOrdersFirstPage = useCallback(async () => {
     if (!user?.id) return;
     ordersNextOffset.current = 0;
-    const { data, error } = await supabase
-      .from('orders')
-      .select(ORDERS_SELECT_CLIENT)
-      .eq('client_id', user.id)
-      .order('created_at', { ascending: false })
-      .range(0, CLIENT_LIST_PAGE_SIZE - 1);
-    if (error) return;
-    const rows = data || [];
-    setOrders(rows.map((o) => mapRowToOrder(o as Record<string, unknown>)));
-    ordersNextOffset.current = rows.length;
-    setOrdersHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
-  }, [user?.id]);
+    try {
+      const rows = await queryClient.fetchQuery({
+        queryKey: clientAreaQueryKeys.ordersP1(user.id),
+        queryFn: () => fetchClientOrdersFirstPage(supabase, user.id),
+        staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
+      });
+      setOrders(rows);
+      ordersNextOffset.current = rows.length;
+      setOrdersHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
+    } catch {
+      /* mantém lista em memória */
+    }
+  }, [user?.id, queryClient]);
 
   const loadMoreOrders = useCallback(async () => {
     if (!user?.id || ordersLoadingMore || !ordersHasMore) return;
@@ -313,10 +321,14 @@ export default function ClientArea() {
 
   if (currentView === 'shop-details' && selectedShop) {
     const refetchAppointmentsAndOrders = () => {
+      if (!user?.id) return;
       appointmentsNextOffset.current = 0;
       ordersNextOffset.current = 0;
-      void fetchAppointmentsFirstPage();
-      void fetchOrdersFirstPage();
+      void (async () => {
+        await queryClient.invalidateQueries({ queryKey: clientAreaQueryKeys.appointmentsP1(user.id) });
+        await queryClient.invalidateQueries({ queryKey: clientAreaQueryKeys.ordersP1(user.id) });
+        await Promise.all([fetchAppointmentsFirstPage(), fetchOrdersFirstPage()]);
+      })();
     };
     return (
       <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>

@@ -474,8 +474,17 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
               return (
                 <li
                   key={a.id}
-                  className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 rounded-2xl border border-gray-100 bg-gray-50/80"
+                  className="relative flex flex-col lg:flex-row lg:items-center gap-3 p-4 pr-12 sm:pr-14 rounded-2xl border border-gray-100 bg-gray-50/80"
                 >
+                  <button
+                    type="button"
+                    onClick={() => setCancelTarget(a)}
+                    className="absolute right-3 top-3 z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition-colors hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"
+                    aria-label="Cancelar agendamento"
+                    title="Cancelar agendamento"
+                  >
+                    <i className="fas fa-times text-xs" aria-hidden />
+                  </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-gray-900">{a.clientDisplayName}</p>
@@ -522,13 +531,6 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                       className="px-3 py-2 rounded-xl bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) text-xs font-bold"
                     >
                       Remarcar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCancelTarget(a)}
-                      className="px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100"
-                    >
-                      Cancelar
                     </button>
                   </div>
                 </li>

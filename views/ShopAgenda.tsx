@@ -178,16 +178,15 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
     return { fullyBooked, owners, freeProsHint };
   };
 
+  /** Só o dia civil atual: à meia-noite local a lista “zera” (recomeça o dia seguinte). */
   const upcomingList = useMemo(() => {
+    void agendaClock;
     const t = todayLocalISO();
     return [...appointments]
       .filter((a) => a.status === 'PAID')
-      .filter((a) => a.date >= t)
-      .sort((a, b) => {
-        const c = a.date.localeCompare(b.date);
-        return c !== 0 ? c : a.time.localeCompare(b.time);
-      });
-  }, [appointments]);
+      .filter((a) => a.date === t)
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }, [appointments, agendaClock]);
 
   const resetScheduleFieldsFromShop = () => {
     setWorkdayStart(shop.workdayStart ?? '08:00');
@@ -466,9 +465,14 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       </section>
 
       <section className="bg-white p-6 md:p-8 rounded-4xl border border-gray-100 shadow-sm space-y-4">
-        <h3 className="text-lg font-bold text-gray-900">Clientes agendados</h3>
+        <div>
+          <h3 className="text-lg font-bold text-gray-900">Clientes agendados</h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Lista só do <strong>hoje</strong> (meia-noite local zera e mostra o próximo dia).
+          </p>
+        </div>
         {upcomingList.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nenhum agendamento ativo a partir de hoje.</p>
+          <p className="text-gray-500 text-sm">Nenhum agendamento pago para hoje.</p>
         ) : (
           <ul className="space-y-3">
             {upcomingList.map((a) => {

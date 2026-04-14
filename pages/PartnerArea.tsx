@@ -190,21 +190,6 @@ export default function PartnerArea() {
     [myShop?.id, staffProfessionalId]
   );
 
-  const cancelAppointmentPartner = React.useCallback(
-    async (appointmentId: string) => {
-      if (!myShop?.id) return;
-      let upd = supabase
-        .from('appointments')
-        .update({ status: 'CANCELLED' })
-        .eq('id', appointmentId)
-        .eq('shop_id', myShop.id);
-      if (staffProfessionalId) upd = upd.eq('professional_id', staffProfessionalId);
-      const { error } = await upd;
-      if (error) throw new Error(error.message);
-    },
-    [myShop?.id, staffProfessionalId]
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -527,13 +512,6 @@ export default function PartnerArea() {
               await rescheduleAppointment(id, date, time);
             } catch (e) {
               alert(e instanceof Error ? e.message : 'Erro ao remarcar.');
-            }
-          }}
-          onCancel={async (id) => {
-            try {
-              await cancelAppointmentPartner(id);
-            } catch (e) {
-              alert(e instanceof Error ? e.message : 'Erro ao cancelar.');
             }
           }}
         />

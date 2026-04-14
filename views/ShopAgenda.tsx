@@ -24,7 +24,6 @@ interface ShopAgendaProps {
   allowEditShopSchedule?: boolean;
   onSaveSchedule: (payload: AgendaSchedulePayload) => Promise<void>;
   onReschedule: (appointmentId: string, date: string, timeHHMMSS: string) => Promise<void>;
-  onCancel: (appointmentId: string) => Promise<void>;
 }
 
 function todayLocalISO(): string {
@@ -59,7 +58,6 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   allowEditShopSchedule = true,
   onSaveSchedule,
   onReschedule,
-  onCancel,
 }) => {
   const [selectedDate, setSelectedDate] = useState(todayLocalISO);
   const [workdayStart, setWorkdayStart] = useState(shop.workdayStart ?? '08:00');
@@ -75,8 +73,6 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
-  const [cancelTarget, setCancelTarget] = useState<PartnerAgendaAppointment | null>(null);
-  const [cancelBusy, setCancelBusy] = useState(false);
   /** Mesmo problema que ShopDetails: data “hoje” e slots precisam atualizar após tempo na aba. */
   const [agendaClock, setAgendaClock] = useState(0);
 
@@ -234,17 +230,6 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
       setRescheduleTarget(null);
     } finally {
       setRescheduleBusy(false);
-    }
-  };
-
-  const submitCancel = async () => {
-    if (!cancelTarget) return;
-    setCancelBusy(true);
-    try {
-      await onCancel(cancelTarget.id);
-      setCancelTarget(null);
-    } finally {
-      setCancelBusy(false);
     }
   };
 
@@ -475,17 +460,8 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
               return (
                 <li
                   key={a.id}
-                  className="relative flex flex-col lg:flex-row lg:items-center gap-3 p-4 pr-11 sm:pr-12 rounded-2xl border border-gray-100 bg-gray-50/80"
+                  className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 rounded-2xl border border-gray-100 bg-gray-50/80"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setCancelTarget(a)}
-                    className="absolute right-3 top-3 z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-red-500 bg-white text-red-500 shadow-sm transition-colors hover:border-red-600 hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
-                    aria-label="Cancelar agendamento"
-                    title="Cancelar agendamento"
-                  >
-                    <i className="fas fa-times text-[10px]" aria-hidden />
-                  </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-gray-900">{a.clientDisplayName}</p>
@@ -583,29 +559,6 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         </div>
       )}
 
-      {cancelTarget && (
-        <div className="fixed inset-0 z-2000 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
-            <h4 className="font-bold text-lg text-gray-900">Cancelar agendamento?</h4>
-            <p className="text-sm text-gray-600">
-              {cancelTarget.clientDisplayName} — {cancelTarget.date} {cancelTarget.time.slice(0, 5)}
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setCancelTarget(null)} className="px-4 py-2 rounded-xl text-gray-600 font-medium">
-                Voltar
-              </button>
-              <button
-                type="button"
-                disabled={cancelBusy}
-                onClick={submitCancel}
-                className="px-4 py-2 rounded-xl bg-red-600 text-white font-bold disabled:opacity-60"
-              >
-                {cancelBusy ? 'Cancelando…' : 'Sim, cancelar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -419,7 +419,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       ]);
       const data = await callCreatePayment({
         idempotencyKey: bookingIdempotencyKey,
-        amount: totalAmount,
+        // Backend soma `amount + tip`; aqui `amount` é só o serviço para evitar dupla soma da gorjeta.
+        amount: selectedService.price,
         tip: tipAmount,
         description: `Agendamento: ${selectedService.name} na ${shop.name}${tipAmount > 0 ? ' (inclui gorjeta)' : ''}`,
         customerName,

@@ -314,7 +314,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
             <button
               type="button"
               onClick={() => setScheduleEditorOpen(true)}
-              className="shrink-0 px-5 py-2.5 rounded-xl border-2 border-[color-mix(in_srgb,var(--shop-primary)_40%,transparent)] text-(--shop-primary) font-bold text-sm hover:bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] transition-colors"
+              className="shrink-0 px-5 py-2.5 rounded-xl border-2 border-[color-mix(in_srgb,var(--shop-primary)_40%,transparent)] text-(--shop-primary) font-bold text-sm hover:bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] transition-colors dark:border-[color-mix(in_srgb,var(--shop-primary)_55%,#3f3f46)] dark:hover:bg-[color-mix(in_srgb,var(--shop-primary)_24%,#0a0a0a)]"
             >
               Editar horários
             </button>
@@ -435,24 +435,29 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                   key={slot}
                   className={`rounded-xl p-3 text-center text-sm font-semibold border transition-all ${
                     fullyBooked
-                      ? 'bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] border-[color-mix(in_srgb,var(--shop-primary)_35%,white)] text-gray-900'
-                      : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                      ? 'bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] border-[color-mix(in_srgb,var(--shop-primary)_35%,white)] text-gray-900 dark:bg-[color-mix(in_srgb,var(--shop-primary)_42%,#030303)] dark:border-[color-mix(in_srgb,var(--shop-primary)_55%,#1f1f23)] dark:text-zinc-50'
+                      : 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-950/55 dark:border-emerald-800/70 dark:text-emerald-300'
                   }`}
                 >
                   <p className="font-black">{slot}</p>
                   {fullyBooked && owners[0] && (
-                    <p className="text-[10px] font-medium text-gray-600 mt-1 truncate" title={owners[0].apt.clientDisplayName}>
+                    <p
+                      className="text-[10px] font-medium text-gray-600 mt-1 truncate dark:text-zinc-300"
+                      title={owners[0].apt.clientDisplayName}
+                    >
                       {owners[0].apt.clientDisplayName}
                       {owners.length > 1 ? ` +${owners.length - 1}` : ''}
                     </p>
                   )}
                   {!fullyBooked && freeProsHint > 0 && (
-                    <p className="text-[9px] text-emerald-600/90 mt-1 font-medium">
+                    <p className="text-[9px] text-emerald-600/90 mt-1 font-medium dark:text-emerald-300/95">
                       Livre — {freeProsHint}{' '}
                       {freeProsHint === 1 ? 'profissional' : 'profissionais'}
                     </p>
                   )}
-                  {!fullyBooked && freeProsHint === 0 && <p className="text-[9px] text-gray-400 mt-1">Livre</p>}
+                  {!fullyBooked && freeProsHint === 0 && (
+                    <p className="text-[9px] text-gray-400 mt-1 dark:text-emerald-400/90">Livre</p>
+                  )}
                 </div>
               );
             })}
@@ -505,7 +510,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                     <button
                       type="button"
                       onClick={() => openReschedule(a)}
-                      className="px-3 py-2 rounded-xl bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) text-xs font-bold"
+                      className="px-3 py-2 rounded-xl bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) text-xs font-bold dark:bg-[color-mix(in_srgb,var(--shop-primary)_35%,#0a0a0a)] dark:text-[color-mix(in_srgb,var(--shop-primary)_88%,#fafafa)] dark:border dark:border-[color-mix(in_srgb,var(--shop-primary)_45%,#27272a)]"
                     >
                       Remarcar
                     </button>

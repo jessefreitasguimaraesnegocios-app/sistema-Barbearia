@@ -210,7 +210,17 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   const filteredApts =
     filterPro === 'ALL' ? agendaDayApts : agendaDayApts.filter((a) => a.professionalId === filterPro);
 
-  const nextApt = agendaDayApts.find((a) => a.status === 'PAID');
+  /** Dia civil atual (não “vira” após workdayEnd como a coluna da agenda). */
+  const todayAgendaApts = myApts
+    .filter((a) => a.date === realTodayKey && isPaidOrCompletedAppointment(a))
+    .sort((a, b) => a.time.localeCompare(b.time));
+
+  /** Card + Iniciar: só hoje real — nunca agendamento de amanhã antes de ser esse o dia. */
+  const nextClientCardApt = todayAgendaApts.find((a) => a.status === 'PAID');
+
+  /** Destaque “Próximo” na timeline só quando a grade é do mesmo dia civil (evita play em prévia de amanhã). */
+  const nextTimelineApt =
+    agendaDayKey === realTodayKey ? agendaDayApts.find((a) => a.status === 'PAID') : undefined;
 
   const clientLabel = (a: PartnerAgendaAppointment) =>
     a.clientDisplayName?.trim() || `Cliente #${a.clientId.slice(0, 4)}`;
@@ -327,40 +337,40 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
         {/* Coluna da Esquerda: Próximo e Filtros */}
         <div className="space-y-6">
           {/* Next Client Card */}
-          {nextApt && (
+          {nextClientCardApt && (
             <div className="bg-white p-6 rounded-4xl border-2 border-indigo-600 shadow-lg relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-indigo-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest">
                 Próximo Cliente
               </div>
               <div className="flex items-center gap-4 mb-6 pt-2">
-                <ClientAppointmentAvatar apt={nextApt} />
+                <ClientAppointmentAvatar apt={nextClientCardApt} />
                 <div>
-                  <h4 className="font-black text-gray-900 text-xl">{clientLabel(nextApt)}</h4>
+                  <h4 className="font-black text-gray-900 text-xl">{clientLabel(nextClientCardApt)}</h4>
                   <p className="text-indigo-600 font-bold flex items-center gap-2">
-                    <i className="fas fa-clock"></i> {nextApt.time} (em 15 min)
+                    <i className="fas fa-clock"></i> {nextClientCardApt.time} (em 15 min)
                   </p>
                 </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-2xl mb-6">
                 <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Serviço</p>
                 <p className="font-bold text-gray-800">
-                  {shop.services.find(s => s.id === nextApt.serviceId)?.name}
+                  {shop.services.find(s => s.id === nextClientCardApt.serviceId)?.name}
                 </p>
                 <div className="flex justify-between mt-2">
-                   <p className="text-xs text-gray-500">Com: {shop.professionals.find(p => p.id === nextApt.professionalId)?.name}</p>
-                   <p className="text-xs font-black text-indigo-600">R$ {nextApt.amount}</p>
+                   <p className="text-xs text-gray-500">Com: {shop.professionals.find(p => p.id === nextClientCardApt.professionalId)?.name}</p>
+                   <p className="text-xs font-black text-indigo-600">R$ {nextClientCardApt.amount}</p>
                 </div>
               </div>
               <button
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed"
                 onClick={() => {
-                  if (!nextApt?.id || completingId) return;
-                  setCompletingId(nextApt.id);
-                  onMarkAppointmentCompleted?.(nextApt.id)?.finally(() => setCompletingId(null));
+                  if (!nextClientCardApt?.id || completingId) return;
+                  setCompletingId(nextClientCardApt.id);
+                  onMarkAppointmentCompleted?.(nextClientCardApt.id)?.finally(() => setCompletingId(null));
                 }}
                 disabled={!onMarkAppointmentCompleted || !!completingId}
               >
-                {completingId === nextApt?.id ? (
+                {completingId === nextClientCardApt?.id ? (
                   <>
                     <i className="fas fa-spinner fa-spin mr-2"></i> Aguarde...
                   </>
@@ -422,7 +432,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
               {filteredApts.length > 0 ? filteredApts.map((apt) => {
                 const pro = shop.professionals.find(p => p.id === apt.professionalId);
                 const service = shop.services.find(s => s.id === apt.serviceId);
-                const isNext = nextApt?.id === apt.id;
+                const isNext = nextTimelineApt?.id === apt.id;
                 const isCompleted = apt.status === 'COMPLETED';
                 const isLate = isLatePaidAppointment(apt, agendaDayKey, nowTick);
 

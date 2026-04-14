@@ -1,10 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Shop, Order, PartnerAgendaAppointment } from '../types';
 import { shouldShowPartnerAsaasSetupBanner } from '../lib/partnerOnboardingBanner';
 
 /** Igual à Agenda: só entra com pagamento confirmado; COMPLETED mantém o dia visível após atendimento. */
 function isPaidOrCompletedAppointment(a: PartnerAgendaAppointment): boolean {
   return a.status === 'PAID' || a.status === 'COMPLETED';
+}
+
+function ymdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Após o fim do expediente (`workdayEnd`), a grade já mostra o dia seguinte;
+ * ao virar a meia-noite, a data real coincide e volta a ser “o dia” normal.
+ */
+function agendaCalendarDayKey(now: Date, shop: Shop): string {
+  const parseEndOnDay = (clock: string | undefined, base: Date) => {
+    const raw = String(clock ?? '20:00').trim().slice(0, 5);
+    const parts = raw.split(':');
+    const hh = parseInt(parts[0] ?? '20', 10);
+    const mm = parseInt(parts[1] ?? '0', 10);
+    const out = new Date(base);
+    out.setHours(Number.isFinite(hh) ? hh : 20, Number.isFinite(mm) ? mm : 0, 0, 0);
+    return out;
+  };
+  const endToday = parseEndOnDay(shop.workdayEnd, now);
+  if (now.getTime() > endToday.getTime()) {
+    const t = new Date(now);
+    t.setDate(t.getDate() + 1);
+    return ymdLocal(t);
+  }
+  return ymdLocal(now);
+}
+
+function appointmentStartDateTime(dateYmd: string, timeHm: string): Date {
+  const t = String(timeHm).trim();
+  const slice = t.length >= 5 ? t.slice(0, 5) : t;
+  const [hs, ms] = slice.split(':');
+  const hh = parseInt(hs ?? '0', 10) || 0;
+  const mm = parseInt(ms ?? '0', 10) || 0;
+  const [y, mo, d] = dateYmd.split('-').map((x) => parseInt(x, 10));
+  const out = new Date(y, (mo || 1) - 1, d || 1);
+  out.setHours(hh, mm, 0, 0);
+  return out;
+}
+
+function formatAgendaDayTitlePt(key: string): string {
+  const [y, m, d] = key.split('-').map((x) => parseInt(x, 10));
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' });
 }
 
 function orderCountsForRevenue(o: Order): boolean {
@@ -64,6 +112,15 @@ interface ShopDashboardProps {
 
 type Period = 'TODAY' | 'WEEK' | 'MONTH';
 
+function isLatePaidAppointment(
+  apt: PartnerAgendaAppointment,
+  dayKey: string,
+  now: Date
+): boolean {
+  if (apt.status !== 'PAID') return false;
+  return now.getTime() >= appointmentStartDateTime(dayKey, apt.time).getTime();
+}
+
 const ShopDashboard: React.FC<ShopDashboardProps> = ({
   shop,
   appointments,
@@ -74,7 +131,25 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   const [filterPro, setFilterPro] = useState<string>('ALL');
   const [period, setPeriod] = useState<Period>('TODAY');
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [gridClock, setGridClock] = useState(0);
   const showAsaasSetupBanner = !staffMode && shouldShowPartnerAsaasSetupBanner(shop);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setGridClock((n) => n + 1), 30_000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') setGridClock((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
+  const nowTick = useMemo(() => new Date(), [gridClock]);
+  const agendaDayKey = useMemo(() => agendaCalendarDayKey(nowTick, shop), [shop, gridClock]);
+  const realTodayKey = ymdLocal(nowTick);
+  const showingNextCalendarDay = agendaDayKey !== realTodayKey;
 
   // Filtrar dados da loja
   const myApts = appointments.filter(a => a.shopId === shop.id);
@@ -127,17 +202,15 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
 
   const financialSummary = getPeriodData(period);
 
-  // Dados para a Timeline de Hoje (mesma regra da Agenda: só pagos; COMPLETED = já atendidos no dia)
-  const today = new Date().toISOString().split('T')[0];
-  const todayApts = myApts
-    .filter((a) => a.date === today && isPaidOrCompletedAppointment(a))
+  // Timeline: dia corrente ou, após workdayEnd, já o dia seguinte (vira “hoje” de novo na meia-noite).
+  const agendaDayApts = myApts
+    .filter((a) => a.date === agendaDayKey && isPaidOrCompletedAppointment(a))
     .sort((a, b) => a.time.localeCompare(b.time));
 
-  const filteredApts = filterPro === 'ALL' 
-    ? todayApts 
-    : todayApts.filter(a => a.professionalId === filterPro);
+  const filteredApts =
+    filterPro === 'ALL' ? agendaDayApts : agendaDayApts.filter((a) => a.professionalId === filterPro);
 
-  const nextApt = todayApts.find((a) => a.status === 'PAID');
+  const nextApt = agendaDayApts.find((a) => a.status === 'PAID');
 
   const clientLabel = (a: PartnerAgendaAppointment) =>
     a.clientDisplayName?.trim() || `Cliente #${a.clientId.slice(0, 4)}`;
@@ -152,16 +225,22 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
               {staffMode ? `Bom dia! ✂️` : `Bom dia, ${shop.name}! ✂️`}
             </h2>
             <p className="text-gray-500">
-              {staffMode
-                ? `Agenda de hoje em ${shop.name}.`
-                : 'Aqui está o controle da sua agenda para hoje.'}
+              {showingNextCalendarDay
+                ? staffMode
+                  ? `Após o expediente — grade de ${formatAgendaDayTitlePt(agendaDayKey)} em ${shop.name}.`
+                  : 'Após o horário de encerramento, a grade já mostra os agendamentos do próximo dia.'
+                : staffMode
+                  ? `Agenda de hoje em ${shop.name}.`
+                  : 'Aqui está o controle da sua agenda para hoje.'}
             </p>
           </div>
           <div className="flex gap-2">
             <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
               <div className="text-right">
-                <p className="text-[10px] font-bold text-gray-400 uppercase">Hoje</p>
-                <p className="text-sm font-bold text-gray-900">{todayApts.length} Agendamentos</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">
+                  {showingNextCalendarDay ? 'Próximo dia' : 'Hoje'}
+                </p>
+                <p className="text-sm font-bold text-gray-900">{agendaDayApts.length} Agendamentos</p>
               </div>
               <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
                 <i className="fas fa-calendar-day"></i>
@@ -301,7 +380,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                   className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${filterPro === 'ALL' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'border-gray-50 text-gray-500 hover:bg-gray-50'}`}
                 >
                   <span>Todos</span>
-                  <span className="text-xs bg-white px-2 py-0.5 rounded-md shadow-sm">{todayApts.length}</span>
+                  <span className="text-xs bg-white px-2 py-0.5 rounded-md shadow-sm">{agendaDayApts.length}</span>
                 </button>
                 {shop.professionals.map(pro => (
                   <button 
@@ -311,7 +390,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                   >
                     <img src={pro.avatar} className="w-6 h-6 rounded-full object-cover" alt="" />
                     <span className="flex-1 text-left text-sm">{pro.name}</span>
-                    <span className="text-xs opacity-50">{todayApts.filter(a => a.professionalId === pro.id).length}</span>
+                    <span className="text-xs opacity-50">{agendaDayApts.filter((a) => a.professionalId === pro.id).length}</span>
                   </button>
                 ))}
               </div>
@@ -322,11 +401,17 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
         {/* Coluna da Direita: Timeline do Dia */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
-              <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xl font-bold text-gray-900">Agenda do Dia</h3>
-              <div className="flex items-center gap-2 text-xs text-gray-400 font-bold">
-                 <span className="w-2 h-2 rounded-full bg-green-500"></span> Finalizado
-                 <span className="w-2 h-2 rounded-full bg-indigo-500 ml-2"></span> Agora
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-8">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {showingNextCalendarDay ? 'Agenda de amanhã' : 'Agenda do Dia'}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1 capitalize">{formatAgendaDayTitlePt(agendaDayKey)}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-400 font-bold uppercase tracking-wide">
+                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" /> Finalizado</span>
+                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" /> Atraso</span>
+                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" /> Próximo</span>
               </div>
             </div>
 
@@ -334,26 +419,49 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
               {/* Linha vertical da timeline */}
               <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-100 ml-px"></div>
 
-              {filteredApts.length > 0 ? filteredApts.map((apt, idx) => {
+              {filteredApts.length > 0 ? filteredApts.map((apt) => {
                 const pro = shop.professionals.find(p => p.id === apt.professionalId);
                 const service = shop.services.find(s => s.id === apt.serviceId);
                 const isNext = nextApt?.id === apt.id;
                 const isCompleted = apt.status === 'COMPLETED';
+                const isLate = isLatePaidAppointment(apt, agendaDayKey, nowTick);
+
+                const markerClass = isCompleted
+                  ? 'bg-green-500 text-white'
+                  : isLate
+                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-200/60 animate-pulse ring-2 ring-amber-300 ring-offset-2 ring-offset-white'
+                    : isNext
+                      ? 'bg-indigo-600 scale-110 ring-4 ring-indigo-50 text-white'
+                      : 'bg-gray-200 group-hover:bg-indigo-400 text-gray-600';
+
+                const markerIcon = isCompleted
+                  ? 'fa-check'
+                  : isLate
+                    ? 'fa-user-clock'
+                    : isNext
+                      ? 'fa-play'
+                      : 'fa-clock';
+
+                const rowScale = isNext && !isLate && !isCompleted ? 'scale-[1.02]' : isLate ? 'scale-[1.01]' : '';
 
                 return (
-                  <div key={apt.id} className={`relative pl-12 pb-8 group ${isNext ? 'scale-[1.02]' : ''}`}>
-                    {/* Marcador da timeline: verde + check branco = finalizado; indigo = próximo; cinza = aguardando */}
-                    <div className={`absolute left-0 w-9 h-9 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center transition-all ${
-                      isCompleted
-                        ? 'bg-green-500 text-white'
-                        : isNext
-                          ? 'bg-indigo-600 scale-110 ring-4 ring-indigo-50 text-white'
-                          : 'bg-gray-200 group-hover:bg-indigo-400 text-gray-600'
-                    }`}>
-                      <i className={`text-[10px] fas ${isNext && !isCompleted ? 'fa-play' : 'fa-check'}`}></i>
+                  <div key={apt.id} className={`relative pl-12 pb-8 group ${rowScale}`}>
+                    <div
+                      className={`absolute left-0 w-9 h-9 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center transition-all ${markerClass}`}
+                      aria-hidden
+                    >
+                      <i className={`text-[10px] fas ${markerIcon}`} />
                     </div>
 
-                    <div className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${isNext ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-gray-100 hover:border-indigo-100 hover:shadow-md'}`}>
+                    <div
+                      className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+                        isLate
+                          ? 'bg-amber-50/90 border-amber-200 shadow-sm ring-1 ring-amber-100'
+                          : isNext && !isCompleted
+                            ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                            : 'bg-white border-gray-100 hover:border-indigo-100 hover:shadow-md'
+                      }`}
+                    >
                       <div className="flex items-center gap-4">
                          <div className="text-center min-w-[60px]">
                             <p className="text-lg font-black text-gray-900 leading-none">{apt.time}</p>

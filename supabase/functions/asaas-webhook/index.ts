@@ -1,5 +1,5 @@
 // Supabase Edge Function: asaas-webhook
-// 1) Pagamentos (PIX cliente): PAYMENT_RECEIVED / PAYMENT_CONFIRMED → appointments/orders PAID
+// 1) Pagamentos (PIX cliente): PAYMENT_RECEIVED / PAYMENT_CONFIRMED → appointments/orders PAID (estoque da loja: trigger em orders ao PAID)
 // 2) Mensalidade plataforma: pagamento ligado a subscription OU eventos SUBSCRIPTION_* → subscription_active na shops
 // Requer verify_jwt = false e header asaas-access-token = ASAAS_WEBHOOK_TOKEN
 //
@@ -354,6 +354,8 @@ async function handleWebhook(req: Request): Promise<Response> {
       supabase.from("appointments").update({ status: "PAID" }).eq("asaas_payment_id", paymentId).select("id"),
       supabase.from("orders").update({ status: "PAID" }).eq("asaas_payment_id", paymentId).select("id"),
     ]);
+    if (aptRes.error) console.error("[asaas-webhook] appointments PAID update:", aptRes.error.message);
+    if (ordRes.error) console.error("[asaas-webhook] orders PAID update:", ordRes.error.message);
     const aptUpdated = updatedCount(aptRes.data as unknown[] | null | undefined);
     const ordUpdated = updatedCount(ordRes.data as unknown[] | null | undefined);
     if (aptUpdated) {
@@ -431,12 +433,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
     }
 
-    const { error: stockErr } = await supabase.rpc("apply_product_stock_for_asaas_payment", {
-      p_payment_id: String(paymentId),
-    });
-    if (stockErr) {
-      console.error("[asaas-webhook] apply_product_stock_for_asaas_payment:", stockErr.message);
-    }
+    // Baixa de estoque: trigger trg_orders_deduct_product_stock_on_paid (migração 20260414120000) ao marcar orders.status = PAID.
   } catch (e) {
     console.error("[asaas-webhook] payment handler error:", e);
     return jsonResponse({ received: true, note: "payment_handler_error_logged" });

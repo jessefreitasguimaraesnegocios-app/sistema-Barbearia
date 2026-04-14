@@ -1269,27 +1269,30 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         </div>
       )}
 
-      {/* Floating Cart Button */}
+      {/* Floating Cart Button — full-bleed row + inner max-width (evita conflito translate do bounceIn com centering) */}
       {cart.length > 0 && activeTab === 'STORE' && !isCartOpen && orderPayPhase === 'idle' && (
-        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-slate-900 text-white p-4 rounded-3xl shadow-2xl z-60 flex items-center justify-between animate-bounce-in">
-           <div className="flex items-center gap-4">
-              <div className="relative">
-                <i className="fas fa-shopping-cart text-xl"></i>
-                <span className="absolute -top-2 -right-2 bg-indigo-500 text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-slate-900">
+        <div className="fixed bottom-20 left-0 right-0 z-[60] flex justify-center px-3 sm:px-4 md:bottom-6 pointer-events-none">
+          <div className="pointer-events-auto flex w-full max-w-xl items-center justify-between gap-3 rounded-3xl bg-slate-900 p-3 text-white shadow-2xl sm:p-4 animate-modal-bounce-in">
+            <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+              <div className="relative shrink-0">
+                <i className="fas fa-shopping-cart text-xl" aria-hidden />
+                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-slate-900 bg-indigo-500 text-[10px] font-bold">
                   {cart.reduce((a, b) => a + b.quantity, 0)}
                 </span>
               </div>
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Seu Carrinho</p>
-                <p className="text-sm font-black">R$ {cartTotal.toFixed(2)}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Seu Carrinho</p>
+                <p className="truncate text-sm font-black">R$ {cartTotal.toFixed(2)}</p>
               </div>
-           </div>
-           <button 
-             onClick={() => setIsCartOpen(true)}
-             className="bg-indigo-500 hover:bg-indigo-600 px-6 py-2 rounded-xl font-bold text-sm transition-all"
-           >
-             Finalizar <i className="fas fa-chevron-right ml-1"></i>
-           </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="shrink-0 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-bold transition-all hover:bg-indigo-600 sm:px-6"
+            >
+              Finalizar <i className="fas fa-chevron-right ml-1" aria-hidden />
+            </button>
+          </div>
         </div>
       )}
 

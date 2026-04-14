@@ -579,7 +579,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
               <select
                 value={pendingServiceType}
                 onChange={(e) => setPendingServiceType(e.target.value)}
-                className="flex-1 min-w-0 sm:min-w-[220px] bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] text-gray-900 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[color-mix(in_srgb,var(--shop-primary)_22%,white)] focus:ring-2 focus:ring-(--shop-primary) focus:border-transparent outline-none"
+                className="flex-1 min-w-0 sm:min-w-[220px] bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] text-gray-900 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[color-mix(in_srgb,var(--shop-primary)_22%,white)] focus:ring-2 focus:ring-(--shop-primary) focus:border-transparent outline-none dark:bg-[color-mix(in_srgb,var(--shop-primary)_30%,#0a0a0a)] dark:text-zinc-50 dark:border-[color-mix(in_srgb,var(--shop-primary)_48%,#27272a)] dark:[color-scheme:dark]"
               >
                 <option value="">Escolha o tipo de serviço</option>
                 {standardTypesNotInShop.map((opt) => (
@@ -765,7 +765,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
             <h3 className="text-xl font-bold text-gray-900">Gerenciar Equipe</h3>
             <button 
               onClick={addProfessional}
-              className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)]"
+              className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] dark:bg-[color-mix(in_srgb,var(--shop-primary)_34%,#0a0a0a)] dark:text-[color-mix(in_srgb,var(--shop-primary)_88%,#fafafa)] dark:border dark:border-[color-mix(in_srgb,var(--shop-primary)_42%,#3f3f46)] dark:hover:bg-[color-mix(in_srgb,var(--shop-primary)_42%,#111)]"
             >
               <i className="fas fa-plus text-xs"></i> Adicionar Funcionário
             </button>
@@ -897,7 +897,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
             <h3 className="text-xl font-bold text-gray-900">Gerenciar Vitrine</h3>
             <button 
               onClick={addProduct}
-              className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)]"
+              className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] dark:bg-[color-mix(in_srgb,var(--shop-primary)_34%,#0a0a0a)] dark:text-[color-mix(in_srgb,var(--shop-primary)_88%,#fafafa)] dark:border dark:border-[color-mix(in_srgb,var(--shop-primary)_42%,#3f3f46)] dark:hover:bg-[color-mix(in_srgb,var(--shop-primary)_42%,#111)]"
             >
               <i className="fas fa-plus text-xs"></i> Novo Produto
             </button>

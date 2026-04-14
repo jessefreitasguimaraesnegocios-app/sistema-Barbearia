@@ -124,7 +124,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
       </header>
 
       {paidOrders.length === 0 ? (
-        <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-12 text-center">
+        <div className="bg-white rounded-4xl border border-gray-100 shadow-sm p-12 text-center">
           <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto text-emerald-200 text-4xl mb-4">
             <i className="fas fa-shopping-bag" />
           </div>
@@ -138,7 +138,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
             return (
               <li
                 key={order.id}
-                className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-5 md:p-6 flex flex-col gap-4"
+                className="bg-white rounded-4xl border border-gray-100 shadow-sm p-5 md:p-6 flex flex-col gap-4"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                   <img
@@ -147,7 +147,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
                       `https://ui-avatars.com/api/?name=${encodeURIComponent(order.clientDisplayName)}&background=random`
                     }
                     alt=""
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-100 flex-shrink-0"
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-100 shrink-0"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 gap-y-1">
@@ -209,7 +209,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
         </ul>
       )}
 
-      <section className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-5 md:p-6 space-y-3">
+      <section className="bg-white rounded-4xl border border-gray-100 shadow-sm p-5 md:p-6 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
             <h3 className="text-lg font-bold text-gray-900">Histórico de retiradas (hoje)</h3>

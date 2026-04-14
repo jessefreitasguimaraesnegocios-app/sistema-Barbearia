@@ -11,7 +11,8 @@ import ShopAgenda, { type AgendaSchedulePayload } from '../views/ShopAgenda';
 import { LoginForm } from '../components/LoginForm';
 import { Shop, Order, PartnerAgendaAppointment, type ShopOrderHandoverItemSnapshot } from '../types';
 import { supabase } from '../src/lib/supabase';
-import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
+import { APP_NAME } from '../lib/branding';
+import { BrandThemeToggle } from '../components/BrandThemeToggle';
 import { isClientOnlyRole } from '../lib/profileRole';
 import { useShop } from '../hooks/useShop';
 import { usePartnerData } from '../hooks/usePartnerData';
@@ -190,6 +191,21 @@ export default function PartnerArea() {
     [myShop?.id, staffProfessionalId]
   );
 
+  const cancelAppointmentPartner = React.useCallback(
+    async (appointmentId: string) => {
+      if (!myShop?.id) return;
+      let upd = supabase
+        .from('appointments')
+        .update({ status: 'CANCELLED' })
+        .eq('id', appointmentId)
+        .eq('shop_id', myShop.id);
+      if (staffProfessionalId) upd = upd.eq('professional_id', staffProfessionalId);
+      const { error } = await upd;
+      if (error) throw new Error(error.message);
+    },
+    [myShop?.id, staffProfessionalId]
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -249,16 +265,18 @@ export default function PartnerArea() {
     };
 
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
-        <header className="shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
-          <a href="/" className="text-sm text-gray-500 hover:text-indigo-600">← Voltar (sou cliente)</a>
+      <div className="flex min-h-screen flex-col overflow-hidden bg-gray-50 transition-colors dark:bg-zinc-950">
+        <header className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 p-4 backdrop-blur-md dark:border-white/6 dark:bg-zinc-950/90">
+          <a href="/" className="text-sm text-gray-500 transition-colors hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400">
+            ← Voltar (sou cliente)
+          </a>
           <div className="flex items-center gap-2">
-            <img src={APP_LOGO_SRC} alt="" className="w-10 h-10 rounded-xl object-cover shadow-sm bg-white" />
-            <span className="font-display text-lg font-bold text-gray-800 leading-tight">{APP_NAME}</span>
+            <BrandThemeToggle size="md" />
+            <span className="font-display text-lg font-bold leading-tight text-gray-800 dark:text-zinc-100">{APP_NAME}</span>
           </div>
           <div className="w-24" aria-hidden />
         </header>
-        <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto min-h-0">
+        <main className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto p-4">
           <LoginForm
             title="Acesso parceiro"
             subtitle="Dono da barbearia ou funcionário: use o e-mail e senha fornecidos pelo estabelecimento"
@@ -266,7 +284,7 @@ export default function PartnerArea() {
             submitLabel="Entrar"
             onSuccess={() => {}}
           />
-          <p className="mt-4 text-xs text-gray-400 text-center max-w-sm">
+          <p className="mt-4 max-w-sm text-center text-xs text-gray-400 dark:text-zinc-500">
             Área para donos, equipe e administradores. Cliente? Use a página inicial.
           </p>
         </main>
@@ -512,6 +530,13 @@ export default function PartnerArea() {
               await rescheduleAppointment(id, date, time);
             } catch (e) {
               alert(e instanceof Error ? e.message : 'Erro ao remarcar.');
+            }
+          }}
+          onCancel={async (id) => {
+            try {
+              await cancelAppointmentPartner(id);
+            } catch (e) {
+              alert(e instanceof Error ? e.message : 'Erro ao cancelar.');
             }
           }}
         />

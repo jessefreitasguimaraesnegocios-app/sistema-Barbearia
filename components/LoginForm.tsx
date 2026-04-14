@@ -93,14 +93,16 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   };
 
   return (
-    <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-gray-100">
-      <div className="text-center mb-6">
-        <h2 className="font-display text-2xl font-bold text-gray-800">{title}</h2>
-        {subtitle && <p className="text-gray-500 mt-2 text-sm">{subtitle}</p>}
+    <div className="w-full max-w-md rounded-3xl border border-gray-100 bg-white p-8 shadow-xl transition-colors dark:border-white/[0.08] dark:bg-zinc-900/90 dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+      <div className="mb-6 text-center">
+        <h2 className="font-display text-2xl font-bold text-gray-800 dark:text-zinc-100">{title}</h2>
+        {subtitle && <p className="mt-2 text-sm text-gray-500 dark:text-zinc-400">{subtitle}</p>}
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="relative">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">E-mail</label>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-zinc-400">
+            E-mail
+          </label>
           <input
             ref={emailInputRef}
             type="email"
@@ -108,46 +110,48 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             value={email}
             onChange={e => handleEmailChange(e.target.value)}
             onFocus={() => email.includes('@') && setEmailSuggestionsOpen(true)}
-            className="w-full p-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+            className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:ring-2 focus:ring-indigo-600 dark:border-white/[0.08] dark:bg-zinc-950/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:ring-indigo-500"
             placeholder="seu@email.com"
           />
           {emailSuggestionsOpen && (
             <div
               ref={emailListRef}
-              className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"
+              className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-white/[0.1] dark:bg-zinc-900"
             >
               {filteredEmailDomains.length ? (
                 filteredEmailDomains.map(domain => (
                   <button
                     key={domain}
                     type="button"
-                    className="w-full text-left px-4 py-3 hover:bg-indigo-50 text-gray-800 text-sm"
+                    className="w-full px-4 py-3 text-left text-sm text-gray-800 hover:bg-indigo-50 dark:text-zinc-200 dark:hover:bg-indigo-500/15"
                     onClick={() => handleEmailSuggestionSelect(domain)}
                   >
                     {domain}
                   </button>
                 ))
               ) : (
-                <div className="px-4 py-3 text-gray-500 text-sm">Nenhum domínio encontrado</div>
+                <div className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-500">Nenhum domínio encontrado</div>
               )}
             </div>
           )}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Senha</label>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-zinc-400">
+            Senha
+          </label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full p-4 pr-12 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+              className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 pr-12 text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:ring-2 focus:ring-indigo-600 dark:border-white/[0.08] dark:bg-zinc-950/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:ring-indigo-500"
               placeholder="••••••••"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:text-zinc-500 dark:hover:text-zinc-300"
               aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
             >
               <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
@@ -161,15 +165,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             onChange={e => setRememberMe(e.target.checked)}
             className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
           />
-          <span className="text-sm text-gray-600">Permanecer logado</span>
+          <span className="text-sm text-gray-600 dark:text-zinc-400">Permanecer logado</span>
         </label>
         {error && (
-          <p className="text-sm text-red-600 bg-red-50 p-3 rounded-xl">{error}</p>
+          <p className="rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">{error}</p>
         )}
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
+          className="w-full rounded-2xl bg-indigo-600 py-4 font-bold text-white transition-all hover:bg-indigo-700 disabled:opacity-50 dark:shadow-lg dark:shadow-indigo-900/30"
         >
           {loading ? 'Entrando...' : submitLabel}
         </button>
@@ -177,10 +181,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           <>
             <div className="relative my-2">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
+                <div className="w-full border-t border-gray-200 dark:border-white/[0.08]" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">ou</span>
+                <span className="bg-white px-2 text-gray-500 dark:bg-zinc-900 dark:text-zinc-500">ou</span>
               </div>
             </div>
             <button
@@ -197,13 +201,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                   setGoogleLoading(false);
                 }
               }}
-              className="w-full py-3.5 px-4 bg-white border border-gray-200 rounded-2xl font-medium text-gray-700
-                hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm
-                active:scale-[0.99] active:bg-gray-100 active:border-gray-300
-                focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2
-                transition-all duration-150 ease-out select-none cursor-pointer
-                disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100
-                flex items-center justify-center gap-3"
+              className="flex w-full cursor-pointer select-none items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5 font-medium text-gray-700 transition-all duration-150 ease-out hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm active:scale-[0.99] active:border-gray-300 active:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 dark:border-white/[0.1] dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-white/[0.14] dark:hover:bg-zinc-800 dark:focus:ring-zinc-600 dark:focus:ring-offset-zinc-900"
             >
               <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

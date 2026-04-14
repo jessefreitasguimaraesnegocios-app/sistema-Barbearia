@@ -10,7 +10,8 @@ import ClientProfile from '../views/ClientProfile';
 import { LoginForm } from '../components/LoginForm';
 import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
-import { APP_NAME, APP_LOGO_SRC } from '../lib/branding';
+import { APP_NAME } from '../lib/branding';
+import { BrandThemeToggle } from '../components/BrandThemeToggle';
 import { isPartnerOrAdminRole } from '../lib/profileRole';
 import { mapRowToAppointment } from '../services/supabase/appointmentMapping';
 import { useRealtimeAppointments } from '../hooks/useRealtimeAppointments';
@@ -157,16 +158,18 @@ export default function ClientArea() {
     };
 
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
-        <header className="shrink-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
+      <div className="flex min-h-screen flex-col overflow-hidden bg-gray-50 transition-colors dark:bg-zinc-950">
+        <header className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 p-4 backdrop-blur-md dark:border-white/6 dark:bg-zinc-950/90">
           <div className="flex items-center gap-2">
-            <img src={APP_LOGO_SRC} alt="" className="w-10 h-10 rounded-xl object-cover shadow-sm bg-white" />
-            <h1 className="font-display text-xl font-bold text-gray-800 leading-tight">{APP_NAME}</h1>
+            <BrandThemeToggle size="md" />
+            <h1 className="font-display text-xl font-bold leading-tight text-gray-800 dark:text-zinc-100">{APP_NAME}</h1>
           </div>
-          <a href="/parceiros" className="text-sm text-gray-500 hover:text-indigo-600">Sou parceiro</a>
+          <a href="/parceiros" className="text-sm text-gray-500 transition-colors hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400">
+            Sou parceiro
+          </a>
         </header>
-        <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto min-h-0">
-          <p className="text-gray-500 text-sm mb-4">
+        <main className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto p-4">
+          <p className="mb-4 text-sm text-gray-500 dark:text-zinc-400">
             {showSignUp ? 'Crie sua conta de cliente para agendar' : 'Acesso exclusivo para clientes'}
           </p>
           <LoginForm
@@ -177,7 +180,7 @@ export default function ClientArea() {
             onSuccess={() => {}}
             onGoogleSignIn={signInWithGoogle}
           />
-          <p className="mt-4 text-sm text-gray-500">
+          <p className="mt-4 text-sm text-gray-500 dark:text-zinc-400">
             {showSignUp ? (
               <>
                 Já tem conta?{' '}

@@ -15,8 +15,10 @@ export default function AdminLoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500"><i className="fas fa-spinner fa-spin text-3xl"></i></div>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 transition-colors dark:bg-zinc-950">
+        <div className="text-gray-500 dark:text-zinc-500">
+          <i className="fas fa-spinner fa-spin text-3xl"></i>
+        </div>
       </div>
     );
   }
@@ -24,7 +26,7 @@ export default function AdminLoginPage() {
   if (user?.role === 'ADMIN') return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4 transition-colors dark:bg-zinc-950">
       <LoginForm
         title="Admin"
         subtitle="Acesso restrito"

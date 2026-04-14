@@ -1,12 +1,234 @@
 @import "tailwindcss";
 
+/* Tailwind v4: modo escuro por classe em <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* —— Tema: variáveis (light em :root, dark em html.dark) —— */
+:root {
+  color-scheme: light;
+  --app-canvas: #eef0f4;
+  --app-canvas-gradient: radial-gradient(1200px 600px at 10% -10%, rgba(99, 102, 241, 0.08), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(14, 165, 233, 0.06), transparent 50%), #eef0f4;
+  --app-sidebar: rgba(255, 255, 255, 0.92);
+  --app-sidebar-solid: #ffffff;
+  --app-elevated: #ffffff;
+  --app-muted-surface: #f4f5f7;
+  --app-border: rgba(15, 23, 42, 0.08);
+  --app-border-strong: rgba(15, 23, 42, 0.12);
+  --app-text: #0f172a;
+  --app-text-secondary: #475569;
+  --app-text-muted: #64748b;
+  --app-nav-hover: rgba(15, 23, 42, 0.045);
+  --app-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --app-shadow-md: 0 8px 30px -12px rgba(15, 23, 42, 0.12);
+  --app-glass-bg: rgba(255, 255, 255, 0.72);
+  --app-glass-border: rgba(255, 255, 255, 0.65);
+  --app-focus-ring: rgba(99, 102, 241, 0.45);
+  --app-focus-ring-offset: #f8fafc;
+  --scrollbar-track: #eceff3;
+  --scrollbar-thumb: #c5cad6;
+  --scrollbar-thumb-hover: #9aa1b2;
+  --logo-toggle-glow: rgba(99, 102, 241, 0.35);
+  --logo-toggle-chip-bg: linear-gradient(145deg, #fafafa, #e4e4e7);
+  --logo-toggle-chip-border: rgba(0, 0, 0, 0.06);
+}
+
+html.dark {
+  color-scheme: dark;
+  --app-canvas: #0a0a0b;
+  --app-canvas-gradient: radial-gradient(1000px 520px at 8% -8%, rgba(99, 102, 241, 0.14), transparent 52%),
+    radial-gradient(800px 420px at 92% 4%, rgba(56, 189, 248, 0.08), transparent 48%), #0a0a0b;
+  --app-sidebar: rgba(18, 18, 20, 0.88);
+  --app-sidebar-solid: #121212;
+  --app-elevated: #161616;
+  --app-muted-surface: #141414;
+  --app-border: rgba(255, 255, 255, 0.07);
+  --app-border-strong: rgba(255, 255, 255, 0.11);
+  --app-text: #f4f4f5;
+  --app-text-secondary: #c4c4cc;
+  --app-text-muted: #a1a1aa;
+  --app-nav-hover: rgba(255, 255, 255, 0.055);
+  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --app-shadow-md: 0 18px 50px -24px rgba(0, 0, 0, 0.65);
+  --app-glass-bg: rgba(24, 24, 28, 0.55);
+  --app-glass-border: rgba(255, 255, 255, 0.08);
+  --app-focus-ring: rgba(129, 140, 248, 0.5);
+  --app-focus-ring-offset: #0c0c0e;
+  --scrollbar-track: #141416;
+  --scrollbar-thumb: #3f3f46;
+  --scrollbar-thumb-hover: #52525b;
+  --logo-toggle-glow: rgba(129, 140, 248, 0.42);
+  --logo-toggle-chip-bg: linear-gradient(145deg, #27272a, #18181b);
+  --logo-toggle-chip-border: rgba(255, 255, 255, 0.1);
+}
+
 @layer base {
-  html {
-    @apply antialiased;
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+    background-color: var(--app-canvas);
+    background-image: var(--app-canvas-gradient);
+    background-attachment: fixed;
+    color: var(--app-text);
+    transition: background-color 0.28s ease, color 0.28s ease;
   }
-  html.dark {
-    color-scheme: dark;
+
+  ::selection {
+    background: color-mix(in oklab, #6366f1 35%, transparent);
   }
+
+  html.dark ::selection {
+    background: color-mix(in oklab, #818cf8 38%, transparent);
+  }
+
+  /* Foco premium em campos */
+  #root input:focus-visible,
+  #root textarea:focus-visible,
+  #root select:focus-visible {
+    box-shadow: 0 0 0 3px var(--app-focus-ring);
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Painel glass leve (reutilizável) */
+.glass-panel {
+  background: var(--app-glass-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--app-glass-border);
+  box-shadow: var(--app-shadow-sm);
+}
+
+/* —— Remap de superfícies comuns (conteúdo dentro de #root) —— */
+html.dark #root .bg-white {
+  background-color: var(--app-elevated);
+  color: var(--app-text);
+}
+html.dark #root .bg-gray-50 {
+  background-color: var(--app-muted-surface);
+}
+html.dark #root .bg-gray-50\/80 {
+  background-color: color-mix(in oklab, var(--app-muted-surface) 88%, transparent);
+}
+html.dark #root .bg-gray-100 {
+  background-color: #1f1f22;
+}
+html.dark #root .border-gray-100,
+html.dark #root .border-gray-200 {
+  border-color: var(--app-border);
+}
+html.dark #root .text-gray-900,
+html.dark #root .text-gray-800 {
+  color: var(--app-text);
+}
+html.dark #root .text-gray-700 {
+  color: var(--app-text-secondary);
+}
+html.dark #root .text-gray-600,
+html.dark #root .text-gray-500 {
+  color: var(--app-text-muted);
+}
+html.dark #root .text-gray-400 {
+  color: #8b8b93;
+}
+html.dark #root .hover\:bg-gray-50:hover {
+  background-color: var(--app-nav-hover);
+}
+html.dark #root .hover\:bg-gray-100:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+html.dark #root .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--app-border);
+}
+
+/* Estados de marca / indigo em fundo escuro */
+html.dark #root .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.14);
+}
+html.dark #root .bg-indigo-50\/50 {
+  background-color: rgba(99, 102, 241, 0.1);
+}
+html.dark #root .border-indigo-100,
+html.dark #root .border-indigo-200 {
+  border-color: rgba(129, 140, 248, 0.28);
+}
+html.dark #root .text-indigo-600 {
+  color: #a5b4fc;
+}
+html.dark #root .shadow-indigo-100 {
+  --tw-shadow-color: rgba(99, 102, 241, 0.18);
+}
+html.dark #root .shadow-indigo-200 {
+  --tw-shadow-color: rgba(99, 102, 241, 0.22);
+}
+
+html.dark #root .bg-red-50 {
+  background-color: rgba(248, 113, 113, 0.12);
+}
+html.dark #root .border-red-100,
+html.dark #root .border-red-200 {
+  border-color: rgba(248, 113, 113, 0.28);
+}
+html.dark #root .bg-amber-50,
+html.dark #root .bg-amber-50\/70 {
+  background-color: rgba(251, 191, 36, 0.1);
+}
+html.dark #root .border-amber-100,
+html.dark #root .border-amber-200 {
+  border-color: rgba(251, 191, 36, 0.22);
+}
+html.dark #root .text-amber-700,
+html.dark #root .text-amber-800 {
+  color: #fcd34d;
+}
+html.dark #root .bg-emerald-50,
+html.dark #root .bg-emerald-50\/50 {
+  background-color: rgba(52, 211, 153, 0.1);
+}
+html.dark #root .border-emerald-100 {
+  border-color: rgba(52, 211, 153, 0.22);
+}
+html.dark #root .text-emerald-600,
+html.dark #root .text-emerald-800 {
+  color: #6ee7b7;
+}
+html.dark #root .bg-green-100 {
+  background-color: rgba(74, 222, 128, 0.14);
+}
+html.dark #root .text-green-600,
+html.dark #root .text-green-700 {
+  color: #86efac;
+}
+
+html.dark #root .bg-slate-900 {
+  background-color: #0f1118;
+}
+html.dark #root .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.55);
+}
+
+/* Botão primário: brilho suave no hover em dark */
+html.dark #root .bg-indigo-600:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 10px 28px -10px rgba(129, 140, 248, 0.45);
+}
+
+/* Micro: cards com leve lift no hover (onde já existe transition) */
+html.dark #root .hover\:shadow-lg:hover {
+  box-shadow: var(--app-shadow-md);
 }

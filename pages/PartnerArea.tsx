@@ -12,7 +12,7 @@ import { LoginForm } from '../components/LoginForm';
 import { Shop, Order, PartnerAgendaAppointment, type ShopOrderHandoverItemSnapshot } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME } from '../lib/branding';
-import { BrandThemeToggle } from '../components/BrandThemeToggle';
+import { ThemeLogoButton } from '../components/ThemeLogoButton';
 import { isClientOnlyRole } from '../lib/profileRole';
 import { useShop } from '../hooks/useShop';
 import { usePartnerData } from '../hooks/usePartnerData';
@@ -271,7 +271,7 @@ export default function PartnerArea() {
             ← Voltar (sou cliente)
           </a>
           <div className="flex items-center gap-2">
-            <BrandThemeToggle size="md" />
+            <ThemeLogoButton size="md" />
             <span className="font-display text-lg font-bold leading-tight text-gray-800 dark:text-zinc-100">{APP_NAME}</span>
           </div>
           <div className="w-24" aria-hidden />

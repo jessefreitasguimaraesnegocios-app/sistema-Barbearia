@@ -11,7 +11,7 @@ import { LoginForm } from '../components/LoginForm';
 import { Shop, Appointment, Order } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { APP_NAME } from '../lib/branding';
-import { BrandThemeToggle } from '../components/BrandThemeToggle';
+import { ThemeLogoButton } from '../components/ThemeLogoButton';
 import { isPartnerOrAdminRole } from '../lib/profileRole';
 import { mapRowToAppointment } from '../services/supabase/appointmentMapping';
 import { useRealtimeAppointments } from '../hooks/useRealtimeAppointments';
@@ -161,7 +161,7 @@ export default function ClientArea() {
       <div className="flex min-h-screen flex-col overflow-hidden bg-gray-50 transition-colors dark:bg-zinc-950">
         <header className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 p-4 backdrop-blur-md dark:border-white/6 dark:bg-zinc-950/90">
           <div className="flex items-center gap-2">
-            <BrandThemeToggle size="md" />
+            <ThemeLogoButton size="md" />
             <h1 className="font-display text-xl font-bold leading-tight text-gray-800 dark:text-zinc-100">{APP_NAME}</h1>
           </div>
           <a href="/parceiros" className="text-sm text-gray-500 transition-colors hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400">

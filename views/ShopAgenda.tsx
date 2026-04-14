@@ -479,11 +479,11 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                   <button
                     type="button"
                     onClick={() => setCancelTarget(a)}
-                    className="absolute right-3 top-3 z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition-colors hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"
+                    className="absolute right-3 top-3 z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-red-500 bg-white text-red-500 shadow-sm transition-colors hover:border-red-600 hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
                     aria-label="Cancelar agendamento"
                     title="Cancelar agendamento"
                   >
-                    <i className="fas fa-times text-xs" aria-hidden />
+                    <i className="fas fa-times text-[11px]" aria-hidden />
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

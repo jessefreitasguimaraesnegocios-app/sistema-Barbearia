@@ -7,6 +7,7 @@ import {
   slotClientSelectionState,
   type BookingBlock,
 } from '../lib/agendaSlots';
+import { mapClientCatalogProductRow } from '../services/supabase/mapClientCatalogShop';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -182,6 +183,63 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
+
+  /** Catálogo da loja com estoque atualizado via Realtime (`products`). */
+  const productsStockSig = useMemo(
+    () => shop.products.map((p) => `${p.id}:${p.stock}`).join('|'),
+    [shop.products]
+  );
+  const [liveProducts, setLiveProducts] = useState<Product[]>(() => shop.products);
+
+  useEffect(() => {
+    setLiveProducts(shop.products);
+    // productsStockSig reflete mudanças em shop.products sem depender da referência do array
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional: shop.id + assinatura de estoque
+  }, [shop.id, productsStockSig]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshProducts = async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, description, price, promo_price, category, image, stock')
+        .eq('shop_id', shop.id);
+      if (cancelled || error) return;
+      const rows = (data ?? []) as Record<string, unknown>[];
+      setLiveProducts(rows.map(mapClientCatalogProductRow));
+    };
+
+    const channel = supabase
+      .channel(`shop-details-products-${shop.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products', filter: `shop_id=eq.${shop.id}` },
+        () => {
+          void refreshProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      void supabase.removeChannel(channel);
+    };
+  }, [shop.id]);
+
+  useEffect(() => {
+    const byId = new Map<string, Product>(liveProducts.map((p) => [p.id, p]));
+    setCart((prev) =>
+      prev
+        .map((line) => {
+          const fresh = byId.get(line.product.id);
+          if (!fresh) return null;
+          const maxStock = Math.max(0, Math.floor(Number(fresh.stock) || 0));
+          if (maxStock <= 0) return null;
+          return { product: fresh, quantity: Math.min(line.quantity, maxStock) };
+        })
+        .filter((x): x is { product: Product; quantity: number } => x != null)
+    );
+  }, [liveProducts]);
 
   const [bookingBlocks, setBookingBlocks] = useState<BookingBlock[]>([]);
   const [loadingBookingBlocks, setLoadingBookingBlocks] = useState(false);
@@ -1057,12 +1115,12 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                <div className="flex justify-between items-center">
                   <h3 className="text-xl md:text-2xl font-bold text-gray-900">Produtos Exclusivos</h3>
                   <div className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-bold">
-                    {shop.products.length} itens disponíveis
+                    {liveProducts.length} itens disponíveis
                   </div>
                </div>
                
                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:gap-6">
-                 {shop.products.map((product) => {
+                 {liveProducts.map((product) => {
                    const stock = Math.max(0, Math.floor(Number(product.stock) || 0));
                    const inCartQty = cart.find((c) => c.product.id === product.id)?.quantity ?? 0;
                    const canAddMore = stock > 0 && inCartQty < stock;

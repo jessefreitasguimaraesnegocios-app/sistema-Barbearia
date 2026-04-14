@@ -1,5 +1,21 @@
-import type { Shop } from '../../types';
+import type { Product, Shop } from '../../types';
 import { formatDbTime } from './_format';
+
+/** Uma linha de `products` (mesmo shape do embed no catálogo cliente). */
+export function mapClientCatalogProductRow(p: Record<string, unknown>): Product {
+  return {
+    id: String(p.id),
+    name: String(p.name),
+    description: String(p.description || ''),
+    price: Number(p.price),
+    promoPrice: p.promo_price != null ? Number(p.promo_price) : undefined,
+    category: String(p.category || 'Geral'),
+    image: String(
+      p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974'
+    ),
+    stock: Number(p.stock) || 0,
+  };
+}
 
 /** Linha de `shops` com embed de services, professionals, products (catálogo cliente). */
 export function mapClientCatalogRow(s: Record<string, unknown>): Shop {
@@ -50,17 +66,6 @@ export function mapClientCatalogRow(s: Record<string, unknown>): Shop {
       specialty: String(p.specialty || ''),
       avatar: String(p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(String(p.name))}`),
     })),
-    products: ((s.products as Record<string, unknown>[]) || []).map((p) => ({
-      id: String(p.id),
-      name: String(p.name),
-      description: String(p.description || ''),
-      price: Number(p.price),
-      promoPrice: p.promo_price != null ? Number(p.promo_price) : undefined,
-      category: String(p.category || 'Geral'),
-      image: String(
-        p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974'
-      ),
-      stock: Number(p.stock) || 0,
-    })),
+    products: ((s.products as Record<string, unknown>[]) || []).map((p) => mapClientCatalogProductRow(p)),
   } as Shop;
 }

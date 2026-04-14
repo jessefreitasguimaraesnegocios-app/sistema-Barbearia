@@ -14,7 +14,8 @@ import {
   writeClientCatalogCache,
 } from '../lib/clientCatalogCache';
 
-const REALTIME_DEBOUNCE_MS = 450;
+/** Debounce após postgres_changes (lojas / catálogo); estoque em ShopDetails também tem canal dedicado. */
+const REALTIME_DEBOUNCE_MS = 320;
 
 type UseClientCatalogShopsOptions = {
   client: SupabaseClient;

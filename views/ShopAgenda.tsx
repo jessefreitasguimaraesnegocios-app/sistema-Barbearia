@@ -474,16 +474,16 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
               return (
                 <li
                   key={a.id}
-                  className="relative flex flex-col lg:flex-row lg:items-center gap-3 p-4 pr-12 sm:pr-14 rounded-2xl border border-gray-100 bg-gray-50/80"
+                  className="relative flex flex-col lg:flex-row lg:items-center gap-3 p-4 pr-11 sm:pr-12 rounded-2xl border border-gray-100 bg-gray-50/80"
                 >
                   <button
                     type="button"
                     onClick={() => setCancelTarget(a)}
-                    className="absolute right-3 top-3 z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-red-500 bg-white text-red-500 shadow-sm transition-colors hover:border-red-600 hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
+                    className="absolute right-3 top-3 z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-red-500 bg-white text-red-500 shadow-sm transition-colors hover:border-red-600 hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
                     aria-label="Cancelar agendamento"
                     title="Cancelar agendamento"
                   >
-                    <i className="fas fa-times text-[11px]" aria-hidden />
+                    <i className="fas fa-times text-[10px]" aria-hidden />
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

@@ -202,30 +202,34 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   }, [shop.id, productsStockSig]);
 
   useEffect(() => {
-    let cancelled = false;
-    const refreshProducts = async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, description, price, promo_price, category, image, stock')
-        .eq('shop_id', shop.id);
-      if (cancelled || error) return;
-      const rows = (data ?? []) as Record<string, unknown>[];
-      setLiveProducts(rows.map(mapClientCatalogProductRow));
-    };
-
     const channel = supabase
       .channel(`shop-details-products-${shop.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products', filter: `shop_id=eq.${shop.id}` },
-        () => {
-          void refreshProducts();
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const oldRow = payload.old as Record<string, unknown> | undefined;
+            const id = oldRow?.id != null ? String(oldRow.id) : '';
+            if (!id) return;
+            setLiveProducts((prev) => prev.filter((p) => p.id !== id));
+            return;
+          }
+          const raw = (payload.new ?? payload.old) as Record<string, unknown> | undefined;
+          if (!raw || raw.id == null) return;
+          const row = mapClientCatalogProductRow(raw);
+          setLiveProducts((prev) => {
+            const idx = prev.findIndex((p) => p.id === row.id);
+            if (idx === -1) return [...prev, row].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+            const copy = [...prev];
+            copy[idx] = row;
+            return copy;
+          });
         }
       )
       .subscribe();
 
     return () => {
-      cancelled = true;
       void supabase.removeChannel(channel);
     };
   }, [shop.id]);

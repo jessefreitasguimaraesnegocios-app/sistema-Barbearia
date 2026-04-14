@@ -23,7 +23,13 @@ export default function PartnerArea() {
   const [shopReloadKey, setShopReloadKey] = useState(0);
   const { shop: myShop, setShop: setMyShop, reloadShop } = useShop(user?.shopId, shopReloadKey);
   const staffProfessionalId = user?.professionalId;
-  const { appointments, shopPartnerOrderRows } = usePartnerData(myShop?.id, staffProfessionalId);
+  const {
+    appointments,
+    shopPartnerOrderRows,
+    ordersHasMore,
+    ordersLoadingMore,
+    loadMorePartnerOrders,
+  } = usePartnerData(myShop?.id, staffProfessionalId);
   const [currentView, setCurrentView] = useState<
     | 'shop-dashboard'
     | 'shop-agenda'
@@ -544,7 +550,14 @@ export default function PartnerArea() {
       {currentView === 'shop-onboarding' && <ShopOnboarding shop={myShop} />}
       {currentView === 'shop-wallet' && <ShopWallet shop={myShop} />}
       {currentView === 'shop-orders' && (
-        <ShopOrders shop={myShop} orders={shopPartnerOrderRows} onMarkDelivered={markOrderDelivered} />
+        <ShopOrders
+          shop={myShop}
+          orders={shopPartnerOrderRows}
+          onMarkDelivered={markOrderDelivered}
+          ordersHasMore={ordersHasMore}
+          ordersLoadingMore={ordersLoadingMore}
+          onLoadMoreOrders={loadMorePartnerOrders}
+        />
       )}
       {currentView === 'shop-customization' && (
         <ShopCustomization

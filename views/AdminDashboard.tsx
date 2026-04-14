@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
+import type { AdminShopsAggregateStats } from '../services/supabase/shops';
 import { APP_NAME } from '../lib/branding';
 import { shopTypeAdminPillClass, shopTypeShortLabel } from '../lib/shopTypeDisplay';
 
@@ -107,10 +108,22 @@ function financialDraftDirty(shop: Shop, draft: ShopFinancialDraft): boolean {
 interface AdminDashboardProps {
   shops: Shop[];
   setShops: (shops: Shop[]) => void;
+  adminStats: AdminShopsAggregateStats;
+  onRefreshAdminStats: () => void | Promise<void>;
+  shopsHasMore: boolean;
+  onLoadMoreShops: () => void | Promise<void>;
   onShopCreated?: () => void | Promise<void>;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShopCreated }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  shops,
+  setShops,
+  adminStats,
+  onRefreshAdminStats,
+  shopsHasMore,
+  onLoadMoreShops,
+  onShopCreated,
+}) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRuntimeModeModal, setShowRuntimeModeModal] = useState(false);
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>('production');
@@ -197,6 +210,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       if (data.success && data.shop) {
         setShops((prev) => prev.map((s) => (s.id === shop.id ? (data.shop as Shop) : s)));
         clearFinancialDraft(shop.id);
+        void onRefreshAdminStats();
       } else {
         alert(data.error || 'Erro ao salvar alterações financeiras.');
       }
@@ -351,6 +365,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       if (data.success && data.shop) {
         setShops(shops.map(s => s.id === shop.id ? data.shop : s));
         clearFinancialDraft(shop.id);
+        void onRefreshAdminStats();
       } else {
         alert(data.error || 'Erro ao atualizar assinatura.');
       }
@@ -359,10 +374,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       alert('Erro de conexão ao atualizar assinatura.');
     }
   };
-
-  const activeRevenue = shops
-    .filter(s => s.subscriptionActive)
-    .reduce((sum, s) => sum + (s.subscriptionAmount ?? 99), 0);
 
   const handleCnpjCpfChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 14);
@@ -418,6 +429,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       if (data.success) {
         clearFinancialDraft(shop.id);
         setShops(shops.filter(s => s.id !== shop.id));
+        void onRefreshAdminStats();
       } else {
         alert(data.error || 'Erro ao excluir estabelecimento.');
       }
@@ -523,15 +535,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
           <p className="text-gray-500 font-medium mb-1">Total de Parceiros</p>
-          <p className="text-4xl font-black text-indigo-600">{shops.length}</p>
+          <p className="text-4xl font-black text-indigo-600">{adminStats.totalShops}</p>
         </div>
         <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
           <p className="text-gray-500 font-medium mb-1">Assinaturas Ativas</p>
-          <p className="text-4xl font-black text-green-500">{shops.filter(s => s.subscriptionActive).length}</p>
+          <p className="text-4xl font-black text-green-500">{adminStats.activeSubscriptions}</p>
         </div>
         <div className="bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
           <p className="text-gray-500 font-medium mb-1">MRR Estimado</p>
-          <p className="text-4xl font-black text-indigo-900">R$ {activeRevenue.toFixed(2)}</p>
+          <p className="text-4xl font-black text-indigo-900">R$ {adminStats.mrrEstimate.toFixed(2)}</p>
         </div>
       </div>
 
@@ -710,6 +722,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ shops, setShops, onShop
             </tbody>
           </table>
         </div>
+        {shopsHasMore ? (
+          <div className="p-6 border-t border-gray-50 flex justify-center">
+            <button
+              type="button"
+              onClick={() => void onLoadMoreShops()}
+              className="px-6 py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50"
+            >
+              Carregar mais estabelecimentos
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {showAddModal && (

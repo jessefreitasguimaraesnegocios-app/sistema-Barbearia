@@ -5,6 +5,10 @@ interface ShopOrdersProps {
   shop: Shop;
   orders: ShopPartnerOrderRow[];
   onMarkDelivered: (orderId: string) => Promise<void>;
+  /** Paginação da lista por `created_at` (histórico além da primeira página). */
+  ordersHasMore?: boolean;
+  ordersLoadingMore?: boolean;
+  onLoadMoreOrders?: () => void | Promise<void>;
 }
 
 function formatOrderWhen(iso: string): string {
@@ -66,7 +70,14 @@ function lineItemsForHistory(
   });
 }
 
-const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }) => {
+const ShopOrders: React.FC<ShopOrdersProps> = ({
+  shop,
+  orders,
+  onMarkDelivered,
+  ordersHasMore = false,
+  ordersLoadingMore = false,
+  onLoadMoreOrders,
+}) => {
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [dayTick, setDayTick] = useState(0);
   const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
@@ -208,6 +219,19 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({ shop, orders, onMarkDelivered }
           })}
         </ul>
       )}
+
+      {ordersHasMore && onLoadMoreOrders ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            disabled={ordersLoadingMore}
+            onClick={() => void onLoadMoreOrders()}
+            className="px-6 py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {ordersLoadingMore ? 'Carregando…' : 'Carregar mais pedidos (histórico)'}
+          </button>
+        </div>
+      ) : null}
 
       <section className="bg-white rounded-4xl border border-gray-100 shadow-sm p-5 md:p-6 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">

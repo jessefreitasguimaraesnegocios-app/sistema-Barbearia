@@ -1,6 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Shop } from '../../types';
-import { mapPartnerShopFromBundle } from './mapPartnerShop';
+import type { Professional, Product, Service, Shop } from '../../types';
+import {
+  mapPartnerProductsFromRows,
+  mapPartnerProfessionalsFromRows,
+  mapPartnerServicesFromRows,
+  mapPartnerShopFromBundle,
+  mergePartnerShopScalarRow,
+} from './mapPartnerShop';
 import { mapClientCatalogRow } from './mapClientCatalogShop';
 import { mapAdminShopRow } from './mapAdminShopRow';
 
@@ -17,8 +23,9 @@ export const SERVICES_SELECT_PARTNER_BUNDLE =
 export const PRODUCTS_SELECT_PARTNER_BUNDLE =
   'id, shop_id, name, description, price, promo_price, category, image, stock';
 
+/** Catálogo cliente: sem campos só-admin/financeiro; menos egress por loja. */
 export const SHOPS_SELECT_CLIENT_CATALOG =
-  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, services(id, name, description, price, duration), professionals(id, name, specialty, avatar), products(id, name, description, price, promo_price, category, image, stock)';
+  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, services(id, name, description, price, duration), professionals(id, name, specialty, avatar), products(id, name, description, price, promo_price, category, image, stock)';
 
 /** Tamanho de página para catálogo público (evita um único payload gigante). */
 export const CLIENT_CATALOG_PAGE_SIZE = 80;
@@ -39,6 +46,50 @@ function mapClientCatalogEntry(row: Record<string, unknown>): ClientCatalogEntry
 
 export const SHOPS_SELECT_ADMIN =
   'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+
+/** Lista admin paginada por nome. */
+export const ADMIN_SHOPS_PAGE_SIZE = 30;
+
+export type AdminShopsAggregateStats = {
+  totalShops: number;
+  activeSubscriptions: number;
+  mrrEstimate: number;
+};
+
+/** Uma linha leve por loja — totais do painel admin sem carregar `SHOPS_SELECT_ADMIN` inteiro para todas. */
+export async function fetchAdminShopsAggregateStats(client: SupabaseClient): Promise<AdminShopsAggregateStats> {
+  const { data, error } = await client.from('shops').select('subscription_active, subscription_amount');
+  if (error || !data) {
+    return { totalShops: 0, activeSubscriptions: 0, mrrEstimate: 0 };
+  }
+  if (!data.length) {
+    return { totalShops: 0, activeSubscriptions: 0, mrrEstimate: 0 };
+  }
+  const rows = data as { subscription_active?: boolean; subscription_amount?: number | null }[];
+  const activeSubscriptions = rows.filter((r) => r.subscription_active).length;
+  const mrrEstimate = rows
+    .filter((r) => r.subscription_active)
+    .reduce((sum, r) => sum + (Number(r.subscription_amount) || 99), 0);
+  return { totalShops: rows.length, activeSubscriptions, mrrEstimate };
+}
+
+export async function fetchShopsForAdminPage(
+  client: SupabaseClient,
+  from: number,
+  to: number
+): Promise<{ shops: Shop[]; hasMore: boolean }> {
+  const { data, error } = await client
+    .from('shops')
+    .select(SHOPS_SELECT_ADMIN)
+    .order('name', { ascending: true })
+    .range(from, to);
+  if (error || !data?.length) return { shops: [], hasMore: false };
+  const hasMore = data.length === to - from + 1;
+  return {
+    shops: data.map((row) => mapAdminShopRow(row as Record<string, unknown>)),
+    hasMore,
+  };
+}
 
 export type FetchPartnerShopBundleResult =
   | { ok: true; shop: Shop }
@@ -142,8 +193,51 @@ export async function fetchClientCatalogByShopIds(
   return out;
 }
 
+/** @deprecated Prefer `fetchShopsForAdminPage` + `fetchAdminShopsAggregateStats` (menos egress). */
 export async function fetchShopsForAdmin(client: SupabaseClient): Promise<Shop[]> {
-  const { data } = await client.from('shops').select(SHOPS_SELECT_ADMIN);
-  if (!data?.length) return [];
-  return data.map((row) => mapAdminShopRow(row as Record<string, unknown>));
+  const merged: Shop[] = [];
+  let from = 0;
+  for (;;) {
+    const { shops, hasMore } = await fetchShopsForAdminPage(client, from, from + ADMIN_SHOPS_PAGE_SIZE - 1);
+    if (!shops.length) break;
+    merged.push(...shops);
+    if (!hasMore) break;
+    from += ADMIN_SHOPS_PAGE_SIZE;
+  }
+  return merged;
+}
+
+export async function fetchPartnerShopRowOnly(
+  client: SupabaseClient,
+  shopId: string
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await client
+    .from('shops')
+    .select(SHOPS_SELECT_PARTNER_SINGLE)
+    .eq('id', shopId)
+    .single();
+  if (error || !data) return null;
+  return data as Record<string, unknown>;
+}
+
+export async function fetchPartnerServicesForShop(client: SupabaseClient, shopId: string): Promise<Service[]> {
+  const { data, error } = await client.from('services').select(SERVICES_SELECT_PARTNER_BUNDLE).eq('shop_id', shopId);
+  if (error || !data?.length) return [];
+  return mapPartnerServicesFromRows(data as Record<string, unknown>[]);
+}
+
+export async function fetchPartnerProfessionalsForShop(
+  client: SupabaseClient,
+  shopId: string,
+  shopSplit: number
+): Promise<Professional[]> {
+  const { data, error } = await client.from('professionals').select(PROFESSIONALS_SELECT_PARTNER).eq('shop_id', shopId);
+  if (error || !data?.length) return [];
+  return mapPartnerProfessionalsFromRows(data as Record<string, unknown>[], shopSplit);
+}
+
+export async function fetchPartnerProductsForShop(client: SupabaseClient, shopId: string): Promise<Product[]> {
+  const { data, error } = await client.from('products').select(PRODUCTS_SELECT_PARTNER_BUNDLE).eq('shop_id', shopId);
+  if (error || !data?.length) return [];
+  return mapPartnerProductsFromRows(data as Record<string, unknown>[]);
 }

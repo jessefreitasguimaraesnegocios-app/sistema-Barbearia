@@ -1223,154 +1223,191 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
       {/* Cart Summary Drawer / Modal */}
       {isCartOpen && orderPayPhase === 'idle' && (
-        <div className="fixed inset-0 z-100 bg-black/40 backdrop-blur-sm flex justify-end animate-fade-in">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-left">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
-                <i className="fas fa-shopping-basket text-indigo-600"></i> Meu Carrinho
+        <div className="fixed inset-0 z-100 bg-black/40 backdrop-blur-sm flex justify-end animate-fade-in dark:bg-black/60">
+          <div className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-slide-left dark:bg-zinc-950 dark:ring-1 dark:ring-white/10">
+            <div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-zinc-800">
+              <h3 className="flex items-center gap-3 text-xl font-bold text-gray-900 dark:text-zinc-50">
+                <i className="fas fa-shopping-basket text-indigo-600 dark:text-indigo-400" aria-hidden />
+                Meu Carrinho
               </h3>
-              <button onClick={() => setIsCartOpen(false)} className="text-gray-400 hover:text-gray-900 p-2">
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(false)}
+                className="p-2 text-gray-500 transition-colors hover:text-gray-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                aria-label="Fechar carrinho"
+              >
                 <i className="fas fa-times text-xl"></i>
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 space-y-6 overflow-y-auto p-6 dark:bg-zinc-950">
               {cart.length > 0 ? (
-                cart.map(item => (
-                  <div key={item.product.id} className="flex gap-4 group">
-                    <img src={item.product.image} className="w-20 h-20 rounded-2xl object-cover shadow-sm" alt="" />
-                    <div className="flex-1 space-y-1">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-gray-900 text-sm">{item.product.name}</h4>
+                cart.map((item) => (
+                  <div key={item.product.id} className="group flex gap-4">
+                    <img
+                      src={item.product.image}
+                      className="h-20 w-20 rounded-2xl object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                      alt=""
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-zinc-100">{item.product.name}</h4>
                         <button
                           type="button"
                           onClick={() => removeFromCart(item.product.id)}
-                          className="text-gray-300 hover:text-red-500 transition-colors"
+                          className="shrink-0 text-zinc-400 transition-colors hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400"
+                          aria-label="Remover do carrinho"
                         >
                           <i className="fas fa-trash-alt text-xs"></i>
                         </button>
                       </div>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">{item.product.category}</p>
-                      <div className="flex justify-between items-center pt-2">
-                        <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-2 py-1">
+                      <p className="text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-400">
+                        {item.product.category}
+                      </p>
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center gap-3 rounded-lg bg-gray-100 px-2 py-1 dark:bg-zinc-900 dark:ring-1 dark:ring-white/10">
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.product.id, -1)}
-                            className="text-gray-500 hover:text-indigo-600"
+                            className="text-zinc-600 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400"
                           >
                             <i className="fas fa-minus text-[10px]"></i>
                           </button>
-                          <span className="text-sm font-bold text-gray-900 min-w-[20px] text-center">{item.quantity}</span>
+                          <span className="min-w-[20px] text-center text-sm font-bold text-gray-900 dark:text-zinc-100">
+                            {item.quantity}
+                          </span>
                           <button
                             type="button"
                             disabled={item.quantity >= Math.max(0, Math.floor(Number(item.product.stock) || 0))}
                             onClick={() => updateQuantity(item.product.id, 1)}
-                            className="text-gray-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="text-zinc-600 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-30 dark:text-zinc-300 dark:hover:text-indigo-400"
                           >
                             <i className="fas fa-plus text-[10px]"></i>
                           </button>
                         </div>
-                        <span className="font-black text-indigo-600">R$ {((item.product.promoPrice || item.product.price) * item.quantity).toFixed(2)}</span>
+                        <span className="font-black text-indigo-600 dark:text-indigo-300">
+                          R$ {((item.product.promoPrice || item.product.price) * item.quantity).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                  <div className="relative mb-8 group">
-                    <div className="absolute inset-0 bg-indigo-50 rounded-full scale-150 blur-2xl opacity-50 group-hover:opacity-80 transition-opacity duration-1000"></div>
-                    <div className="relative animate-playful-bounce text-7xl text-indigo-400 drop-shadow-lg">
+                <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+                  <div className="group relative mb-8">
+                    <div className="absolute inset-0 scale-150 rounded-full bg-indigo-50 opacity-50 blur-2xl transition-opacity duration-1000 group-hover:opacity-80 dark:bg-indigo-500/20 dark:opacity-40" />
+                    <div className="relative animate-playful-bounce text-7xl text-indigo-400 drop-shadow-lg dark:text-indigo-300">
                       <i className="fas fa-shopping-basket"></i>
                     </div>
                   </div>
-                  <h4 className="text-xl font-bold text-gray-900 mb-2 tracking-tight">Poxa, está vazio!</h4>
-                  <p className="text-sm text-gray-500 leading-relaxed mb-10 max-w-[250px] mx-auto">
+                  <h4 className="mb-2 text-xl font-bold tracking-tight text-gray-900 dark:text-zinc-100">Poxa, está vazio!</h4>
+                  <p className="mx-auto mb-10 max-w-[250px] text-sm leading-relaxed text-gray-500 dark:text-zinc-400">
                     Parece que você ainda não adicionou nenhum item incrível. Vamos encontrar algo especial?
                   </p>
-                  <button 
+                  <button
+                    type="button"
                     onClick={() => setIsCartOpen(false)}
-                    className="group flex items-center gap-3 bg-indigo-600 text-white px-10 py-4 rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:shadow-indigo-200 transition-all active:scale-95"
+                    className="group flex items-center gap-3 rounded-2xl bg-indigo-600 px-10 py-4 font-bold text-white shadow-xl shadow-indigo-100 transition-all hover:bg-indigo-700 hover:shadow-indigo-200 active:scale-95 dark:shadow-indigo-900/30"
                   >
                     <span>Explorar Loja</span>
-                    <i className="fas fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
+                    <i className="fas fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
                   </button>
                 </div>
               )}
             </div>
 
             {cart.length > 0 && (
-              <div className="p-6 border-t border-gray-100 space-y-6 bg-gray-50/50">
+              <div className="space-y-6 border-t border-gray-100 bg-zinc-50/90 p-6 dark:border-zinc-800 dark:bg-zinc-900/80">
                 {isProfileComplete ? (
-                  <div className="bg-green-50 p-4 rounded-2xl border border-green-100">
-                    <p className="text-sm text-green-800 font-medium flex items-center gap-2">
-                      <i className="fas fa-check-circle text-green-600" />
+                  <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/50">
+                    <p className="flex items-center gap-2 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                      <i className="fas fa-check-circle text-emerald-600 dark:text-emerald-400" aria-hidden />
                       Pagamento com os dados do seu perfil (<strong>{user.name}</strong>)
                     </p>
-                    <p className="text-[10px] text-gray-500 mt-1">Para alterar, vá em Meu Perfil no menu.</p>
+                    <p className="mt-1 text-[10px] text-emerald-800/90 dark:text-emerald-200/80">
+                      Para alterar, vá em Meu Perfil no menu.
+                    </p>
                   </div>
                 ) : (
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Dados para cobrança</h4>
-                  <p className="text-[9px] text-gray-400 -mt-1">Exigidos pelo gateway para gerar o PIX. Ou complete em Meu Perfil.</p>
-                  <input
-                    type="text"
-                    placeholder="Nome completo *"
-                    value={paymentCustomerName || user.name || ''}
-                    onChange={(e) => setPaymentCustomerName(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                  <input
-                    type="email"
-                    placeholder="E-mail *"
-                    value={paymentCustomerEmail || user.email || ''}
-                    onChange={(e) => setPaymentCustomerEmail(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
-                  />
-                  <input
-                    type="text"
-                    placeholder="CPF ou CNPJ * (somente números)"
-                    value={customerCpf}
-                    onChange={(e) => setCustomerCpf(e.target.value.replace(/\D/g, '').slice(0, 14))}
-                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
-                    maxLength={14}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Telefone (opcional)"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                    className="w-full p-3 rounded-xl bg-white border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600"
-                    maxLength={11}
-                  />
-                </div>
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-zinc-400">
+                      Dados para cobrança
+                    </h4>
+                    <p className="-mt-1 text-[9px] text-gray-500 dark:text-zinc-500">
+                      Exigidos pelo gateway para gerar o PIX. Ou complete em Meu Perfil.
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Nome completo *"
+                      value={paymentCustomerName || user.name || ''}
+                      onChange={(e) => setPaymentCustomerName(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    />
+                    <input
+                      type="email"
+                      placeholder="E-mail *"
+                      value={paymentCustomerEmail || user.email || ''}
+                      onChange={(e) => setPaymentCustomerEmail(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="CPF ou CNPJ * (somente números)"
+                      value={customerCpf}
+                      onChange={(e) => setCustomerCpf(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                      className="w-full rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                      maxLength={14}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Telefone (opcional)"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                      className="w-full rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                      maxLength={11}
+                    />
+                  </div>
                 )}
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-gray-500">
+                  <div className="flex justify-between text-sm text-zinc-600 dark:text-zinc-300">
                     <span>Subtotal</span>
-                    <span>R$ {cartTotal.toFixed(2)}</span>
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">R$ {cartTotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm text-gray-500">
+                  <div className="flex justify-between text-sm text-zinc-600 dark:text-zinc-300">
                     <span>Entrega (Simulada)</span>
-                    <span className="text-green-600 font-bold">Grátis</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">Grátis</span>
                   </div>
-                  <div className="flex justify-between text-xl pt-4 border-t border-gray-200">
-                    <span className="font-bold text-gray-900">Total</span>
-                    <span className="font-black text-indigo-600">R$ {cartTotal.toFixed(2)}</span>
+                  <div className="flex justify-between border-t border-gray-200 pt-4 text-xl dark:border-zinc-700">
+                    <span className="font-bold text-gray-900 dark:text-zinc-50">Total</span>
+                    <span className="font-black text-indigo-600 dark:text-indigo-300">R$ {cartTotal.toFixed(2)}</span>
                   </div>
                 </div>
 
                 <button
-                  disabled={isOrderProcessing || (!isProfileComplete && ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) || !(paymentCustomerName || user.name || '').trim() || !(paymentCustomerEmail || user.email || '').trim()))}
+                  type="button"
+                  disabled={
+                    isOrderProcessing ||
+                    (!isProfileComplete &&
+                      ((customerCpf.replace(/\D/g, '').length !== 11 && customerCpf.replace(/\D/g, '').length !== 14) ||
+                        !(paymentCustomerName || user.name || '').trim() ||
+                        !(paymentCustomerEmail || user.email || '').trim()))
+                  }
                   onClick={handleOrderPayment}
-                  className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 py-5 text-lg font-bold text-white shadow-xl shadow-indigo-100 transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-indigo-950/40"
                 >
                   {isOrderProcessing ? (
-                    <><i className="fas fa-spinner fa-spin"></i> Processando...</>
+                    <>
+                      <i className="fas fa-spinner fa-spin"></i> Processando...
+                    </>
                   ) : (
-                    <><i className="fas fa-credit-card"></i> Pagar R$ {cartTotal.toFixed(2)}</>
+                    <>
+                      <i className="fas fa-credit-card"></i> Pagar R$ {cartTotal.toFixed(2)}
+                    </>
                   )}
                 </button>
-                <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest font-bold">Pagamento processado por BeautyPay</p>
+                <p className="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                  Pagamento processado por BeautyPay
+                </p>
               </div>
             )}
           </div>

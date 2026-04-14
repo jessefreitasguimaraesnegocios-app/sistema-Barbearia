@@ -453,7 +453,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                 const markerClass = isCompleted
                   ? 'bg-green-500 text-white'
                   : isLate
-                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-200/60 animate-pulse ring-2 ring-amber-300 ring-offset-2 ring-offset-white'
+                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-200/60 animate-pulse ring-2 ring-amber-300 ring-offset-2 ring-offset-white dark:shadow-amber-900/40 dark:ring-amber-400/80 dark:ring-offset-zinc-900'
                     : isNext
                       ? 'bg-indigo-600 scale-110 ring-4 ring-indigo-50 text-white'
                       : 'bg-gray-200 group-hover:bg-indigo-400 text-gray-600';
@@ -471,41 +471,73 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                 return (
                   <div key={apt.id} className={`relative pl-12 pb-8 group ${rowScale}`}>
                     <div
-                      className={`absolute left-0 w-9 h-9 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center transition-all ${markerClass}`}
+                      className={`absolute left-0 z-10 flex h-9 w-9 items-center justify-center rounded-full border-4 border-white shadow-md transition-all dark:border-zinc-900 ${markerClass}`}
                       aria-hidden
                     >
                       <i className={`text-[10px] fas ${markerIcon}`} />
                     </div>
 
                     <div
-                      className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+                      className={`flex flex-col items-start justify-between gap-4 rounded-3xl border p-5 transition-all sm:flex-row sm:items-center ${
                         isLate
-                          ? 'bg-amber-50/90 border-amber-200 shadow-sm ring-1 ring-amber-100'
+                          ? 'border-amber-200 bg-amber-50/90 shadow-sm ring-1 ring-amber-100 dark:border-amber-600/40 dark:bg-amber-950/70 dark:ring-amber-500/20'
                           : isNext && !isCompleted
-                            ? 'bg-indigo-50 border-indigo-200 shadow-sm'
-                            : 'bg-white border-gray-100 hover:border-indigo-100 hover:shadow-md'
+                            ? 'border-indigo-200 bg-indigo-50 shadow-sm'
+                            : 'border-gray-100 bg-white hover:border-indigo-100 hover:shadow-md'
                       }`}
                     >
                       <div className="flex items-center gap-4">
-                         <div className="text-center min-w-[60px]">
-                            <p className="text-lg font-black text-gray-900 leading-none">{apt.time}</p>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mt-1">Hórario</p>
+                         <div className="min-w-[60px] text-center">
+                            <p
+                              className={`text-lg font-black leading-none ${
+                                isLate ? 'text-zinc-900 dark:text-amber-50' : 'text-gray-900'
+                              }`}
+                            >
+                              {apt.time}
+                            </p>
+                            <p
+                              className={`mt-1 text-[10px] font-bold uppercase ${
+                                isLate ? 'text-zinc-600 dark:text-amber-200/90' : 'text-gray-400'
+                              }`}
+                            >
+                              Horário
+                            </p>
                          </div>
-                         <div className="w-px h-10 bg-gray-100 hidden sm:block"></div>
+                         <div
+                           className={`hidden h-10 w-px sm:block ${isLate ? 'bg-amber-200 dark:bg-amber-700/50' : 'bg-gray-100'}`}
+                         />
                          <ClientAppointmentAvatar apt={apt} sizeClass="w-10 h-10 rounded-xl text-sm" />
                          <div>
-                            <h4 className="font-bold text-gray-900">{clientLabel(apt)}</h4>
-                            <p className="text-sm text-gray-500">{service?.name}</p>
+                            <h4 className={`font-bold ${isLate ? 'text-zinc-900 dark:text-amber-50' : 'text-gray-900'}`}>
+                              {clientLabel(apt)}
+                            </h4>
+                            <p className={`text-sm ${isLate ? 'text-zinc-700 dark:text-amber-100/95' : 'text-gray-500'}`}>
+                              {service?.name}
+                            </p>
                          </div>
                       </div>
 
-                      <div className="flex items-center justify-between w-full sm:w-auto gap-6">
+                      <div className="flex w-full items-center justify-between gap-6 sm:w-auto">
                         <div className="flex items-center gap-3">
-                           <div className="text-right hidden sm:block">
-                              <p className="text-[10px] font-bold text-gray-400 uppercase">Profissional</p>
-                              <p className="text-xs font-bold text-gray-700">{pro?.name}</p>
+                           <div className="hidden text-right sm:block">
+                              <p
+                                className={`text-[10px] font-bold uppercase ${
+                                  isLate ? 'text-zinc-600 dark:text-amber-200/90' : 'text-gray-400'
+                                }`}
+                              >
+                                Profissional
+                              </p>
+                              <p className={`text-xs font-bold ${isLate ? 'text-zinc-800 dark:text-amber-50' : 'text-gray-700'}`}>
+                                {pro?.name}
+                              </p>
                            </div>
-                           <img src={pro?.avatar} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-sm" alt="" />
+                           <img
+                             src={pro?.avatar}
+                             className={`h-10 w-10 rounded-xl border-2 object-cover shadow-sm ${
+                               isLate ? 'border-amber-200 dark:border-amber-700/60' : 'border-white'
+                             }`}
+                             alt=""
+                           />
                         </div>
                         <div className="flex gap-2">
                           <button className="w-10 h-10 rounded-xl bg-gray-50 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-all flex items-center justify-center">

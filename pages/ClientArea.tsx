@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
@@ -15,7 +15,14 @@ import { ThemeLogoButton } from '../components/ThemeLogoButton';
 import { isPartnerOrAdminRole } from '../lib/profileRole';
 import { mapRowToAppointment } from '../services/supabase/appointmentMapping';
 import { useRealtimeAppointments } from '../hooks/useRealtimeAppointments';
+import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 import { useClientCatalogShops } from '../hooks/useClientCatalogShops';
+import { mapRowToOrder, ORDERS_SELECT_CLIENT, sortOrdersNewestFirst } from '../services/supabase/orderMapping';
+import {
+  APPOINTMENTS_SELECT_CLIENT,
+  CLIENT_LIST_PAGE_SIZE,
+  sortAppointmentsClientList,
+} from '../services/supabase/clientListQueries';
 
 export default function ClientArea() {
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
@@ -24,6 +31,12 @@ export default function ClientArea() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [appointmentsHasMore, setAppointmentsHasMore] = useState(false);
+  const [ordersHasMore, setOrdersHasMore] = useState(false);
+  const [appointmentsLoadingMore, setAppointmentsLoadingMore] = useState(false);
+  const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
+  const appointmentsNextOffset = useRef(0);
+  const ordersNextOffset = useRef(0);
   const [currentView, setCurrentView] = useState<'client-home' | 'shop-details' | 'client-appointments' | 'client-orders' | 'client-profile'>('client-home');
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
 
@@ -44,6 +57,15 @@ export default function ClientArea() {
     clientUserId: user?.id,
   });
 
+  useRealtimeOrders({
+    client: supabase,
+    enabled: isClientRealtimeSession,
+    channelName: `client-orders-${user?.id ?? 'anon'}`,
+    postgresChangesFilter: user?.id ? `client_id=eq.${user.id}` : '',
+    setOrders,
+    clientUserId: user?.id,
+  });
+
   const { shops } = useClientCatalogShops({ client: supabase, enabled: true });
 
   useEffect(() => {
@@ -54,45 +76,114 @@ export default function ClientArea() {
     });
   }, [shops]);
 
-  const mapOrder = (o: Record<string, unknown>): Order => ({
-    id: String(o.id),
-    clientId: String(o.client_id),
-    shopId: String(o.shop_id),
-    items: Array.isArray(o.items) ? (o.items as Order['items']) : [],
-    total: Number(o.total),
-    status: (o.status as Order['status']) || 'PENDING',
-    date: o.created_at ? new Date(String(o.created_at)).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
-  });
-
-  const fetchAppointments = useCallback(async () => {
+  const fetchAppointmentsFirstPage = useCallback(async () => {
     if (!user?.id) return;
-    const { data } = await supabase.from('appointments').select('*').eq('client_id', user.id).order('date', { ascending: false });
-    setAppointments((data || []).map((a) => mapRowToAppointment(a as Record<string, unknown>)));
+    appointmentsNextOffset.current = 0;
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(APPOINTMENTS_SELECT_CLIENT)
+      .eq('client_id', user.id)
+      .order('date', { ascending: false })
+      .order('time', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(0, CLIENT_LIST_PAGE_SIZE - 1);
+    if (error) return;
+    const rows = data || [];
+    setAppointments(rows.map((a) => mapRowToAppointment(a as Record<string, unknown>)));
+    appointmentsNextOffset.current = rows.length;
+    setAppointmentsHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
   }, [user?.id]);
 
-  const fetchOrders = useCallback(async () => {
+  const loadMoreAppointments = useCallback(async () => {
+    if (!user?.id || appointmentsLoadingMore || !appointmentsHasMore) return;
+    setAppointmentsLoadingMore(true);
+    const start = appointmentsNextOffset.current;
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(APPOINTMENTS_SELECT_CLIENT)
+        .eq('client_id', user.id)
+        .order('date', { ascending: false })
+        .order('time', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(start, start + CLIENT_LIST_PAGE_SIZE - 1);
+      if (error) return;
+      const rows = data || [];
+      setAppointments((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        const merged = [...prev];
+        for (const r of rows) {
+          const a = mapRowToAppointment(r as Record<string, unknown>);
+          if (!seen.has(a.id)) {
+            seen.add(a.id);
+            merged.push(a);
+          }
+        }
+        return sortAppointmentsClientList(merged);
+      });
+      appointmentsNextOffset.current += rows.length;
+      setAppointmentsHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
+    } finally {
+      setAppointmentsLoadingMore(false);
+    }
+  }, [user?.id, appointmentsLoadingMore, appointmentsHasMore]);
+
+  const fetchOrdersFirstPage = useCallback(async () => {
     if (!user?.id) return;
-    const { data } = await supabase.from('orders').select('*').eq('client_id', user.id).order('created_at', { ascending: false });
-    setOrders((data || []).map(mapOrder));
+    ordersNextOffset.current = 0;
+    const { data, error } = await supabase
+      .from('orders')
+      .select(ORDERS_SELECT_CLIENT)
+      .eq('client_id', user.id)
+      .order('created_at', { ascending: false })
+      .range(0, CLIENT_LIST_PAGE_SIZE - 1);
+    if (error) return;
+    const rows = data || [];
+    setOrders(rows.map((o) => mapRowToOrder(o as Record<string, unknown>)));
+    ordersNextOffset.current = rows.length;
+    setOrdersHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
   }, [user?.id]);
+
+  const loadMoreOrders = useCallback(async () => {
+    if (!user?.id || ordersLoadingMore || !ordersHasMore) return;
+    setOrdersLoadingMore(true);
+    const start = ordersNextOffset.current;
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(ORDERS_SELECT_CLIENT)
+        .eq('client_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(start, start + CLIENT_LIST_PAGE_SIZE - 1);
+      if (error) return;
+      const rows = data || [];
+      setOrders((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        const merged = [...prev];
+        for (const r of rows) {
+          const o = mapRowToOrder(r as Record<string, unknown>);
+          if (!seen.has(o.id)) {
+            seen.add(o.id);
+            merged.push(o);
+          }
+        }
+        return sortOrdersNewestFirst(merged);
+      });
+      ordersNextOffset.current += rows.length;
+      setOrdersHasMore(rows.length === CLIENT_LIST_PAGE_SIZE);
+    } finally {
+      setOrdersLoadingMore(false);
+    }
+  }, [user?.id, ordersLoadingMore, ordersHasMore]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SHOP' || user?.role === 'STAFF' || user?.role === 'PENDING') return;
     if (!user?.id) return;
-    void fetchAppointments();
-    void fetchOrders();
-    const subO = supabase
-      .channel(`client-orders-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `client_id=eq.${user.id}` },
-        () => void fetchOrders()
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(subO);
-    };
-  }, [user?.id, user?.role, fetchAppointments, fetchOrders]);
+    appointmentsNextOffset.current = 0;
+    ordersNextOffset.current = 0;
+    void fetchAppointmentsFirstPage();
+    void fetchOrdersFirstPage();
+  }, [user?.id, user?.role, fetchAppointmentsFirstPage, fetchOrdersFirstPage]);
 
   if (loading) {
     return (
@@ -222,8 +313,10 @@ export default function ClientArea() {
 
   if (currentView === 'shop-details' && selectedShop) {
     const refetchAppointmentsAndOrders = () => {
-      fetchAppointments();
-      fetchOrders();
+      appointmentsNextOffset.current = 0;
+      ordersNextOffset.current = 0;
+      void fetchAppointmentsFirstPage();
+      void fetchOrdersFirstPage();
     };
     return (
       <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
@@ -255,13 +348,26 @@ export default function ClientArea() {
           appointments={appointments}
           shops={shops}
           user={user}
+          hasMore={appointmentsHasMore}
+          loadingMore={appointmentsLoadingMore}
+          onLoadMore={() => void loadMoreAppointments()}
           onCancel={id => {
             setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'CANCELLED' } : a));
             addNotification('Agendamento cancelado', 'Conforme nossa política, 50% será reembolsado.', 'WARNING');
           }}
         />
       )}
-      {currentView === 'client-orders' && <ClientOrders orders={orders} shops={shops} user={user} onNavigate={setCurrentView} />}
+      {currentView === 'client-orders' && (
+        <ClientOrders
+          orders={orders}
+          shops={shops}
+          user={user}
+          hasMore={ordersHasMore}
+          loadingMore={ordersLoadingMore}
+          onLoadMore={() => void loadMoreOrders()}
+          onNavigate={setCurrentView}
+        />
+      )}
       {currentView === 'client-profile' && <ClientProfile user={user} />}
     </Layout>
   );

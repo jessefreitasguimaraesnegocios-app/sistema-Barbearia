@@ -10,6 +10,13 @@ export const SHOPS_SELECT_PARTNER_SINGLE =
 export const PROFESSIONALS_SELECT_PARTNER =
   'id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, split_percent_sandbox, user_id';
 
+/** Colunas usadas por `mapPartnerShopFromBundle` — evita `select('*')` (menos egress). */
+export const SERVICES_SELECT_PARTNER_BUNDLE =
+  'id, shop_id, name, description, price, duration';
+
+export const PRODUCTS_SELECT_PARTNER_BUNDLE =
+  'id, shop_id, name, description, price, promo_price, category, image, stock';
+
 export const SHOPS_SELECT_CLIENT_CATALOG =
   'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, services(id, name, description, price, duration), professionals(id, name, specialty, avatar), products(id, name, description, price, promo_price, category, image, stock)';
 
@@ -51,9 +58,9 @@ export async function fetchPartnerShopBundle(
   }
 
   const [servicesRes, professionalsRes, productsRes] = await Promise.all([
-    client.from('services').select('*').eq('shop_id', shopId),
+    client.from('services').select(SERVICES_SELECT_PARTNER_BUNDLE).eq('shop_id', shopId),
     client.from('professionals').select(PROFESSIONALS_SELECT_PARTNER).eq('shop_id', shopId),
-    client.from('products').select('*').eq('shop_id', shopId),
+    client.from('products').select(PRODUCTS_SELECT_PARTNER_BUNDLE).eq('shop_id', shopId),
   ]);
 
   const shop = mapPartnerShopFromBundle({

@@ -45,9 +45,20 @@ interface ClientAppointmentsProps {
   shops: Shop[];
   user: User;
   onCancel: (id: string) => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
-const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, shops, user, onCancel }) => {
+const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
+  appointments,
+  shops,
+  user,
+  onCancel,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
+}) => {
   const userApts = appointments.filter(a => a.clientId === user.id);
 
   const handleCancel = (apt: Appointment) => {
@@ -122,7 +133,26 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, s
             );
           })}
         </div>
-      ) : (
+      ) : null}
+      {userApts.length > 0 && hasMore && onLoadMore ? (
+        <div className="flex justify-center pt-6">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="rounded-2xl border border-gray-200 bg-white px-8 py-3 text-sm font-bold text-gray-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? (
+              <span className="inline-flex items-center gap-2">
+                <i className="fas fa-spinner fa-spin" /> Carregando…
+              </span>
+            ) : (
+              'Carregar mais agendamentos'
+            )}
+          </button>
+        </div>
+      ) : null}
+      {userApts.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-4xl border-2 border-dashed border-gray-200">
           <div className="w-20 h-20 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
             <i className="far fa-calendar-times"></i>
@@ -131,7 +161,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({ appointments, s
           <p className="text-gray-500 mt-2 max-w-xs mx-auto">Você ainda não agendou nenhum serviço. Procure por uma barbearia ou salão e marque seu horário!</p>
           <button className="mt-8 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-indigo-100">Explorar Estabelecimentos</button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

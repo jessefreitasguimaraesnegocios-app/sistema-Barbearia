@@ -132,6 +132,8 @@ export interface Order {
   total: number;
   status: 'PENDING' | 'PAID' | 'DELIVERED';
   date: string;
+  /** ISO `created_at` da BD — ordenação / merge Realtime (área cliente). */
+  createdAtIso?: string;
 }
 
 /** Linha guardada em `orders.handed_over_items_snapshot` ao marcar retirada. */

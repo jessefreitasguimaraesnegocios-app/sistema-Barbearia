@@ -7,9 +7,20 @@ interface ClientOrdersProps {
   shops: Shop[];
   user: User;
   onNavigate?: (view: string) => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
-const ClientOrders: React.FC<ClientOrdersProps> = ({ orders, shops, user, onNavigate }) => {
+const ClientOrders: React.FC<ClientOrdersProps> = ({
+  orders,
+  shops,
+  user,
+  onNavigate,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
+}) => {
   const userOrders = orders.filter(o => o.clientId === user.id);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -60,7 +71,26 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({ orders, shops, user, onNavi
             );
           })}
         </div>
-      ) : (
+      ) : null}
+      {userOrders.length > 0 && hasMore && onLoadMore ? (
+        <div className="flex justify-center pt-6">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="rounded-2xl border border-gray-200 bg-white px-8 py-3 text-sm font-bold text-gray-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? (
+              <span className="inline-flex items-center gap-2">
+                <i className="fas fa-spinner fa-spin" /> Carregando…
+              </span>
+            ) : (
+              'Carregar mais pedidos'
+            )}
+          </button>
+        </div>
+      ) : null}
+      {userOrders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 px-6 bg-white rounded-[3rem] border-2 border-dashed border-gray-100 shadow-inner group">
           <div className="relative mb-10">
              {/* Decorative circles */}
@@ -97,7 +127,7 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({ orders, shops, user, onNavi
              <span className="w-2 h-2 rounded-full bg-indigo-200"></span>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Order Details Modal */}
       {selectedOrder && (

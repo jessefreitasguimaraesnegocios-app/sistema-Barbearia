@@ -579,7 +579,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
               <select
                 value={pendingServiceType}
                 onChange={(e) => setPendingServiceType(e.target.value)}
-                className="flex-1 min-w-0 sm:min-w-[220px] bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] text-gray-900 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[color-mix(in_srgb,var(--shop-primary)_22%,white)] focus:ring-2 focus:ring-(--shop-primary) focus:border-transparent outline-none dark:bg-[color-mix(in_srgb,var(--shop-primary)_30%,#0a0a0a)] dark:text-zinc-50 dark:border-[color-mix(in_srgb,var(--shop-primary)_48%,#27272a)] dark:[color-scheme:dark]"
+                className="flex-1 min-w-0 sm:min-w-[220px] bg-[color-mix(in_srgb,var(--shop-primary)_10%,white)] text-gray-900 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[color-mix(in_srgb,var(--shop-primary)_22%,white)] focus:ring-2 focus:ring-(--shop-primary) focus:border-transparent outline-none dark:bg-[color-mix(in_srgb,var(--shop-primary)_30%,#0a0a0a)] dark:text-zinc-50 dark:border-[color-mix(in_srgb,var(--shop-primary)_48%,#27272a)] dark:scheme-dark"
               >
                 <option value="">Escolha o tipo de serviço</option>
                 {standardTypesNotInShop.map((opt) => (

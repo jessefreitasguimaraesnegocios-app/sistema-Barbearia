@@ -6,9 +6,11 @@ interface ClientProfileProps {
   user: User;
 }
 
+const FULL_NAME_MAX = 23;
+
 const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
   const { updateProfile, refreshProfile } = useAuth();
-  const [fullName, setFullName] = useState(user.name || '');
+  const [fullName, setFullName] = useState(() => (user.name || '').slice(0, FULL_NAME_MAX));
   const [avatarUrl, setAvatarUrl] = useState(user.avatar || '');
   const [cpfCnpj, setCpfCnpj] = useState(user.cpfCnpj || '');
   const [phone, setPhone] = useState(user.phone || '');
@@ -16,7 +18,7 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    setFullName(user.name || '');
+    setFullName((user.name || '').slice(0, FULL_NAME_MAX));
     setAvatarUrl(user.avatar || '');
     setCpfCnpj(user.cpfCnpj || '');
     setPhone(user.phone || '');
@@ -32,8 +34,8 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
       setMessage({ type: 'error', text: 'Nome é obrigatório.' });
       return;
     }
-    if (nameTrim.length > 300) {
-      setMessage({ type: 'error', text: 'Nome muito longo (máximo 300 caracteres).' });
+    if (nameTrim.length > FULL_NAME_MAX) {
+      setMessage({ type: 'error', text: `Nome muito longo (máximo ${FULL_NAME_MAX} caracteres).` });
       return;
     }
     if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
@@ -146,13 +148,13 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
             <input
               type="text"
               required
-              maxLength={300}
+              maxLength={FULL_NAME_MAX}
               placeholder="Como aparece na cobrança"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value.slice(0, 300))}
+              onChange={(e) => setFullName(e.target.value.slice(0, FULL_NAME_MAX))}
               className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
             />
-            <p className="text-[10px] text-gray-400 mt-1">Até 300 caracteres (nome completo para o PIX).</p>
+            <p className="text-[10px] text-gray-400 mt-1">{`Máximo ${FULL_NAME_MAX} caracteres (nome na cobrança PIX).`}</p>
           </div>
 
           {/* E-mail (somente leitura) */}

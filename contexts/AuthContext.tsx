@@ -138,21 +138,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setEmail(null);
       setSessionUserId(null);
+      setLoading(false);
       return;
     }
-    setEmail(user.email ?? null);
-    setSessionUserId(user.id);
-    const p = await fetchProfile(user.id);
-    setProfile(p);
-  }, [fetchProfile]);
+    /** Só bloqueia a app inteira quando ainda não há perfil (login / primeira hidratação) — não ao salvar «Meu Perfil». */
+    const blockUi = profile == null || profile.id !== user.id;
+    if (blockUi) setLoading(true);
+    try {
+      setEmail(user.email ?? null);
+      setSessionUserId(user.id);
+      const p = await fetchProfile(user.id);
+      setProfile(p);
+    } finally {
+      if (blockUi) setLoading(false);
+    }
+  }, [fetchProfile, profile]);
 
   useEffect(() => {
     let cancelled = false;
     const safeSetLoading = (v: boolean) => { if (!cancelled) setLoading(v); };
 
-    const timeoutId = window.setTimeout(() => {
-      safeSetLoading(false);
-    }, 4000);
+    /** Não usar timeout global em loading: punha loading=false com sessão já definida e perfil ainda a null → flash de «PENDING» no ClientArea. */
 
     /** Abas em background pausam timers do GoTrue; ao voltar, força leitura da sessão e refresh se precisar. */
     const onVisibility = () => {
@@ -195,6 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
      */
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
+        safeSetLoading(true);
         setEmail(session.user.email ?? null);
         setSessionUserId(session.user.id);
         window.setTimeout(() => {
@@ -230,13 +237,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timeoutId);
       document.removeEventListener('visibilitychange', onVisibility);
       subscription.unsubscribe();
     };
   }, [fetchProfile]);
 
   const signIn = useCallback(async (emailInput: string, password: string) => {
+    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password });
       if (error) return { error: error.message };
@@ -245,14 +252,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionUserId(data.user.id);
       const p = await fetchProfile(data.user.id);
       setProfile(p);
-      setLoading(false);
       return { error: null };
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'Erro ao conectar. Tente novamente.' };
+    } finally {
+      setLoading(false);
     }
   }, [fetchProfile]);
 
   const signUp = useCallback(async (emailInput: string, password: string) => {
+    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({ email: emailInput, password });
       if (error) return { error: error.message };
@@ -261,10 +270,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionUserId(data.user.id);
       const p = await fetchProfile(data.user.id);
       setProfile(p);
-      setLoading(false);
       return { error: null };
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'Erro ao conectar. Tente novamente.' };
+    } finally {
+      setLoading(false);
     }
   }, [fetchProfile]);
 
@@ -295,6 +305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setEmail(null);
     setSessionUserId(null);
+    setLoading(false);
   }, []);
 
   const updateProfile = useCallback(async (data: { full_name?: string; avatar_url?: string; cpf_cnpj?: string; phone?: string }) => {

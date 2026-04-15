@@ -2,6 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 
 const EMAIL_DOMAINS = ['@gmail.com', '@hotmail.com', '@outlook.com', '@yahoo.com.br', '@yahoo.com', '@icloud.com', '@live.com', '@uol.com.br', '@bol.com.br'];
 
+function emailHasCompleteListedDomain(emailStr: string): boolean {
+  const atIdx = emailStr.indexOf('@');
+  if (atIdx < 0) return false;
+  const tail = emailStr.slice(atIdx).toLowerCase();
+  return EMAIL_DOMAINS.some((d) => d.toLowerCase() === tail);
+}
+
 interface LoginFormProps {
   title: string;
   subtitle?: string;
@@ -47,21 +54,29 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const handleEmailChange = (value: string) => {
     setEmail(value);
     const atIdx = value.indexOf('@');
-    if (atIdx >= 0) {
-      setEmailSuggestionsFilter(value.slice(atIdx).toLowerCase());
-      setEmailSuggestionsOpen(true);
-    } else {
+    if (atIdx < 0) {
       setEmailSuggestionsOpen(false);
+      return;
     }
+    setEmailSuggestionsFilter(value.slice(atIdx).toLowerCase());
+    if (emailHasCompleteListedDomain(value)) {
+      setEmailSuggestionsOpen(false);
+      return;
+    }
+    setEmailSuggestionsOpen(true);
   };
 
   const handleEmailSuggestionSelect = (domain: string) => {
     const current = email;
     const atIdx = current.indexOf('@');
     const beforeAt = atIdx >= 0 ? current.slice(0, atIdx) : current;
-    setEmail(beforeAt + domain);
+    const next = beforeAt + domain;
+    setEmail(next);
     setEmailSuggestionsOpen(false);
-    emailInputRef.current?.focus();
+    setEmailSuggestionsFilter(next.slice(next.indexOf('@')).toLowerCase());
+    requestAnimationFrame(() => {
+      emailInputRef.current?.focus();
+    });
   };
 
   const filteredEmailDomains = EMAIL_DOMAINS.filter(d =>
@@ -107,7 +122,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             required
             value={email}
             onChange={e => handleEmailChange(e.target.value)}
-            onFocus={() => email.includes('@') && setEmailSuggestionsOpen(true)}
+            onFocus={() => {
+              if (!email.includes('@')) return;
+              if (emailHasCompleteListedDomain(email)) return;
+              setEmailSuggestionsFilter(email.slice(email.indexOf('@')).toLowerCase());
+              setEmailSuggestionsOpen(true);
+            }}
             className="w-full p-4 rounded-2xl bg-gray-50 border border-gray-100 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
             placeholder="seu@email.com"
           />
@@ -122,7 +142,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                     key={domain}
                     type="button"
                     className="w-full px-4 py-3 text-left text-sm text-gray-800 hover:bg-indigo-50 hover:text-gray-900 focus-visible:outline-none focus-visible:bg-indigo-50 focus-visible:text-gray-900 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white dark:focus-visible:bg-zinc-700 dark:focus-visible:text-white"
-                    onClick={() => handleEmailSuggestionSelect(domain)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleEmailSuggestionSelect(domain);
+                    }}
                   >
                     {domain}
                   </button>

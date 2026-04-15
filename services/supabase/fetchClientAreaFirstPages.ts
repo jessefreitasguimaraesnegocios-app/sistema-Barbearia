@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Appointment, Order } from '../../types';
 import { getBrazilDateStringISO } from '../../lib/brazilCalendarDate';
 import { appointmentsClientVisibleOrFilter } from '../../lib/clientAppointmentVisibility';
+import { ordersClientVisibleOrFilter } from '../../lib/clientOrderVisibility';
 import { mapRowToAppointment } from './appointmentMapping';
 import { mapRowToOrder, ORDERS_SELECT_CLIENT } from './orderMapping';
 import { APPOINTMENTS_SELECT_CLIENT, CLIENT_LIST_PAGE_SIZE } from './clientListQueries';
@@ -29,6 +30,7 @@ export async function fetchClientOrdersFirstPage(client: SupabaseClient, clientI
     .from('orders')
     .select(ORDERS_SELECT_CLIENT)
     .eq('client_id', clientId)
+    .or(ordersClientVisibleOrFilter())
     .order('created_at', { ascending: false })
     .range(0, CLIENT_LIST_PAGE_SIZE - 1);
   if (error) throw error;

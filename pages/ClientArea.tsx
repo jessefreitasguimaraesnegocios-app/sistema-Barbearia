@@ -26,7 +26,8 @@ import {
   sortAppointmentsClientList,
 } from '../services/supabase/clientListQueries';
 import { getBrazilDateStringISO } from '../lib/brazilCalendarDate';
-import { appointmentsClientVisibleOrFilter } from '../lib/clientAppointmentVisibility';
+import { appointmentsClientVisibleOrFilter, isClientListVisibleAppointment } from '../lib/clientAppointmentVisibility';
+import { isClientListVisibleOrder, ordersClientVisibleOrFilter } from '../lib/clientOrderVisibility';
 import { clientAreaQueryKeys } from '../lib/clientAreaQueryKeys';
 import { CLIENT_AREA_FIRST_PAGE_STALE_MS } from '../lib/clientAreaCacheConfig';
 import {
@@ -182,6 +183,7 @@ export default function ClientArea() {
         .from('orders')
         .select(ORDERS_SELECT_CLIENT)
         .eq('client_id', user.id)
+        .or(ordersClientVisibleOrFilter())
         .order('created_at', { ascending: false })
         .range(start, start + CLIENT_LIST_PAGE_SIZE - 1);
       if (error) return;
@@ -213,6 +215,21 @@ export default function ClientArea() {
     void fetchAppointmentsFirstPage();
     void fetchOrdersFirstPage();
   }, [user?.id, user?.role, fetchAppointmentsFirstPage, fetchOrdersFirstPage]);
+
+  /**
+   * Sem refresh manual: ao virar o dia (BRT), remove da UI itens já expirados
+   * (COMPLETED/DELIVERED) com varredura leve por minuto.
+   */
+  useEffect(() => {
+    if (user?.role !== 'CLIENT') return;
+    const prune = () => {
+      setAppointments((prev) => prev.filter((a) => isClientListVisibleAppointment(a)));
+      setOrders((prev) => prev.filter((o) => isClientListVisibleOrder(o)));
+    };
+    prune();
+    const id = window.setInterval(prune, 60_000);
+    return () => window.clearInterval(id);
+  }, [user?.role]);
 
   const showClientShellDuringProfileLoad = profileHydrating;
 

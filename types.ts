@@ -134,6 +134,8 @@ export interface Order {
   date: string;
   /** ISO `created_at` da BD — ordenação / merge Realtime (área cliente). */
   createdAtIso?: string;
+  /** ISO `handed_over_at` da BD (quando entregue). */
+  handedOverAtIso?: string;
 }
 
 /** Linha guardada em `orders.handed_over_items_snapshot` ao marcar retirada. */

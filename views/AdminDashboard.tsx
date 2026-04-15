@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
 import type { AdminShopsAggregateStats } from '../services/supabase/shops';
@@ -107,7 +107,7 @@ function financialDraftDirty(shop: Shop, draft: ShopFinancialDraft): boolean {
 
 interface AdminDashboardProps {
   shops: Shop[];
-  setShops: (shops: Shop[]) => void;
+  setShops: (shops: Shop[] | ((prev: Shop[]) => Shop[])) => void;
   adminStats: AdminShopsAggregateStats;
   onRefreshAdminStats: () => void | Promise<void>;
   shopsHasMore: boolean;
@@ -147,6 +147,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const [financialDrafts, setFinancialDrafts] = useState<Record<string, ShopFinancialDraft>>({});
   const [savingFinancialShopId, setSavingFinancialShopId] = useState<string | null>(null);
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [showEditShopModal, setShowEditShopModal] = useState(false);
+  const [shopSearch, setShopSearch] = useState('');
 
   useEffect(() => {
     const ids = new Set(shops.map((s) => s.id));
@@ -166,6 +169,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const getFinancialDraft = (shop: Shop): ShopFinancialDraft =>
     financialDrafts[shop.id] ?? shopToFinancialDraft(shop);
 
+  const filteredShops = useMemo(() => {
+    const q = shopSearch.trim().toLowerCase();
+    if (!q) return shops;
+    return shops.filter((s) => {
+      const typeLabel = shopTypeShortLabel(s.type).toLowerCase();
+      return (
+        s.name.toLowerCase().includes(q) ||
+        String(s.email || '').toLowerCase().includes(q) ||
+        typeLabel.includes(q)
+      );
+    });
+  }, [shops, shopSearch]);
+
+  const selectedShop = useMemo(
+    () => shops.find((s) => s.id === selectedShopId) ?? null,
+    [shops, selectedShopId]
+  );
+
+  useEffect(() => {
+    if (!selectedShopId) return;
+    if (!shops.some((s) => s.id === selectedShopId)) {
+      setSelectedShopId(null);
+      setShowEditShopModal(false);
+    }
+  }, [shops, selectedShopId]);
+
   const patchFinancialDraft = (shop: Shop, patch: Partial<ShopFinancialDraft>) => {
     setFinancialDrafts((prev) => {
       const base = prev[shop.id] ?? shopToFinancialDraft(shop);
@@ -181,6 +210,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return next;
     });
   };
+
+  const openEditShop = useCallback((shop: Shop) => {
+    setSelectedShopId(shop.id);
+    setShowEditShopModal(true);
+  }, []);
 
   const saveShopFinancialDraft = async (shop: Shop) => {
     const draft = financialDrafts[shop.id];
@@ -554,8 +588,104 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             Mensalidade, splits e ID da assinatura Asaas só são gravados no banco ao clicar em{' '}
             <span className="font-semibold text-gray-700">Salvar</span> na linha do parceiro.
           </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="relative block w-full sm:max-w-sm">
+              <i className="fas fa-search pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                placeholder="Buscar parceiro por nome, e-mail ou tipo"
+                value={shopSearch}
+                onChange={(e) => setShopSearch(e.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-800 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </label>
+            <div className="text-xs text-gray-500 sm:text-right">
+              {filteredShops.length} de {shops.length} parceiros exibidos
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="p-4 space-y-3 md:hidden">
+          {filteredShops.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+              Nenhum parceiro encontrado para este filtro.
+            </div>
+          ) : (
+            filteredShops.map((shop) => {
+              const fd = getFinancialDraft(shop);
+              const rowFinancialDirty = financialDraftDirty(shop, fd);
+              const isSelected = selectedShopId === shop.id;
+              return (
+                <div
+                  key={shop.id}
+                  className={`rounded-3xl border p-4 shadow-sm transition-all ${
+                    isSelected ? 'border-indigo-300 bg-indigo-50/40' : 'border-gray-100 bg-white'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <img src={shop.profileImage} className="h-12 w-12 rounded-xl object-cover" alt="" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-bold text-gray-900">{shop.name}</p>
+                      <p className="truncate text-xs text-gray-500">{shop.email}</p>
+                      <span
+                        className={`mt-2 inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${shopTypeAdminPillClass(shop.type)}`}
+                      >
+                        {shopTypeShortLabel(shop.type)}
+                      </span>
+                    </div>
+                    {rowFinancialDirty ? (
+                      <span className="rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">
+                        Alterado
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-xl bg-gray-50 p-2.5">
+                      <p className="text-gray-400">Mensalidade</p>
+                      <p className="font-bold text-gray-900">R$ {Number(fd.subscriptionAmount).toFixed(2)}</p>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-2.5">
+                      <p className="text-gray-400">Assinatura</p>
+                      <p className={`font-bold ${shop.subscriptionActive ? 'text-green-600' : 'text-red-500'}`}>
+                        {shop.subscriptionActive ? 'Ativa' : 'Inativa'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-2.5">
+                      <p className="text-gray-400">Split prod.</p>
+                      <p className="font-bold text-gray-900">{Number(fd.splitPercent).toFixed(0)}%</p>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-2.5">
+                      <p className="text-gray-400">Split sandbox</p>
+                      <p className="font-bold text-gray-900">{Number(fd.splitPercentSandbox).toFixed(0)}%</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedShopId(shop.id)}
+                      className={`flex-1 rounded-xl px-3 py-2 text-xs font-bold transition ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {isSelected ? 'Selecionado' : 'Selecionar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditShop(shop)}
+                      className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-black"
+                    >
+                      Editar
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left">
             <thead className="bg-gray-50 text-gray-400 text-xs font-bold uppercase tracking-widest">
               <tr>
@@ -571,13 +701,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {shops.map((shop) => {
+              {filteredShops.map((shop) => {
                 const fd = getFinancialDraft(shop);
                 const rowFinancialDirty = financialDraftDirty(shop, fd);
                 return (
                 <tr
                   key={shop.id}
-                  className={`transition-colors ${rowFinancialDirty ? 'bg-amber-50/50' : 'hover:bg-gray-50'}`}
+                  className={`transition-colors ${
+                    selectedShopId === shop.id
+                      ? 'bg-indigo-50/60'
+                      : rowFinancialDirty
+                        ? 'bg-amber-50/50'
+                        : 'hover:bg-gray-50'
+                  }`}
                 >
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
@@ -694,6 +830,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex items-center justify-end gap-3 flex-wrap">
                       <button
                         type="button"
+                        onClick={() => setSelectedShopId(shop.id)}
+                        className={`text-sm font-bold hover:underline ${
+                          selectedShopId === shop.id ? 'text-indigo-700' : 'text-indigo-500'
+                        }`}
+                      >
+                        {selectedShopId === shop.id ? 'Selecionado' : 'Selecionar'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void saveShopFinancialDraft(shop)}
                         disabled={!rowFinancialDirty || savingFinancialShopId === shop.id}
                         className="text-sm font-bold px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -706,6 +851,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className={`text-sm font-bold ${shop.subscriptionActive ? 'text-red-500' : 'text-green-600'} hover:underline`}
                       >
                         {shop.subscriptionActive ? 'Suspender' : 'Reativar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditShop(shop)}
+                        className="text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:underline"
+                      >
+                        Editar
                       </button>
                       <button
                         type="button"
@@ -734,6 +886,157 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         ) : null}
       </div>
+
+      {showEditShopModal && selectedShop ? (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white shadow-2xl animate-scale-in">
+            <div className="sticky top-0 z-10 border-b border-gray-100 bg-white px-5 py-4 sm:px-8">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-wide text-indigo-600">Editar parceiro</p>
+                  <h3 className="truncate text-xl font-bold text-gray-900">{selectedShop.name}</h3>
+                  <p className="truncate text-xs text-gray-500">{selectedShop.email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEditShopModal(false)}
+                  className="rounded-xl p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-800"
+                  aria-label="Fechar edição"
+                >
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-6 px-5 py-5 sm:px-8">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Mensalidade (R$/mês)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={getFinancialDraft(selectedShop).subscriptionAmount}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!Number.isNaN(v) && v >= 0) {
+                        patchFinancialDraft(selectedShop, { subscriptionAmount: v });
+                      }
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-3.5 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Assinatura plataforma (Asaas)</label>
+                  <input
+                    type="text"
+                    placeholder="sub_..."
+                    value={getFinancialDraft(selectedShop).asaasPlatformSubscriptionId}
+                    onChange={(e) =>
+                      patchFinancialDraft(selectedShop, { asaasPlatformSubscriptionId: e.target.value })
+                    }
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-3.5 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">% Split produção</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={getFinancialDraft(selectedShop).splitPercent}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!Number.isNaN(v) && v >= 0 && v <= 100) {
+                        patchFinancialDraft(selectedShop, { splitPercent: v });
+                      }
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-3.5 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">% Split sandbox</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={getFinancialDraft(selectedShop).splitPercentSandbox}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!Number.isNaN(v) && v >= 0 && v <= 100) {
+                        patchFinancialDraft(selectedShop, { splitPercentSandbox: v });
+                      }
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-3.5 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Resumo rápido</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full bg-white px-3 py-1 font-semibold text-gray-700">
+                    Tipo: {shopTypeShortLabel(selectedShop.type)}
+                  </span>
+                  <span
+                    className={`rounded-full px-3 py-1 font-semibold ${
+                      selectedShop.subscriptionActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {selectedShop.subscriptionActive ? 'Assinatura ativa' : 'Assinatura inativa'}
+                  </span>
+                  <span className="rounded-full bg-white px-3 py-1 font-semibold text-gray-700">
+                    Asaas ID: {selectedShop.asaasAccountId || selectedShop.asaasWalletId || '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 z-10 border-t border-gray-100 bg-white px-5 py-4 sm:px-8">
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditShopModal(false)}
+                  className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSubscription(selectedShop)}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold ${
+                    selectedShop.subscriptionActive
+                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                      : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                  }`}
+                >
+                  {selectedShop.subscriptionActive ? 'Suspender assinatura' : 'Reativar assinatura'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveShopFinancialDraft(selectedShop)}
+                  disabled={
+                    !financialDraftDirty(selectedShop, getFinancialDraft(selectedShop)) ||
+                    savingFinancialShopId === selectedShop.id
+                  }
+                  className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingFinancialShopId === selectedShop.id ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteShop(selectedShop)}
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-100"
+                >
+                  Excluir parceiro
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 min-h-screen">

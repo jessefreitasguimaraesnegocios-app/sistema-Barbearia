@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Order, Shop, User } from '../types';
+import { isClientListVisibleOrder } from '../lib/clientOrderVisibility';
 
 interface ClientOrdersProps {
   orders: Order[];
@@ -21,7 +22,9 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({
   loadingMore = false,
   onLoadMore,
 }) => {
-  const userOrders = orders.filter(o => o.clientId === user.id);
+  const userOrders = orders
+    .filter(o => o.clientId === user.id)
+    .filter((o) => isClientListVisibleOrder(o));
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   return (

@@ -3,9 +3,11 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Order } from '../types';
 import { mapRowToOrder, sortOrdersNewestFirst } from '../services/supabase/orderMapping';
+import { isClientListVisibleOrder } from '../lib/clientOrderVisibility';
 
 function rowVisibleForClient(row: Order, clientUserId?: string): boolean {
   if (clientUserId && row.clientId !== clientUserId) return false;
+  if (!isClientListVisibleOrder(row)) return false;
   return true;
 }
 

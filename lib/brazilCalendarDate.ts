@@ -7,3 +7,9 @@ export function getBrazilDateStringISO(reference: Date = new Date()): string {
     day: '2-digit',
   }).format(reference);
 }
+
+/** Início do dia civil no Brasil em ISO UTC (para filtros de timestamp no PostgREST). */
+export function getBrazilStartOfDayUtcIso(reference: Date = new Date()): string {
+  const ymd = getBrazilDateStringISO(reference);
+  return new Date(`${ymd}T00:00:00-03:00`).toISOString();
+}

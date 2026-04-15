@@ -1,11 +1,12 @@
 import type { Order } from '../../types';
 
 export const ORDERS_SELECT_CLIENT =
-  'id, client_id, shop_id, items, total, status, created_at';
+  'id, client_id, shop_id, items, total, status, created_at, handed_over_at';
 
 /** Mapeia linha Supabase (snake_case) → modelo da app. Usado em fetches e Realtime. */
 export function mapRowToOrder(r: Record<string, unknown>): Order {
   const created = r.created_at != null ? String(r.created_at) : '';
+  const handedOver = r.handed_over_at != null ? String(r.handed_over_at) : '';
   return {
     id: String(r.id),
     clientId: String(r.client_id),
@@ -15,6 +16,7 @@ export function mapRowToOrder(r: Record<string, unknown>): Order {
     status: (r.status as Order['status']) || 'PENDING',
     date: created ? new Date(created).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
     createdAtIso: created || undefined,
+    handedOverAtIso: handedOver || undefined,
   };
 }
 

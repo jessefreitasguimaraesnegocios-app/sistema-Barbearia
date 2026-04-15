@@ -32,6 +32,10 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
       setMessage({ type: 'error', text: 'Nome é obrigatório.' });
       return;
     }
+    if (nameTrim.length > 300) {
+      setMessage({ type: 'error', text: 'Nome muito longo (máximo 300 caracteres).' });
+      return;
+    }
     if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
       setMessage({ type: 'error', text: 'CPF (11 dígitos) ou CNPJ (14 dígitos) é obrigatório.' });
       return;
@@ -142,11 +146,13 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
             <input
               type="text"
               required
+              maxLength={300}
               placeholder="Como aparece na cobrança"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => setFullName(e.target.value.slice(0, 300))}
               className="w-full p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
             />
+            <p className="text-[10px] text-gray-400 mt-1">Até 300 caracteres (nome completo para o PIX).</p>
           </div>
 
           {/* E-mail (somente leitura) */}

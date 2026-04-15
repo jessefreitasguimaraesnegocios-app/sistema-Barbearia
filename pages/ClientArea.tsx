@@ -19,6 +19,7 @@ import { useRealtimeAppointments } from '../hooks/useRealtimeAppointments';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 import { useClientCatalogShops } from '../hooks/useClientCatalogShops';
 import { mapRowToOrder, ORDERS_SELECT_CLIENT, sortOrdersNewestFirst } from '../services/supabase/orderMapping';
+import { fetchClientCatalogShopDetailById } from '../services/supabase/shops';
 import {
   APPOINTMENTS_SELECT_CLIENT,
   CLIENT_LIST_PAGE_SIZE,
@@ -49,8 +50,11 @@ export default function ClientArea() {
   const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
   const appointmentsNextOffset = useRef(0);
   const ordersNextOffset = useRef(0);
+  const [shopDetailsLoadingId, setShopDetailsLoadingId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<'client-home' | 'shop-details' | 'client-appointments' | 'client-orders' | 'client-profile'>('client-home');
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
+  const profileHydrating = Boolean(user?.role === 'PENDING' && loading);
+  const catalogEnabled = Boolean(user) || profileHydrating;
 
   const isClientRealtimeSession =
     Boolean(user?.id) &&
@@ -78,15 +82,26 @@ export default function ClientArea() {
     clientUserId: user?.id,
   });
 
-  const { shops, catalogRefreshing } = useClientCatalogShops({ client: supabase, enabled: true });
+  const { shops, catalogRefreshing } = useClientCatalogShops({ client: supabase, enabled: catalogEnabled });
 
   useEffect(() => {
     setSelectedShop((prev) => {
       if (!prev) return prev;
       const next = shops.find((s) => s.id === prev.id);
-      return next ?? prev;
+      if (!next) return prev;
+      const preserveServices = prev.services.length > 0 && next.services.length === 0;
+      const preserveProducts = prev.products.length > 0 && next.products.length === 0;
+      if (!preserveServices && !preserveProducts && shopDetailsLoadingId !== prev.id) {
+        return next;
+      }
+      return {
+        ...next,
+        services: preserveServices ? prev.services : next.services,
+        products: preserveProducts ? prev.products : next.products,
+        professionals: next.professionals.length ? next.professionals : prev.professionals,
+      };
     });
-  }, [shops]);
+  }, [shops, shopDetailsLoadingId]);
 
   const fetchAppointmentsFirstPage = useCallback(async () => {
     if (!user?.id) return;
@@ -199,7 +214,6 @@ export default function ClientArea() {
     void fetchOrdersFirstPage();
   }, [user?.id, user?.role, fetchAppointmentsFirstPage, fetchOrdersFirstPage]);
 
-  const profileHydrating = Boolean(user?.role === 'PENDING' && loading);
   const showClientShellDuringProfileLoad = profileHydrating;
 
   const addNotification = (title: string, message: string, type: 'SUCCESS' | 'INFO' | 'WARNING' = 'INFO') => {
@@ -222,6 +236,31 @@ export default function ClientArea() {
     await signOut();
     navigate('/', { replace: true });
   };
+
+  const handleSelectShop = useCallback(
+    (shop: Shop) => {
+      if (user?.role !== 'CLIENT') return;
+      setSelectedShop(shop);
+      setCurrentView('shop-details');
+      setShopDetailsLoadingId(shop.id);
+      void (async () => {
+        try {
+          const detailed = await queryClient.fetchQuery({
+            queryKey: ['client-area', 'shop-detail', shop.id],
+            queryFn: () => fetchClientCatalogShopDetailById(supabase, shop.id),
+            staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
+          });
+          if (!detailed) return;
+          setSelectedShop((prev) => (prev?.id === shop.id ? detailed : prev));
+        } catch {
+          /* mantém resumo da loja e segue fluxo */
+        } finally {
+          setShopDetailsLoadingId((prev) => (prev === shop.id ? null : prev));
+        }
+      })();
+    },
+    [queryClient, user?.role]
+  );
 
   useEffect(() => {
     if (!profileHydrating) return;
@@ -412,11 +451,7 @@ export default function ClientArea() {
           shops={shops}
           catalogRefreshing={catalogRefreshing}
           profileHydrating={profileHydrating}
-          onSelectShop={(s) => {
-            if (user?.role !== 'CLIENT') return;
-            setSelectedShop(s);
-            setCurrentView('shop-details');
-          }}
+          onSelectShop={handleSelectShop}
         />
       )}
       {clientMainView === 'client-appointments' && (

@@ -23,9 +23,16 @@ export const SERVICES_SELECT_PARTNER_BUNDLE =
 export const PRODUCTS_SELECT_PARTNER_BUNDLE =
   'id, shop_id, name, description, price, promo_price, category, image, stock';
 
-/** Catálogo cliente: sem campos só-admin/financeiro; menos egress por loja. */
-export const SHOPS_SELECT_CLIENT_CATALOG =
+/** Catálogo cliente (home/lista): payload leve, sem relações pesadas. */
+export const SHOPS_SELECT_CLIENT_CATALOG_LIST =
+  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, professionals(id, name, specialty, avatar)';
+
+/** Catálogo cliente (detalhe): serviços + produtos carregados sob demanda. */
+export const SHOPS_SELECT_CLIENT_CATALOG_DETAIL =
   'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, services(id, name, description, price, duration), professionals(id, name, specialty, avatar), products(id, name, description, price, promo_price, category, image, stock)';
+
+/** Compat legado: catálogo da home/lista. */
+export const SHOPS_SELECT_CLIENT_CATALOG = SHOPS_SELECT_CLIENT_CATALOG_LIST;
 
 /** Tamanho de página para catálogo público (evita um único payload gigante). */
 export const CLIENT_CATALOG_PAGE_SIZE = 80;
@@ -149,7 +156,7 @@ export async function fetchClientCatalogPage(
 ): Promise<ClientCatalogEntry[]> {
   const { data, error } = await client
     .from('shops')
-    .select(SHOPS_SELECT_CLIENT_CATALOG)
+    .select(SHOPS_SELECT_CLIENT_CATALOG_LIST)
     .order('name', { ascending: true })
     .range(from, to);
   if (error) throw error;
@@ -161,7 +168,7 @@ export async function fetchClientCatalogPage(
 export async function fetchClientCatalogUpdatedSince(client: SupabaseClient, sinceIso: string): Promise<ClientCatalogEntry[]> {
   const { data, error } = await client
     .from('shops')
-    .select(SHOPS_SELECT_CLIENT_CATALOG)
+    .select(SHOPS_SELECT_CLIENT_CATALOG_LIST)
     .gt('updated_at', sinceIso)
     .order('updated_at', { ascending: true });
   if (error) throw error;
@@ -183,7 +190,7 @@ export async function fetchClientCatalogByShopIds(
     const chunk = unique.slice(i, i + CLIENT_CATALOG_BY_ID_CHUNK);
     const { data, error } = await client
       .from('shops')
-      .select(SHOPS_SELECT_CLIENT_CATALOG)
+      .select(SHOPS_SELECT_CLIENT_CATALOG_LIST)
       .in('id', chunk);
     if (error) throw error;
     if (data?.length) {
@@ -191,6 +198,20 @@ export async function fetchClientCatalogByShopIds(
     }
   }
   return out;
+}
+
+/** Carrega uma loja completa para a tela de detalhe do cliente (serviços + produtos). */
+export async function fetchClientCatalogShopDetailById(
+  client: SupabaseClient,
+  shopId: string
+): Promise<Shop | null> {
+  const { data, error } = await client
+    .from('shops')
+    .select(SHOPS_SELECT_CLIENT_CATALOG_DETAIL)
+    .eq('id', shopId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapClientCatalogRow(data as Record<string, unknown>);
 }
 
 /** @deprecated Prefer `fetchShopsForAdminPage` + `fetchAdminShopsAggregateStats` (menos egress). */

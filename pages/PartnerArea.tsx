@@ -266,7 +266,8 @@ export default function PartnerArea() {
             'Este login está como cliente em profiles: o id do seu e-mail (Authentication → User UID) precisa ser o mesmo da linha com role admin ou barbearia. Ajuste com UPDATE em public.profiles ou corrija o role dessa linha.',
         };
       }
-      await refreshProfile();
+      /** Perfil final vem do listener global de auth; evita await redundante no submit. */
+      void refreshProfile();
       return { error: null };
     };
 

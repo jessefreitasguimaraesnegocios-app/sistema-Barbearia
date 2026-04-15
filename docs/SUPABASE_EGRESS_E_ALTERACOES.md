@@ -62,6 +62,15 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 - O **maior peso** de egress pode continuar a vir de **`SHOPS_SELECT_CLIENT_CATALOG`** (lojas com `services`, `professionals`, `products` embutidos) + **Realtime** + **imagens** (Storage/CDN).
 - O hook **`useClientCatalogShops`** já usa **localStorage** (`lib/clientCatalogCache`) para pintar rápido e sincronizar em background — isso **não** é TanStack Query; é cache próprio do catálogo.
 
+### Atualização aplicada (lista leve + detalhe)
+
+- A home do cliente agora usa payload leve:
+  - `SHOPS_SELECT_CLIENT_CATALOG_LIST` (dados básicos + profissionais mínimos).
+- O detalhe da loja (ao abrir `ShopDetails`) busca sob demanda:
+  - `fetchClientCatalogShopDetailById` com `SHOPS_SELECT_CLIENT_CATALOG_DETAIL`.
+- Guardrail operacional adotado:
+  - **Listas públicas nunca devem embutir relações grandes** (`products/services`) quando a UI não precisa delas no primeiro paint.
+
 ---
 
 ### 5. TanStack Query — cache da primeira página + invalidação após pagamento
@@ -84,6 +93,15 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 
 ---
 
+### 5.1 Auth e egress (`/user`)
+
+- `refreshProfile` em `AuthContext` passou a usar `auth.getSession()` em vez de `auth.getUser()` para evitar request Auth extra em refresh comum.
+- Fluxos de login parceiro/cliente mantêm `refreshProfile` sem await bloqueante, deixando o listener global concluir hidratação.
+- Guardrail operacional adotado:
+  - **Evitar `getUser()` no front para refresh rotineiro**; preferir sessão em memória/storage (`getSession`) e um único ponto central de hidratação.
+
+---
+
 ### 6. Avisos do Tailwind (Problems no editor)
 
 - Ajustes de sintaxe canónica (v4), ex.: `text-[var(--app-text)]` → `text-(--app-text)`, `dark:[color-scheme:dark]` → `dark:scheme-dark`, etc.
@@ -100,6 +118,38 @@ Ficheiros tocados nessa limpeza (memória útil): `components/Layout.tsx`, `Logi
 - [ ] Manter **merge Realtime** em `orders` (costuma ser win em qualquer plano); só voltar a refetch total se tiveres um motivo forte.
 - [ ] Rever **imagens** (CDN, cache HTTP, tamanhos) — costuma ser o maior egress fora do JSON.
 - [ ] Aumentar `CLIENT_AREA_FIRST_PAGE_STALE_MS` só se aceitares menos pedidos à rede e possível desfasagem rara vs Realtime; após pagamento a invalidação continua a mandar na rede.
+- [ ] Revisar logs Auth (`/user`, `/token`) por referer/IP e garantir que não há loops de sessão em telas que montam headers de API.
+
+---
+
+## Como voltar ao comportamento anterior (rollback guiado)
+
+Se um dia quiseres voltar para o fluxo “mais simples / mais tráfego”, usa esta ordem:
+
+| Arquivo | Mudança feita | Como desfazer |
+|---------|---------------|---------------|
+| `services/supabase/shops.ts` | Catálogo dividido em `SHOPS_SELECT_CLIENT_CATALOG_LIST` (home) e `SHOPS_SELECT_CLIENT_CATALOG_DETAIL` (detalhe), com `fetchClientCatalogShopDetailById` | Voltar `fetchClientCatalogPage`, `fetchClientCatalogUpdatedSince` e `fetchClientCatalogByShopIds` para `SHOPS_SELECT_CLIENT_CATALOG` completo (com `services+products`), e remover o fetch de detalhe sob demanda |
+| `pages/ClientArea.tsx` | Home usa lista leve; ao clicar loja busca detalhe completo por id; merge preserva serviços/produtos detalhados | Remover `handleSelectShop` com `fetchClientCatalogShopDetailById`, voltar `onSelectShop` direto para trocar de view, e simplificar efeito de `setSelectedShop` sem lógica de preservação |
+| `hooks/useClientCatalogShops.ts` | Realtime da home deixou de subscrever `services` e `products` para cortar tráfego | Reativar listeners `.on(... table: 'services')` e `.on(... table: 'products')` se quiser atualização imediata total no catálogo da home |
+| `contexts/AuthContext.tsx` | `refreshProfile` trocado de `auth.getUser()` para `auth.getSession()` (menos `/user`) | Voltar para `auth.getUser()` em `refreshProfile` se preferires validação remota por chamada (mais Auth egress) |
+| `pages/PartnerArea.tsx` | Login parceiro usa `void refreshProfile()` (não bloqueante) | Voltar para `await refreshProfile()` no submit de login |
+| `docs/EGRESS_24H_BASELINE_CHECK.md` | Checklist de medição antes/depois | Apenas manter como histórico, ou remover se não quiseres controle de baseline |
+
+### Efeito esperado ao desfazer
+
+- **Mais simplicidade operacional**, porém:
+  - payload maior no catálogo cliente,
+  - mais eventos Realtime na home,
+  - maior frequência de chamadas Auth `/user`,
+  - tendência de subida de egress no plano Free.
+
+### Rollback técnico (git)
+
+Se quiseres desfazer só este pacote, usa o commit hash correspondente e reverte:
+
+`git revert <hash_do_commit_das_otimizacoes_de_egress>`
+
+Se quiseres desfazer seletivo por arquivo, faz rollback apenas nos caminhos acima.
 
 ---
 

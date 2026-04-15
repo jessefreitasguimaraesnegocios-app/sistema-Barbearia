@@ -164,15 +164,7 @@ export function useClientCatalogShops({ client, enabled }: UseClientCatalogShops
         if (row?.id != null) pendingRealtimeShopIdsRef.current.add(String(row.id));
         scheduleFlush();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, (p) => {
-        addShopIdFromRealtimeRow(pendingRealtimeShopIdsRef, (p.new ?? p.old) as Record<string, unknown> | undefined);
-        scheduleFlush();
-      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, (p) => {
-        addShopIdFromRealtimeRow(pendingRealtimeShopIdsRef, (p.new ?? p.old) as Record<string, unknown> | undefined);
-        scheduleFlush();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (p) => {
         addShopIdFromRealtimeRow(pendingRealtimeShopIdsRef, (p.new ?? p.old) as Record<string, unknown> | undefined);
         scheduleFlush();
       })

@@ -18,20 +18,20 @@ npm install
 ### Só o front (interface)
 
 ```bash
+npm run dev:vite
+```
+
+Abre o Vite em `http://localhost:3000` — dá para navegar, mas **rotas `/api/*` não existem** nesse modo (o proxy `/api` aponta para a porta 3001).
+
+### Front + API local (padrão)
+
+Documentos do parceiro, onboarding, admin, pagamentos… tudo isso fala com **`/api/*`**. O comando principal sobe Vite + servidor Express da pasta `api/`:
+
+```bash
 npm run dev
 ```
 
-Abre o Vite em `http://localhost:3000` — dá para navegar, mas **rotas `/api/*` não existem** nesse modo.
-
-### Front + API local (recomendado para dev “de verdade”)
-
-Documentos do parceiro, onboarding, admin, pagamentos… tudo isso fala com **`/api/*`**. Sobe os dois:
-
-```bash
-npm run dev:all
-```
-
-Ou em dois terminais: `npm run dev` e `npm run dev:api`.
+Equivalente: `npm run dev:all`. Ou em dois terminais: `npm run dev:vite` e `npm run dev:api`.
 
 **`.env` na raiz** (não commitar): no mínimo `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e o que a rota precisar (ex.: `ASAAS_API_KEY` para onboarding). Lista completa: **[SECRETS_AND_KEYS.md](./SECRETS_AND_KEYS.md)**.
 

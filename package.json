@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n vite,api \"vite\" \"tsx server.dev.ts\"",
+    "dev:vite": "vite",
     "dev:api": "tsx server.dev.ts",
     "dev:all": "concurrently -n vite,api \"vite\" \"tsx server.dev.ts\"",
     "build": "vite build",

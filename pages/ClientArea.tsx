@@ -54,7 +54,11 @@ export default function ClientArea() {
   const [currentView, setCurrentView] = useState<'client-home' | 'shop-details' | 'client-appointments' | 'client-orders' | 'client-profile'>('client-home');
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]>([]);
   const profileHydrating = Boolean(user?.role === 'PENDING' && loading);
-  const catalogEnabled = Boolean(user) || profileHydrating;
+  /**
+   * Pré-carrega catálogo já na tela pública para login/refresh parecer instantâneo.
+   * O payload da home é leve e o sync pesado só entra por páginas.
+   */
+  const catalogEnabled = true;
 
   const isClientRealtimeSession =
     Boolean(user?.id) &&

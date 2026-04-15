@@ -70,6 +70,8 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
   - `fetchClientCatalogShopDetailById` com `SHOPS_SELECT_CLIENT_CATALOG_DETAIL`.
 - Guardrail operacional adotado:
   - **Listas públicas nunca devem embutir relações grandes** (`products/services`) quando a UI não precisa delas no primeiro paint.
+- Primeiro lote da sincronização ficou menor (`CLIENT_CATALOG_FIRST_PAINT_PAGE_SIZE = 24`) para reduzir tempo até aparecer a primeira lista em cache frio.
+- A tela de cliente passa a pré-carregar catálogo também antes do login, para reduzir sensação de demora após autenticar.
 
 ---
 
@@ -130,7 +132,7 @@ Se um dia quiseres voltar para o fluxo “mais simples / mais tráfego”, usa e
 |---------|---------------|---------------|
 | `services/supabase/shops.ts` | Catálogo dividido em `SHOPS_SELECT_CLIENT_CATALOG_LIST` (home) e `SHOPS_SELECT_CLIENT_CATALOG_DETAIL` (detalhe), com `fetchClientCatalogShopDetailById` | Voltar `fetchClientCatalogPage`, `fetchClientCatalogUpdatedSince` e `fetchClientCatalogByShopIds` para `SHOPS_SELECT_CLIENT_CATALOG` completo (com `services+products`), e remover o fetch de detalhe sob demanda |
 | `pages/ClientArea.tsx` | Home usa lista leve; ao clicar loja busca detalhe completo por id; merge preserva serviços/produtos detalhados | Remover `handleSelectShop` com `fetchClientCatalogShopDetailById`, voltar `onSelectShop` direto para trocar de view, e simplificar efeito de `setSelectedShop` sem lógica de preservação |
-| `hooks/useClientCatalogShops.ts` | Realtime da home deixou de subscrever `services` e `products` para cortar tráfego | Reativar listeners `.on(... table: 'services')` e `.on(... table: 'products')` se quiser atualização imediata total no catálogo da home |
+| `hooks/useClientCatalogShops.ts` | Realtime da home deixou de subscrever `services` e `products` para cortar tráfego; primeiro lote menor para first paint | Reativar listeners `.on(... table: 'services')` e `.on(... table: 'products')`; remover `CLIENT_CATALOG_FIRST_PAINT_PAGE_SIZE` e voltar lote inicial ao tamanho normal |
 | `contexts/AuthContext.tsx` | `refreshProfile` trocado de `auth.getUser()` para `auth.getSession()` (menos `/user`) | Voltar para `auth.getUser()` em `refreshProfile` se preferires validação remota por chamada (mais Auth egress) |
 | `pages/PartnerArea.tsx` | Login parceiro usa `void refreshProfile()` (não bloqueante) | Voltar para `await refreshProfile()` no submit de login |
 | `docs/EGRESS_24H_BASELINE_CHECK.md` | Checklist de medição antes/depois | Apenas manter como histórico, ou remover se não quiseres controle de baseline |

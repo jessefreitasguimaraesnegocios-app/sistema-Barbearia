@@ -24,6 +24,8 @@ import {
   CLIENT_LIST_PAGE_SIZE,
   sortAppointmentsClientList,
 } from '../services/supabase/clientListQueries';
+import { getBrazilDateStringISO } from '../lib/brazilCalendarDate';
+import { appointmentsClientVisibleOrFilter } from '../lib/clientAppointmentVisibility';
 import { clientAreaQueryKeys } from '../lib/clientAreaQueryKeys';
 import { CLIENT_AREA_FIRST_PAGE_STALE_MS } from '../lib/clientAreaCacheConfig';
 import {
@@ -106,10 +108,12 @@ export default function ClientArea() {
     setAppointmentsLoadingMore(true);
     const start = appointmentsNextOffset.current;
     try {
+      const todayBr = getBrazilDateStringISO();
       const { data, error } = await supabase
         .from('appointments')
         .select(APPOINTMENTS_SELECT_CLIENT)
         .eq('client_id', user.id)
+        .or(appointmentsClientVisibleOrFilter(todayBr))
         .order('date', { ascending: false })
         .order('time', { ascending: false })
         .order('created_at', { ascending: false })

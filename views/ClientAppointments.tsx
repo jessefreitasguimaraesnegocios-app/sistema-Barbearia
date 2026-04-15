@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Appointment, Shop, User } from '../types';
+import { isClientListVisibleAppointment } from '../lib/clientAppointmentVisibility';
 
 function ShopAppointmentThumb({
   shop,
@@ -59,7 +60,9 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
   loadingMore = false,
   onLoadMore,
 }) => {
-  const userApts = appointments.filter(a => a.clientId === user.id);
+  const userApts = appointments
+    .filter((a) => a.clientId === user.id)
+    .filter((a) => isClientListVisibleAppointment(a));
 
   const handleCancel = (apt: Appointment) => {
     const shop = shops.find(s => s.id === apt.shopId);
@@ -73,6 +76,9 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
       <header>
         <h2 className="text-3xl font-display font-bold text-gray-900">Meus Agendamentos</h2>
         <p className="text-gray-500">Acompanhe seus horários e serviços marcados.</p>
+        <p className="text-xs text-gray-400 mt-1">
+          Atendimentos concluídos ficam visíveis só até o fim do dia do serviço (horário de Brasília).
+        </p>
       </header>
 
       {userApts.length > 0 ? (

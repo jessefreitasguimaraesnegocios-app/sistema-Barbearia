@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Appointment, Order } from '../../types';
+import { getBrazilDateStringISO } from '../../lib/brazilCalendarDate';
+import { appointmentsClientVisibleOrFilter } from '../../lib/clientAppointmentVisibility';
 import { mapRowToAppointment } from './appointmentMapping';
 import { mapRowToOrder, ORDERS_SELECT_CLIENT } from './orderMapping';
 import { APPOINTMENTS_SELECT_CLIENT, CLIENT_LIST_PAGE_SIZE } from './clientListQueries';
@@ -8,10 +10,12 @@ export async function fetchClientAppointmentsFirstPage(
   client: SupabaseClient,
   clientId: string
 ): Promise<Appointment[]> {
+  const todayBr = getBrazilDateStringISO();
   const { data, error } = await client
     .from('appointments')
     .select(APPOINTMENTS_SELECT_CLIENT)
     .eq('client_id', clientId)
+    .or(appointmentsClientVisibleOrFilter(todayBr))
     .order('date', { ascending: false })
     .order('time', { ascending: false })
     .order('created_at', { ascending: false })

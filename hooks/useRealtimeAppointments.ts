@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Appointment } from '../types';
+import { getBrazilDateStringISO } from '../lib/brazilCalendarDate';
 import { mapRowToAppointment } from '../services/supabase/appointmentMapping';
 
 export type RealtimeAppointmentsSortMode = 'partner' | 'client';
@@ -23,6 +24,7 @@ function rowVisibleForSubscription(
 ): boolean {
   if (opts.staffProfessionalId && row.professionalId !== opts.staffProfessionalId) return false;
   if (opts.clientUserId && row.clientId !== opts.clientUserId) return false;
+  if (opts.clientUserId && row.status === 'COMPLETED' && row.date < getBrazilDateStringISO()) return false;
   return true;
 }
 

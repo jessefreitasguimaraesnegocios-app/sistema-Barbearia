@@ -33,6 +33,8 @@ import {
   fetchClientOrdersFirstPage,
 } from '../services/supabase/fetchClientAreaFirstPages';
 
+type ClientNavView = 'client-home' | 'shop-details' | 'client-appointments' | 'client-orders' | 'client-profile';
+
 export default function ClientArea() {
   const queryClient = useQueryClient();
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
@@ -76,7 +78,7 @@ export default function ClientArea() {
     clientUserId: user?.id,
   });
 
-  const { shops } = useClientCatalogShops({ client: supabase, enabled: true });
+  const { shops, catalogRefreshing } = useClientCatalogShops({ client: supabase, enabled: true });
 
   useEffect(() => {
     setSelectedShop((prev) => {
@@ -197,18 +199,40 @@ export default function ClientArea() {
     void fetchOrdersFirstPage();
   }, [user?.id, user?.role, fetchAppointmentsFirstPage, fetchOrdersFirstPage]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500"><i className="fas fa-spinner fa-spin text-3xl"></i></div>
-      </div>
-    );
-  }
+  const profileHydrating = Boolean(user?.role === 'PENDING' && loading);
+  const showClientShellDuringProfileLoad = profileHydrating;
+
+  const addNotification = (title: string, message: string, type: 'SUCCESS' | 'INFO' | 'WARNING' = 'INFO') => {
+    setNotifications((prev) => [
+      {
+        id: Math.random().toString(36).slice(2),
+        title,
+        message,
+        type,
+        timestamp: new Date(),
+        read: false,
+      },
+      ...prev,
+    ]);
+  };
+
+  const markAllAsRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/', { replace: true });
+  };
+
+  useEffect(() => {
+    if (!profileHydrating) return;
+    setCurrentView('client-home');
+    setSelectedShop(null);
+  }, [profileHydrating]);
 
   if (user?.role === 'SHOP' || user?.role === 'STAFF') return <Navigate to="/parceiros" replace />;
   if (user?.role === 'ADMIN') return <Navigate to="/admin" replace />;
 
-  if (user?.role === 'PENDING') {
+  if (user?.role === 'PENDING' && !loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 gap-4">
         <p className="text-gray-700 text-center max-w-sm">Não foi possível carregar seu perfil. Tente novamente ou use «Sou parceiro» se você for dono, equipe ou administrador.</p>
@@ -239,6 +263,16 @@ export default function ClientArea() {
   }
 
   if (!user) {
+    if (loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-950">
+          <div className="text-gray-500 dark:text-zinc-400">
+            <i className="fas fa-spinner fa-spin text-3xl"></i>
+          </div>
+        </div>
+      );
+    }
+
     const handleClientLogin = async (email: string, password: string) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { error: error.message };
@@ -256,7 +290,8 @@ export default function ClientArea() {
         await supabase.auth.signOut();
         return { error: 'Esta área é só para clientes. Parceiros, equipe e administradores devem usar o link "Sou parceiro" no topo.' };
       }
-      await refreshProfile();
+      /** Perfil completo: `onAuthStateChange` + `refreshProfile` evitam await duplicado e destravam a UI mais cedo. */
+      void refreshProfile();
       return { error: null };
     };
 
@@ -305,25 +340,23 @@ export default function ClientArea() {
     );
   }
 
-  const addNotification = (title: string, message: string, type: 'SUCCESS' | 'INFO' | 'WARNING' = 'INFO') => {
-    setNotifications(prev => [{
-      id: Math.random().toString(36).slice(2),
-      title,
-      message,
-      type,
-      timestamp: new Date(),
-      read: false,
-    }, ...prev]);
+  if (user?.role !== 'CLIENT' && !profileHydrating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-950">
+        <div className="text-gray-500 dark:text-zinc-400">
+          <i className="fas fa-spinner fa-spin text-3xl"></i>
+        </div>
+      </div>
+    );
+  }
+
+  const clientMainView: ClientNavView = profileHydrating ? 'client-home' : currentView;
+  const navigateClientView = (view: ClientNavView) => {
+    if (profileHydrating && view !== 'client-home') return;
+    setCurrentView(view);
   };
 
-  const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/', { replace: true });
-  };
-
-  if (currentView === 'shop-details' && selectedShop) {
+  if (currentView === 'shop-details' && selectedShop && user?.role === 'CLIENT') {
     const refetchAppointmentsAndOrders = () => {
       if (!user?.id) return;
       appointmentsNextOffset.current = 0;
@@ -335,7 +368,15 @@ export default function ClientArea() {
       })();
     };
     return (
-      <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
+      <Layout
+        user={user}
+        onLogout={handleLogout}
+        onNavigate={setCurrentView}
+        currentView={currentView}
+        notifications={notifications}
+        onMarkRead={markAllAsRead}
+        showClientShellDuringProfileLoad={showClientShellDuringProfileLoad}
+      >
         <ShopDetails
           shop={selectedShop}
           user={user}
@@ -357,9 +398,28 @@ export default function ClientArea() {
   }
 
   return (
-    <Layout user={user} onLogout={handleLogout} onNavigate={setCurrentView} currentView={currentView} notifications={notifications} onMarkRead={markAllAsRead}>
-      {currentView === 'client-home' && <ClientHome shops={shops} onSelectShop={s => { setSelectedShop(s); setCurrentView('shop-details'); }} />}
-      {currentView === 'client-appointments' && (
+    <Layout
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={navigateClientView}
+      currentView={clientMainView}
+      notifications={notifications}
+      onMarkRead={markAllAsRead}
+      showClientShellDuringProfileLoad={showClientShellDuringProfileLoad}
+    >
+      {clientMainView === 'client-home' && (
+        <ClientHome
+          shops={shops}
+          catalogRefreshing={catalogRefreshing}
+          profileHydrating={profileHydrating}
+          onSelectShop={(s) => {
+            if (user?.role !== 'CLIENT') return;
+            setSelectedShop(s);
+            setCurrentView('shop-details');
+          }}
+        />
+      )}
+      {clientMainView === 'client-appointments' && (
         <ClientAppointments
           appointments={appointments}
           shops={shops}
@@ -373,7 +433,7 @@ export default function ClientArea() {
           }}
         />
       )}
-      {currentView === 'client-orders' && (
+      {clientMainView === 'client-orders' && (
         <ClientOrders
           orders={orders}
           shops={shops}
@@ -381,10 +441,10 @@ export default function ClientArea() {
           hasMore={ordersHasMore}
           loadingMore={ordersLoadingMore}
           onLoadMore={() => void loadMoreOrders()}
-          onNavigate={setCurrentView}
+          onNavigate={navigateClientView}
         />
       )}
-      {currentView === 'client-profile' && <ClientProfile user={user} />}
+      {clientMainView === 'client-profile' && <ClientProfile user={user} />}
     </Layout>
   );
 }

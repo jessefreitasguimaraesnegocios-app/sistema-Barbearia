@@ -6,9 +6,18 @@ import { shopTypeCatalogBadgeClass, shopTypeShortLabel } from '../lib/shopTypeDi
 interface ClientHomeProps {
   shops: Shop[];
   onSelectShop: (shop: Shop) => void;
+  /** Sync em rede do catálogo (não duplica pedidos; só indica estado). */
+  catalogRefreshing?: boolean;
+  /** Sessão existe e o perfil GoTrue ainda está a hidratar (role PENDING). */
+  profileHydrating?: boolean;
 }
 
-const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
+const ClientHome: React.FC<ClientHomeProps> = ({
+  shops,
+  onSelectShop,
+  catalogRefreshing = false,
+  profileHydrating = false,
+}) => {
   const [filter, setFilter] = useState<'ALL' | 'BARBER' | 'SALON' | 'MANICURE'>('ALL');
   const [search, setSearch] = useState('');
 
@@ -18,8 +27,24 @@ const ClientHome: React.FC<ClientHomeProps> = ({ shops, onSelectShop }) => {
     return matchesFilter && matchesSearch;
   });
 
+  const showCatalogStatus =
+    profileHydrating || (catalogRefreshing && shops.length === 0);
+
   return (
     <div className="space-y-8">
+      {showCatalogStatus && (
+        <div
+          className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50/90 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-500/25 dark:bg-indigo-500/10 dark:text-indigo-100"
+          role="status"
+        >
+          <i className="fas fa-spinner fa-spin text-indigo-600 dark:text-indigo-300" aria-hidden />
+          <span>
+            {profileHydrating
+              ? 'Sincronizando sua conta… As lojas já podem aparecer abaixo.'
+              : 'Carregando lojas…'}
+          </span>
+        </div>
+      )}
       <header className="space-y-4">
         <h2 className="text-3xl font-display font-bold text-gray-900">Encontre o melhor para você</h2>
         <div className="flex flex-col md:flex-row gap-4">

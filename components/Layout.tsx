@@ -15,6 +15,11 @@ interface LayoutProps {
   onMarkRead?: () => void;
   /** Cor da marca da loja (parceiro): ativos do menu usam esta cor */
   partnerBrandPrimary?: string | null;
+  /**
+   * Sessão já existe mas o perfil ainda carrega (role PENDING).
+   * Mostra o menu de cliente para o catálogo aparecer cedo, sem ecrã inteiro a bloquear.
+   */
+  showClientShellDuringProfileLoad?: boolean;
 }
 
 const Layout: React.FC<LayoutProps> = ({
@@ -26,9 +31,14 @@ const Layout: React.FC<LayoutProps> = ({
   notifications = [],
   onMarkRead,
   partnerBrandPrimary,
+  showClientShellDuringProfileLoad = false,
 }) => {
   const [showNotifCenter, setShowNotifCenter] = useState(false);
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const showClientNav =
+    user?.role === 'CLIENT' || (showClientShellDuringProfileLoad && user?.role === 'PENDING');
+  const showAppChrome =
+    user && (user.role !== 'PENDING' || showClientShellDuringProfileLoad);
 
   const shopNavActive =
     'bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-[var(--shop-primary)] font-semibold shadow-sm dark:bg-[color-mix(in_srgb,var(--shop-primary)_24%,#141414)] dark:text-[color-mix(in_srgb,var(--shop-primary)_90%,white)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)]';
@@ -49,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({
       }
     >
       {/* Desktop Sidebar */}
-      {user && user.role !== 'PENDING' && (
+      {showAppChrome && (
         <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-(--app-border) bg-(--app-sidebar-solid) p-6 shadow-(--app-shadow-sm) backdrop-blur-xl dark:border-(--app-border) dark:bg-[color-mix(in_oklab,var(--app-sidebar-solid)_88%,transparent)] md:flex">
           <div className="mb-10 flex items-center gap-3">
             <ThemeLogoButton size="md" />
@@ -126,7 +136,7 @@ const Layout: React.FC<LayoutProps> = ({
               </>
             )}
 
-            {user.role === 'CLIENT' && (
+            {showClientNav && (
               <>
                 <button
                   onClick={() => onNavigate('client-home')}
@@ -298,9 +308,9 @@ const Layout: React.FC<LayoutProps> = ({
       )}
 
       {/* Mobile Bottom Navigation */}
-      {user && user.role !== 'PENDING' && (
+      {showAppChrome && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-(--app-border) bg-(--app-sidebar-solid)/95 p-2 shadow-(--app-shadow-md) backdrop-blur-xl dark:bg-[color-mix(in_oklab,var(--app-sidebar-solid)_94%,transparent)] md:hidden">
-          {user.role === 'CLIENT' ? (
+          {showClientNav ? (
             <>
               <button
                 onClick={() => onNavigate('client-home')}

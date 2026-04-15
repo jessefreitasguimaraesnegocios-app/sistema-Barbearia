@@ -165,7 +165,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     isDuplicate?: boolean;
   };
   const [inlinePayPix, setInlinePayPix] = useState<InlinePayPix | null>(null);
-  /** Fluxo agendamento: resumo → tela dedicada PIX → “Pagamento Aprovado!” → home. */
+  /** Fluxo agendamento: resumo → tela dedicada PIX → “Pagamento Aprovado!” → após delay → home. */
   type BookingPayPhase = 'idle' | 'pix' | 'approved';
   const [bookingPayPhase, setBookingPayPhase] = useState<BookingPayPhase>('idle');
   /** Fluxo carrinho (loja): carrinho → tela dedicada PIX → aprovado → home. */
@@ -624,7 +624,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     };
   }, [inlinePayPix?.recordId, inlinePayPix?.kind, onBook, onOrder]);
 
-  const PAYMENT_APPROVED_SCREEN_MS = 2200;
+  /** Segundos na tela «Pagamento Aprovado!» antes de ir ao início (volta do app do banco). */
+  const PAYMENT_APPROVED_DELAY_SEC = 15;
+  const PAYMENT_APPROVED_SCREEN_MS = PAYMENT_APPROVED_DELAY_SEC * 1000;
   useEffect(() => {
     if (bookingPayPhase !== 'approved') return;
     const t = window.setTimeout(() => {
@@ -961,8 +963,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         <h2 className="text-2xl md:text-4xl font-black text-gray-900 text-center tracking-tight">
                           Pagamento Aprovado!
                         </h2>
-                        <p className="text-gray-500 mt-3 text-center text-sm md:text-base">
-                          Redirecionando para o início…
+                        <p className="text-gray-500 mt-3 max-w-md text-center text-sm md:text-base">
+                          Em até {PAYMENT_APPROVED_DELAY_SEC} segundos você volta ao início — dá tempo de retornar do app
+                          do banco e ver esta confirmação.
                         </p>
                       </div>
                     ) : bookingPayPhase === 'pix' && inlinePayPix?.kind === 'booking' ? (
@@ -981,7 +984,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                             Aguardando confirmação do PIX…
                           </p>
                           <p className="px-3 text-center text-xs text-zinc-700 dark:text-zinc-400">
-                            Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e você vai ao início.
+                            Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e, após até{' '}
+                            {PAYMENT_APPROVED_DELAY_SEC} segundos, você vai ao início.
                           </p>
                         </div>
                       </div>
@@ -1464,8 +1468,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                   <h2 className="text-center text-2xl font-black tracking-tight text-zinc-900 md:text-4xl dark:text-zinc-50">
                     Pagamento Aprovado!
                   </h2>
-                  <p className="mt-3 text-center text-sm text-zinc-600 md:text-base dark:text-zinc-400">
-                    Redirecionando para o início…
+                  <p className="mt-3 max-w-md text-center text-sm text-zinc-600 md:text-base dark:text-zinc-400">
+                    Em até {PAYMENT_APPROVED_DELAY_SEC} segundos você volta ao início — dá tempo de retornar do app do
+                    banco e ver esta confirmação.
                   </p>
                 </div>
               ) : (
@@ -1484,7 +1489,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                       Aguardando confirmação do PIX…
                     </p>
                     <p className="px-3 text-center text-xs text-zinc-700 dark:text-zinc-400">
-                      Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e você vai ao início.
+                      Quando o banco confirmar, aparece &quot;Pagamento Aprovado!&quot; e, após até{' '}
+                      {PAYMENT_APPROVED_DELAY_SEC} segundos, você vai ao início.
                     </p>
                   </div>
                 </div>

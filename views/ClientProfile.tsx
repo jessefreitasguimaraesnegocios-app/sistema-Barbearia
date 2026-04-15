@@ -6,7 +6,7 @@ interface ClientProfileProps {
   user: User;
 }
 
-const FULL_NAME_MAX = 25;
+const FULL_NAME_MAX = 26;
 
 const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
   const { updateProfile, refreshProfile } = useAuth();

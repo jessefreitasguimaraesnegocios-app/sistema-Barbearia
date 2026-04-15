@@ -101,7 +101,7 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
 
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 animate-fade-in">
-      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 md:p-8">
+      <div className="bg-white rounded-4xl border border-gray-100 shadow-sm p-6 md:p-8">
         <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">Meu Perfil</h2>
         <p className="text-sm text-gray-500 mb-6">
           Preencha os dados abaixo. Eles serão usados na hora do pagamento PIX — você não precisará digitar nada de novo.
@@ -110,7 +110,7 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Foto da galeria */}
           <div className="flex flex-col sm:flex-row items-start gap-4">
-            <div className="flex-shrink-0 w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 border-2 border-gray-100 flex items-center justify-center">
+            <div className="shrink-0 w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 border-2 border-gray-100 flex items-center justify-center">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Sua foto" className="w-full h-full object-cover" />
               ) : (

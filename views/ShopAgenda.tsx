@@ -23,6 +23,11 @@ interface ShopAgendaProps {
   appointments: PartnerAgendaAppointment[];
   /** Se false (funcionário), não edita horário da loja — só o dono. */
   allowEditShopSchedule?: boolean;
+  /**
+   * Funcionário: ID do profissional logado. A grade trata só este profissional (sem «Livre — N profissionais» da equipe).
+   * Dono da loja: omitir.
+   */
+  staffAgendaProfessionalId?: string;
   onSaveSchedule: (payload: AgendaSchedulePayload) => Promise<void>;
   onReschedule: (appointmentId: string, date: string, timeHHMMSS: string) => Promise<void>;
   onCancel: (appointmentId: string) => Promise<void>;
@@ -87,6 +92,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
   shop,
   appointments,
   allowEditShopSchedule = true,
+  staffAgendaProfessionalId,
   onSaveSchedule,
   onReschedule,
   onCancel,
@@ -209,7 +215,10 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
     [blockingPaidForDay]
   );
 
-  const teamProIds = useMemo(() => shop.professionals.map((p) => p.id), [shop.professionals]);
+  const teamProIds = useMemo(() => {
+    if (staffAgendaProfessionalId) return [staffAgendaProfessionalId];
+    return shop.professionals.map((p) => p.id);
+  }, [shop.professionals, staffAgendaProfessionalId]);
 
   /** Totalmente ocupado só quando todos os profissionais da equipe têm agendamento PAID sobreposto ao slot */
   const slotLabel = (slot: string) => {
@@ -472,11 +481,22 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
         <div>
           <h3 className="text-lg font-bold text-gray-900">{dayLabels.grade}</h3>
           <p className="text-sm text-gray-500">
-            Cada faixa só fica <strong>totalmente ocupada</strong> quando <strong>todos</strong> os profissionais da
-            equipe já têm agendamento <strong>pago</strong> naquele horário; se ainda houver alguém livre, a faixa aparece
-            como disponível. Após o <strong>horário de fecho</strong> do expediente, a grade mostra o{' '}
-            <strong>dia seguinte</strong> e os respectivos agendamentos. Atendimentos <strong>concluídos</strong> mostram
-            um check na faixa do horário.
+            {staffAgendaProfessionalId ? (
+              <>
+                A grade mostra <strong>só os seus</strong> horários com pagamento confirmado ou já concluídos. Faixa com
+                o seu cliente aparece como <strong>ocupada</strong>; horário sem atendimento seu aparece como livre.
+                Após o <strong>fecho do expediente</strong>, a data segue para o dia seguinte. Atendimentos{' '}
+                <strong>concluídos</strong> mostram um check na faixa.
+              </>
+            ) : (
+              <>
+                Cada faixa só fica <strong>totalmente ocupada</strong> quando <strong>todos</strong> os profissionais da
+                equipe já têm agendamento <strong>pago</strong> naquele horário; se ainda houver alguém livre, a faixa
+                aparece como disponível. Após o <strong>horário de fecho</strong> do expediente, a grade mostra o{' '}
+                <strong>dia seguinte</strong> e os respectivos agendamentos. Atendimentos <strong>concluídos</strong>{' '}
+                mostram um check na faixa do horário.
+              </>
+            )}
           </p>
         </div>
         {slots.length === 0 ? (
@@ -530,7 +550,7 @@ const ShopAgenda: React.FC<ShopAgendaProps> = ({
                       ) : null}
                     </div>
                   ) : null}
-                  {!fullyBooked && freeProsHint > 0 && (
+                  {!staffAgendaProfessionalId && !fullyBooked && freeProsHint > 0 && (
                     <p className="text-[9px] text-emerald-600/90 mt-auto pt-1 font-medium dark:text-emerald-300/95">
                       Livre — {freeProsHint}{' '}
                       {freeProsHint === 1 ? 'profissional' : 'profissionais'}

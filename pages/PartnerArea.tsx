@@ -523,6 +523,7 @@ export default function PartnerArea() {
           shop={myShop}
           appointments={agendaAppointments}
           allowEditShopSchedule={isShopOwner}
+          staffAgendaProfessionalId={isShopOwner ? undefined : staffProfessionalId}
           onSaveSchedule={async (p) => {
             try {
               await saveAgendaSettings(p);

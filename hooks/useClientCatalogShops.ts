@@ -18,8 +18,6 @@ import {
 
 /** Debounce após postgres_changes (lojas / catálogo); estoque em ShopDetails também tem canal dedicado. */
 const REALTIME_DEBOUNCE_MS = 320;
-/** Primeiro paint mais rápido quando cache está vazio (login/refresh frio). */
-const CLIENT_CATALOG_FIRST_PAINT_PAGE_SIZE = 24;
 
 type UseClientCatalogShopsOptions = {
   client: SupabaseClient;
@@ -61,18 +59,13 @@ export function useClientCatalogShops({ client, enabled }: UseClientCatalogShops
     }
 
     let from = 0;
-    let pageSize = cached?.entries?.length
-      ? CLIENT_CATALOG_PAGE_SIZE
-      : CLIENT_CATALOG_FIRST_PAINT_PAGE_SIZE;
     let accumulated = mergeCatalogEntries([], cached?.entries ?? []);
     for (;;) {
-      const page = await fetchClientCatalogPage(client, from, from + pageSize - 1);
+      const page = await fetchClientCatalogPage(client, from, from + CLIENT_CATALOG_PAGE_SIZE - 1);
       accumulated = mergeCatalogEntries(accumulated, page);
       applyMergedEntries(accumulated);
-      if (!page.length || page.length < pageSize) break;
-      from += pageSize;
-      /** Depois do primeiro lote, usa o tamanho normal para reduzir número de requests. */
-      pageSize = CLIENT_CATALOG_PAGE_SIZE;
+      if (!page.length || page.length < CLIENT_CATALOG_PAGE_SIZE) break;
+      from += CLIENT_CATALOG_PAGE_SIZE;
     }
   }, [applyMergedEntries, client]);
 

@@ -171,6 +171,89 @@ async function validateOrderStockOrError(
   return null;
 }
 
+/** HH:MM / HH:MM:SS → minutos desde meia-noite (Edge não importa lib/) */
+function timeToMinutesForEdge(t: string): number {
+  const s = String(t ?? "").trim();
+  const m = /^(\d{1,2}):(\d{2})/.exec(s.slice(0, 8));
+  if (!m) return -1;
+  const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+  const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+  if (Number.isNaN(h) || Number.isNaN(min)) return -1;
+  return h * 60 + min;
+}
+
+function intervalsOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
+  return startA < endB && startB < endA;
+}
+
+/** Evita criar cobrança Asaas quando o slot já está ocupado (o trigger na BD ainda fecha corrida rara). */
+async function assertBookingSlotFreeForCreatePayment(
+  admin: ReturnType<typeof createClient>,
+  b: { shopId: string; professionalId: string; date: string; time: string; serviceId: string },
+): Promise<Response | null> {
+  const { data: svc, error: svcErr } = await admin
+    .from("services")
+    .select("id, duration")
+    .eq("id", b.serviceId)
+    .eq("shop_id", b.shopId)
+    .maybeSingle();
+  if (svcErr || !svc?.id) {
+    return new Response(JSON.stringify({ success: false, error: "Serviço não encontrado nesta loja." }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const newDur = Math.max(15, Math.floor(Number(svc.duration) || 30));
+  const startNew = timeToMinutesForEdge(b.time);
+  if (startNew < 0) {
+    return new Response(JSON.stringify({ success: false, error: "Horário do agendamento inválido." }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const endNew = startNew + newDur;
+
+  const { data: rows, error: aptQErr } = await admin
+    .from("appointments")
+    .select("time, services(duration)")
+    .eq("shop_id", b.shopId)
+    .eq("professional_id", b.professionalId)
+    .eq("date", b.date)
+    .in("status", ["PENDING", "PAID"]);
+  if (aptQErr) {
+    return new Response(JSON.stringify({ success: false, error: "Falha ao verificar disponibilidade do horário." }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  type RowT = { time: string; services: { duration: number | null } | { duration: number | null }[] | null };
+  for (const raw of (rows || []) as RowT[]) {
+    const durOther = Math.max(
+      15,
+      Math.floor(
+        Number(
+          Array.isArray(raw.services)
+            ? raw.services[0]?.duration
+            : raw.services?.duration,
+        ) || 30,
+      ),
+    );
+    const startO = timeToMinutesForEdge(String(raw.time));
+    if (startO < 0) continue;
+    const endO = startO + durOther;
+    if (intervalsOverlap(startNew, endNew, startO, endO)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Este horário já está ocupado para este profissional. Escolha outro horário.",
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -484,6 +567,24 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (
+      recordType === "booking" &&
+      bodyBooking?.shopId &&
+      bodyBooking?.professionalId &&
+      bodyBooking?.date &&
+      bodyBooking?.time != null &&
+      bodyBooking?.serviceId
+    ) {
+      const slotResp = await assertBookingSlotFreeForCreatePayment(supabaseAdmin, {
+        shopId: String(bodyBooking.shopId),
+        professionalId: String(bodyBooking.professionalId),
+        date: String(bodyBooking.date),
+        time: String(bodyBooking.time),
+        serviceId: String(bodyBooking.serviceId),
+      });
+      if (slotResp) return slotResp;
+    }
+
     if (recordType === "order" && bodyOrder?.shopId && Array.isArray(bodyOrder.items)) {
       const stockResp = await validateOrderStockOrError(
         supabaseAdmin,
@@ -659,13 +760,31 @@ Deno.serve(async (req: Request) => {
             .select("id")
             .single();
           if (aptErr || !apt?.id) {
+            const msg = String(aptErr?.message ?? "");
+            const conflict =
+              msg.includes("ocupado") ||
+              msg.includes("já está") ||
+              msg.toLowerCase().includes("already");
+            if (conflict && asaasPaymentId) {
+              try {
+                const base = asaasBaseUrl.replace(/\/$/, "");
+                await fetch(`${base}/payments/${encodeURIComponent(asaasPaymentId)}`, {
+                  method: "DELETE",
+                  headers: { access_token: asaasApiKey },
+                });
+              } catch (_) {
+                /* best-effort cancel */
+              }
+            }
             return new Response(
               JSON.stringify({
                 success: false,
-                error: "Cobrança criada, mas falhou ao registrar o agendamento pendente.",
-                paymentId: asaasPaymentId,
+                error: conflict
+                  ? "Este horário já foi reservado por outra pessoa. Escolha outro horário."
+                  : "Cobrança criada, mas falhou ao registrar o agendamento pendente.",
+                ...(!conflict && asaasPaymentId ? { paymentId: asaasPaymentId } : {}),
               }),
-              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              { status: conflict ? 409 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
           recordId = apt.id;

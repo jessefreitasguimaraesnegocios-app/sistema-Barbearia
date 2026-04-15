@@ -1,5 +1,6 @@
 // Vercel Serverless: GET /api/partner/wallet (saldo + opcional histórico) | POST /api/partner/wallet (saque)
-// Usa a chave da subconta (asaas_api_key) para GET /v3/finance/balance, GET /v3/financialTransactions e POST /v3/transfers.
+// Usa a chave da subconta (asaas_api_key) para balance / financialTransactions / transfers.
+// URL base da API Asaas alinha a `platform_runtime_settings.asaas_mode` (igual a `api/payments/create.ts`).
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -37,7 +38,29 @@ async function insertFinancialAudit(
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
+
+type RuntimeMode = 'production' | 'sandbox';
+
+/** Mesma regra que `api/payments/create.ts`: modo vem do admin (`platform_runtime_settings`). */
+async function resolvePartnerWalletAsaasApiBaseUrl(supabase: SupabaseClient): Promise<string> {
+  let mode: RuntimeMode = 'production';
+  try {
+    const { data } = await supabase
+      .from('platform_runtime_settings')
+      .select('asaas_mode')
+      .eq('singleton_id', true)
+      .maybeSingle();
+    if (data?.asaas_mode === 'sandbox') mode = 'sandbox';
+  } catch (e) {
+    console.warn('[api/partner/wallet] platform_runtime_settings read failed, using production Asaas URL', e);
+  }
+
+  const defaultApiUrl = 'https://api.asaas.com/v3';
+  if (mode === 'sandbox') {
+    return (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, '');
+  }
+  return (process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, '');
+}
 
 type WalletPartnerOk =
   | { mode: 'shop'; shopId: string; userId: string }
@@ -159,6 +182,9 @@ export default async function handler(
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  const asaasApiBaseRaw = await resolvePartnerWalletAsaasApiBaseUrl(supabase);
+  const baseUrl = asaasApiBaseRaw.startsWith('http') ? asaasApiBaseRaw : `https://${asaasApiBaseRaw}`;
+
   let subAccountKey: string | null = null;
   let expectedSubAccountId: string | null = null;
 
@@ -205,7 +231,6 @@ export default async function handler(
     }
   }
 
-  const baseUrl = ASAAS_API_URL.startsWith('http') ? ASAAS_API_URL : `https://${ASAAS_API_URL}`;
   const apiHeaders: Record<string, string> = { access_token: subAccountKey };
 
   // Garantir que a chave usada é da SUBCONTA esperada, não da conta principal Asaas

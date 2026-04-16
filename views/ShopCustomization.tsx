@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import type { Shop, Product, Service, Professional, ShopType } from '../types';
 import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
 import {
+  brazilWhatsappMeUrl,
   formatBrazilCpfCnpj,
   formatBrazilPhone,
   normalizeLoginEmailInput,
@@ -212,6 +213,8 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
   const [staffLoginEmail, setStaffLoginEmail] = useState<Record<string, string>>({});
   const [staffLoginPassword, setStaffLoginPassword] = useState<Record<string, string>>({});
   const [staffCreatingId, setStaffCreatingId] = useState<string | null>(null);
+  /** Com login ativo, formulário de redefinição fica oculto até o dono expandir. */
+  const [staffRedefineOpen, setStaffRedefineOpen] = useState<Record<string, boolean>>({});
 
   const submitStaffAccess = async (proId: string, mode: 'create' | 'reset') => {
     const rawEmail = staffLoginEmail[proId];
@@ -271,6 +274,9 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
         delete next[proId];
         return next;
       });
+      if (mode === 'reset') {
+        setStaffRedefineOpen((prev) => ({ ...prev, [proId]: false }));
+      }
       onStaffAccessCreated?.();
     } catch {
       alert(mode === 'create' ? 'Erro de rede ao criar acesso.' : 'Erro de rede ao atualizar acesso.');
@@ -845,18 +851,40 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                     />
                    </div>
                    <div>
-                     <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">Telefone</label>
-                     <input
-                       type="tel"
-                       inputMode="numeric"
-                       autoComplete="tel"
-                       placeholder="(00) 00000-0000"
-                       value={formatBrazilPhone(pro.phone || '')}
-                       onChange={(e) =>
-                         updateProfessional(pro.id, { phone: formatBrazilPhone(e.target.value) })
-                       }
-                       className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
-                     />
+                     <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">
+                       WhatsApp
+                     </label>
+                     <div className="flex gap-2 items-stretch">
+                       <input
+                         type="tel"
+                         inputMode="numeric"
+                         autoComplete="tel"
+                         placeholder="(00) 00000-0000"
+                         value={formatBrazilPhone(pro.phone || '')}
+                         onChange={(e) =>
+                           updateProfessional(pro.id, { phone: formatBrazilPhone(e.target.value) })
+                         }
+                         className="min-w-0 flex-1 bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
+                       />
+                       <button
+                         type="button"
+                         title="Abrir WhatsApp"
+                         aria-label="Abrir conversa no WhatsApp"
+                         onClick={() => {
+                           const url = brazilWhatsappMeUrl(pro.phone || '');
+                           if (!url) {
+                             alert(
+                               'Informe o número com DDD (10 ou 11 dígitos) para abrir o WhatsApp.'
+                             );
+                             return;
+                           }
+                           window.open(url, '_blank', 'noopener,noreferrer');
+                         }}
+                         className="shrink-0 flex min-w-[4.5rem] items-center justify-center rounded-lg bg-[#25D366] px-5 py-2.5 text-white shadow-sm hover:brightness-95 active:brightness-90 border border-[#1ebe5b] sm:min-w-[5rem] sm:px-6"
+                       >
+                         <i className="fab fa-whatsapp text-2xl leading-none sm:text-[1.75rem]" aria-hidden />
+                       </button>
+                     </div>
                    </div>
                    <div>
                     <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">CPF/CNPJ</label>
@@ -880,51 +908,75 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Acesso Sou parceiro</p>
                        {pro.authUserId ? (
                          <>
-                           <p className="text-xs text-emerald-600 font-semibold">
-                             Login da equipe ativo — redefina senha ou e-mail abaixo sem recriar usuário ou carteira.
-                           </p>
-                           <p className="text-[10px] text-gray-500">
-                             Deixe o e-mail em branco (ou igual ao atual) para manter o login; informe a nova senha.
-                           </p>
-                           <input
-                             type="email"
-                             inputMode="email"
-                             autoComplete="username"
-                             spellCheck={false}
-                             autoCapitalize="none"
-                             autoCorrect="off"
-                             placeholder="nome@exemplo.com (opcional)"
-                             value={normalizeLoginEmailInput(
-                               staffLoginEmail[pro.id] !== undefined
-                                 ? staffLoginEmail[pro.id]
-                                 : (pro.email ?? '')
-                             )}
-                             onChange={(e) =>
-                               setStaffLoginEmail((prev) => ({
-                                 ...prev,
-                                 [pro.id]: normalizeLoginEmailInput(e.target.value),
-                               }))
-                             }
-                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
-                           />
-                           <input
-                             type="password"
-                             autoComplete="new-password"
-                             placeholder="Nova senha (mín. 6 caracteres)"
-                             value={staffLoginPassword[pro.id] ?? ''}
-                             onChange={(e) =>
-                               setStaffLoginPassword((prev) => ({ ...prev, [pro.id]: e.target.value }))
-                             }
-                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100"
-                           />
                            <button
                              type="button"
-                             disabled={staffCreatingId === pro.id}
-                             onClick={() => submitStaffAccess(pro.id, 'reset')}
-                             className="w-full py-2 rounded-xl text-xs font-bold bg-(--shop-primary) text-white hover:brightness-95 disabled:opacity-60"
+                             onClick={() =>
+                               setStaffRedefineOpen((prev) => ({
+                                 ...prev,
+                                 [pro.id]: !prev[pro.id],
+                               }))
+                             }
+                             className="w-full flex items-center justify-between gap-2 py-2.5 px-3 rounded-xl border border-emerald-900 bg-emerald-800 text-left text-xs font-bold text-white shadow-sm hover:bg-emerald-900 hover:border-emerald-950 transition-colors"
                            >
-                             {staffCreatingId === pro.id ? 'Atualizando…' : 'Atualizar acesso'}
+                             <span>Login da equipe ativo</span>
+                             <i
+                               className={`fas fa-chevron-${staffRedefineOpen[pro.id] ? 'up' : 'down'} text-[10px] text-emerald-100`}
+                               aria-hidden
+                             />
                            </button>
+                           {staffRedefineOpen[pro.id] ? (
+                             <>
+                               <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">
+                                 Redefina login/senha
+                               </p>
+                               <p className="text-[10px] text-gray-500">
+                                 Sem recriar usuário ou carteira. E-mail em branco mantém o atual; informe a nova
+                                 senha.
+                               </p>
+                               <input
+                                 type="email"
+                                 inputMode="email"
+                                 autoComplete="username"
+                                 spellCheck={false}
+                                 autoCapitalize="none"
+                                 autoCorrect="off"
+                                 placeholder="nome@exemplo.com (opcional)"
+                                 value={normalizeLoginEmailInput(
+                                   staffLoginEmail[pro.id] !== undefined
+                                     ? staffLoginEmail[pro.id]
+                                     : (pro.email ?? '')
+                                 )}
+                                 onChange={(e) =>
+                                   setStaffLoginEmail((prev) => ({
+                                     ...prev,
+                                     [pro.id]: normalizeLoginEmailInput(e.target.value),
+                                   }))
+                                 }
+                                 className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
+                               />
+                               <input
+                                 type="password"
+                                 autoComplete="new-password"
+                                 placeholder="Nova senha (mín. 6 caracteres)"
+                                 value={staffLoginPassword[pro.id] ?? ''}
+                                 onChange={(e) =>
+                                   setStaffLoginPassword((prev) => ({
+                                     ...prev,
+                                     [pro.id]: e.target.value,
+                                   }))
+                                 }
+                                 className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
+                               />
+                               <button
+                                 type="button"
+                                 disabled={staffCreatingId === pro.id}
+                                 onClick={() => submitStaffAccess(pro.id, 'reset')}
+                                 className="w-full py-2 rounded-xl text-xs font-bold bg-(--shop-primary) text-white hover:brightness-95 disabled:opacity-60"
+                               >
+                                 {staffCreatingId === pro.id ? 'Atualizando…' : 'Atualizar acesso'}
+                               </button>
+                             </>
+                           ) : null}
                          </>
                        ) : (
                          <>

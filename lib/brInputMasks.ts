@@ -10,6 +10,18 @@ export function formatBrazilPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+/** Link `wa.me` com DDI 55 se faltar; mínimo 10 dígitos (DDD + número). */
+export function brazilWhatsappMeUrl(phoneMaskedOrRaw: string, message?: string): string | null {
+  const d = phoneMaskedOrRaw.replace(/\D/g, '');
+  if (d.length < 10) return null;
+  const n = d.startsWith('55') ? d : `55${d}`;
+  const base = `https://wa.me/${n}`;
+  if (message != null && message.trim() !== '') {
+    return `${base}?text=${encodeURIComponent(message)}`;
+  }
+  return base;
+}
+
 /** CPF (11) ou CNPJ (14) — apenas dígitos com pontuação visual. */
 export function formatBrazilCpfCnpj(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 14);

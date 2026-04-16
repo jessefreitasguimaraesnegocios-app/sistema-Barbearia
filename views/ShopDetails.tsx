@@ -1082,10 +1082,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
                       {/* Dados para cobrança: escondido se perfil completo */}
                       {isProfileComplete ? (
-                        <div className="bg-green-50 p-6 rounded-3xl border border-green-100 shadow-sm">
-                          <h4 className="text-xs font-bold text-green-700 uppercase tracking-widest mb-2">Pagamento com os dados do seu perfil</h4>
-                          <p className="text-sm text-gray-700">Usaremos <strong>{user.name}</strong> e seu CPF/telefone cadastrados. Nada a preencher.</p>
-                          <p className="text-[10px] text-gray-500 mt-2">Para alterar, vá em <strong>Meu Perfil</strong> no menu.</p>
+                        <div className="bg-white p-6 rounded-3xl border border-emerald-200 shadow-sm">
+                          <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-widest mb-2">Pagamento com os dados do seu perfil</h4>
+                          <p className="text-sm text-gray-900">Usaremos <strong>{user.name}</strong> e seu CPF/telefone cadastrados. Nada a preencher.</p>
+                          <p className="text-[10px] text-gray-700 mt-2">Para alterar, vá em <strong>Meu Perfil</strong> no menu.</p>
                         </div>
                       ) : (
                       <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">

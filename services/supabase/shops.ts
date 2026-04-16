@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Professional, Product, Service, Shop } from '../../types';
 import {
+  flattenShopFinanceProvisionInShopRow,
   mapPartnerProductsFromRows,
   mapPartnerProfessionalsFromRows,
   mapPartnerServicesFromRows,
@@ -11,7 +12,7 @@ import { mapClientCatalogRow } from './mapClientCatalogShop';
 import { mapAdminShopRow } from './mapAdminShopRow';
 
 export const SHOPS_SELECT_PARTNER_SINGLE =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error, updated_at';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, updated_at, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 export const PROFESSIONALS_SELECT_PARTNER =
   'id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, split_percent_sandbox, user_id';
@@ -23,13 +24,30 @@ export const SERVICES_SELECT_PARTNER_BUNDLE =
 export const PRODUCTS_SELECT_PARTNER_BUNDLE =
   'id, shop_id, name, description, price, promo_price, category, image, stock';
 
-/** Catálogo cliente (home/lista): payload leve, sem relações pesadas. */
-export const SHOPS_SELECT_CLIENT_CATALOG_LIST =
-  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, professionals(id, name, specialty, avatar)';
+/**
+ * Catálogo cliente (home/lista): só colunas de `shops` — profissionais vêm num segundo
+ * `.in('shop_id', ids)` em `fetchClientCatalog*` (menos egress que embed PostgREST por loja).
+ */
+export const SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS =
+  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes';
 
-/** Catálogo cliente (detalhe): serviços + produtos carregados sob demanda. */
-export const SHOPS_SELECT_CLIENT_CATALOG_DETAIL =
-  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, services(id, name, description, price, duration), professionals(id, name, specialty, avatar), products(id, name, description, price, promo_price, category, image, stock)';
+export const PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST =
+  'id, shop_id, name, specialty, avatar';
+
+export const SERVICES_SELECT_CLIENT_CATALOG_DETAIL =
+  'id, name, description, price, duration';
+
+export const PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL =
+  'id, name, description, price, promo_price, category, image, stock';
+
+/** @deprecated Usar `SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS` + batch em `professionals`. Mantido alias para leitores legados. */
+export const SHOPS_SELECT_CLIENT_CATALOG_LIST = SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS;
+
+/**
+ * Catálogo cliente (detalhe): só colunas de `shops` — `fetchClientCatalogShopDetailById` faz
+ * `services` / `professionals` / `products` em paralelo (evita um único JSON PostgREST enorme).
+ */
+export const SHOPS_SELECT_CLIENT_CATALOG_DETAIL = SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS;
 
 /** Compat legado: catálogo da home/lista. */
 export const SHOPS_SELECT_CLIENT_CATALOG = SHOPS_SELECT_CLIENT_CATALOG_LIST;
@@ -51,8 +69,62 @@ function mapClientCatalogEntry(row: Record<string, unknown>): ClientCatalogEntry
   };
 }
 
+const CLIENT_CATALOG_PRO_SHOP_CHUNK = 80;
+
+/** Agrupa linhas de `professionals` por `shop_id` e ordena por nome dentro de cada loja. */
+function groupProfessionalsByShopId(
+  rows: Record<string, unknown>[]
+): Map<string, Record<string, unknown>[]> {
+  const map = new Map<string, Record<string, unknown>[]>();
+  for (const r of rows) {
+    const sid = r.shop_id != null ? String(r.shop_id) : '';
+    if (!sid) continue;
+    const list = map.get(sid) ?? [];
+    list.push(r);
+    map.set(sid, list);
+  }
+  for (const list of map.values()) {
+    list.sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR'));
+  }
+  return map;
+}
+
+async function fetchClientCatalogProfessionalsForShopIds(
+  client: SupabaseClient,
+  shopIds: string[]
+): Promise<Map<string, Record<string, unknown>[]>> {
+  const unique = [...new Set(shopIds.map((id) => id.trim()).filter(Boolean))];
+  if (!unique.length) return new Map();
+  const merged: Record<string, unknown>[] = [];
+  for (let i = 0; i < unique.length; i += CLIENT_CATALOG_PRO_SHOP_CHUNK) {
+    const chunk = unique.slice(i, i + CLIENT_CATALOG_PRO_SHOP_CHUNK);
+    const { data, error } = await client
+      .from('professionals')
+      .select(PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST)
+      .in('shop_id', chunk);
+    if (error) throw error;
+    if (data?.length) merged.push(...(data as Record<string, unknown>[]));
+  }
+  return groupProfessionalsByShopId(merged);
+}
+
+function sortClientCatalogChildrenByName(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return [...rows].sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR'));
+}
+
+function buildClientCatalogEntries(
+  shopRows: Record<string, unknown>[],
+  professionalsByShopId: Map<string, Record<string, unknown>[]>
+): ClientCatalogEntry[] {
+  return shopRows.map((row) => {
+    const id = String(row.id);
+    const pros = professionalsByShopId.get(id) ?? [];
+    return mapClientCatalogEntry({ ...row, professionals: pros });
+  });
+}
+
 export const SHOPS_SELECT_ADMIN =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 /** Lista admin paginada por nome. */
 export const ADMIN_SHOPS_PAGE_SIZE = 30;
@@ -106,14 +178,16 @@ export async function fetchPartnerShopBundle(
   client: SupabaseClient,
   shopId: string
 ): Promise<FetchPartnerShopBundleResult> {
-  const { data: shopRow, error: shopErr } = await client
+  const { data: shopRowRaw, error: shopErr } = await client
     .from('shops')
     .select(SHOPS_SELECT_PARTNER_SINGLE)
     .eq('id', shopId)
     .single();
-  if (shopErr || !shopRow) {
+  if (shopErr || !shopRowRaw) {
     return { ok: false, error: shopErr?.message ?? 'not_found' };
   }
+
+  const shopRow = flattenShopFinanceProvisionInShopRow(shopRowRaw as Record<string, unknown>);
 
   const [servicesRes, professionalsRes, productsRes] = await Promise.all([
     client.from('services').select(SERVICES_SELECT_PARTNER_BUNDLE).eq('shop_id', shopId),
@@ -122,7 +196,7 @@ export async function fetchPartnerShopBundle(
   ]);
 
   const shop = mapPartnerShopFromBundle({
-    ...(shopRow as Record<string, unknown>),
+    ...shopRow,
     services: servicesRes.data || [],
     professionals: professionalsRes.data || [],
     products: productsRes.data || [],
@@ -156,24 +230,30 @@ export async function fetchClientCatalogPage(
 ): Promise<ClientCatalogEntry[]> {
   const { data, error } = await client
     .from('shops')
-    .select(SHOPS_SELECT_CLIENT_CATALOG_LIST)
+    .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
     .order('name', { ascending: true })
     .range(from, to);
   if (error) throw error;
   if (!data?.length) return [];
-  return data.map((row) => mapClientCatalogEntry(row as Record<string, unknown>));
+  const shopRows = data as Record<string, unknown>[];
+  const ids = shopRows.map((r) => String(r.id));
+  const prosByShop = await fetchClientCatalogProfessionalsForShopIds(client, ids);
+  return buildClientCatalogEntries(shopRows, prosByShop);
 }
 
 /** Lojas alteradas desde o último sync (usa `shops.updated_at`, atualizado também por mudanças no catálogo filho). */
 export async function fetchClientCatalogUpdatedSince(client: SupabaseClient, sinceIso: string): Promise<ClientCatalogEntry[]> {
   const { data, error } = await client
     .from('shops')
-    .select(SHOPS_SELECT_CLIENT_CATALOG_LIST)
+    .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
     .gt('updated_at', sinceIso)
     .order('updated_at', { ascending: true });
   if (error) throw error;
   if (!data?.length) return [];
-  return data.map((row) => mapClientCatalogEntry(row as Record<string, unknown>));
+  const shopRows = data as Record<string, unknown>[];
+  const ids = shopRows.map((r) => String(r.id));
+  const prosByShop = await fetchClientCatalogProfessionalsForShopIds(client, ids);
+  return buildClientCatalogEntries(shopRows, prosByShop);
 }
 
 const CLIENT_CATALOG_BY_ID_CHUNK = 40;
@@ -190,11 +270,16 @@ export async function fetchClientCatalogByShopIds(
     const chunk = unique.slice(i, i + CLIENT_CATALOG_BY_ID_CHUNK);
     const { data, error } = await client
       .from('shops')
-      .select(SHOPS_SELECT_CLIENT_CATALOG_LIST)
+      .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
       .in('id', chunk);
     if (error) throw error;
     if (data?.length) {
-      out.push(...data.map((row) => mapClientCatalogEntry(row as Record<string, unknown>)));
+      const shopRows = data as Record<string, unknown>[];
+      const prosByShop = await fetchClientCatalogProfessionalsForShopIds(
+        client,
+        shopRows.map((r) => String(r.id))
+      );
+      out.push(...buildClientCatalogEntries(shopRows, prosByShop));
     }
   }
   return out;
@@ -205,13 +290,28 @@ export async function fetchClientCatalogShopDetailById(
   client: SupabaseClient,
   shopId: string
 ): Promise<Shop | null> {
-  const { data, error } = await client
-    .from('shops')
-    .select(SHOPS_SELECT_CLIENT_CATALOG_DETAIL)
-    .eq('id', shopId)
-    .maybeSingle();
-  if (error || !data) return null;
-  return mapClientCatalogRow(data as Record<string, unknown>);
+  const sid = shopId.trim();
+  if (!sid) return null;
+
+  const [shopRes, servicesRes, professionalsRes, productsRes] = await Promise.all([
+    client.from('shops').select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS).eq('id', sid).maybeSingle(),
+    client.from('services').select(SERVICES_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
+    client.from('professionals').select(PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST).eq('shop_id', sid),
+    client.from('products').select(PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
+  ]);
+
+  if (shopRes.error || !shopRes.data) return null;
+  if (servicesRes.error) throw servicesRes.error;
+  if (professionalsRes.error) throw professionalsRes.error;
+  if (productsRes.error) throw productsRes.error;
+
+  const merged = {
+    ...(shopRes.data as Record<string, unknown>),
+    services: sortClientCatalogChildrenByName((servicesRes.data ?? []) as Record<string, unknown>[]),
+    professionals: sortClientCatalogChildrenByName((professionalsRes.data ?? []) as Record<string, unknown>[]),
+    products: sortClientCatalogChildrenByName((productsRes.data ?? []) as Record<string, unknown>[]),
+  };
+  return mapClientCatalogRow(merged);
 }
 
 /** @deprecated Prefer `fetchShopsForAdminPage` + `fetchAdminShopsAggregateStats` (menos egress). */
@@ -238,7 +338,7 @@ export async function fetchPartnerShopRowOnly(
     .eq('id', shopId)
     .single();
   if (error || !data) return null;
-  return data as Record<string, unknown>;
+  return flattenShopFinanceProvisionInShopRow(data as Record<string, unknown>);
 }
 
 export async function fetchPartnerServicesForShop(client: SupabaseClient, shopId: string): Promise<Service[]> {

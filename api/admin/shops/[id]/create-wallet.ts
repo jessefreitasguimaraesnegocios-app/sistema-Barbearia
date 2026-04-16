@@ -180,9 +180,6 @@ export default async function handler(
       asaas_wallet_id: walletId,
       [walletColumn]: walletId,
       asaas_account_id: asaasAccountId,
-      finance_provision_status: 'active',
-      finance_provision_last_error: null,
-      finance_provision_updated_at: new Date().toISOString(),
     };
     if (asaasApiKeySub) updates.asaas_api_key = asaasApiKeySub;
 
@@ -195,6 +192,23 @@ export default async function handler(
 
     if (updateError) {
       return res.status(500).json({ success: false, error: 'Carteira criada no Asaas, mas falha ao atualizar loja: ' + updateError.message });
+    }
+
+    const ts = new Date().toISOString();
+    const { error: fpErr } = await supabase.from('shop_finance_provision').upsert(
+      {
+        shop_id: shopId,
+        finance_provision_status: 'active',
+        finance_provision_last_error: null,
+        finance_provision_updated_at: ts,
+      },
+      { onConflict: 'shop_id' }
+    );
+    if (fpErr) {
+      return res.status(500).json({
+        success: false,
+        error: 'Carteira vinculada em shops, mas falha ao gravar shop_finance_provision: ' + fpErr.message,
+      });
     }
 
     return res.status(200).json({

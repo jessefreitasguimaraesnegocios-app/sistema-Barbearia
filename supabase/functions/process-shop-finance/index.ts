@@ -77,20 +77,25 @@ Deno.serve(async (req: Request) => {
   async function ensureActiveIfHasWallet(sid: string): Promise<boolean> {
     const { data: row } = await supabase
       .from("shops")
-      .select("id, asaas_wallet_id, finance_provision_status")
+      .select("id, asaas_wallet_id")
       .eq("id", sid)
+      .maybeSingle();
+    const { data: fp } = await supabase
+      .from("shop_finance_provision")
+      .select("finance_provision_status")
+      .eq("shop_id", sid)
       .maybeSingle();
     if (!row) return false;
     const w = row.asaas_wallet_id != null ? String(row.asaas_wallet_id).trim() : "";
-    if (w && row.finance_provision_status !== "active") {
+    if (w && fp?.finance_provision_status !== "active") {
       await supabase
-        .from("shops")
+        .from("shop_finance_provision")
         .update({
           finance_provision_status: "active",
           finance_provision_last_error: null,
           finance_provision_updated_at: new Date().toISOString(),
         })
-        .eq("id", sid);
+        .eq("shop_id", sid);
       return true;
     }
     return !!w;
@@ -99,13 +104,16 @@ Deno.serve(async (req: Request) => {
   async function listCandidateIds(): Promise<string[]> {
     if (shopIdFilter) return [shopIdFilter];
     const { data: rows } = await supabase
-      .from("shops")
-      .select("id, asaas_wallet_id")
+      .from("shop_finance_provision")
+      .select("shop_id, finance_provision_status, shops!inner(id, asaas_wallet_id)")
       .in("finance_provision_status", ["pending", "failed"])
       .limit(limit * 3);
     const ids = (rows || [])
-      .filter((r: { asaas_wallet_id?: string | null }) => !r.asaas_wallet_id || String(r.asaas_wallet_id).trim() === "")
-      .map((r: { id: string }) => r.id)
+      .filter((r: { shops?: { asaas_wallet_id?: string | null } | null }) => {
+        const w = r.shops?.asaas_wallet_id != null ? String(r.shops.asaas_wallet_id).trim() : "";
+        return !w;
+      })
+      .map((r: { shop_id: string }) => r.shop_id)
       .filter(Boolean)
       .slice(0, limit);
     return ids;
@@ -129,23 +137,21 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    const { data: claimed, error: claimErr } = await supabase
-      .from("shops")
+    const { data: claimedFp, error: claimErr } = await supabase
+      .from("shop_finance_provision")
       .update({
         finance_provision_status: "processing",
         finance_provision_updated_at: new Date().toISOString(),
       })
-      .eq("id", shopId)
+      .eq("shop_id", shopId)
       .in("finance_provision_status", ["pending", "failed"])
-      .select(
-        "id, name, email, phone, cnpj_cpf, address, finance_provision_payload, finance_provision_attempts, asaas_wallet_id, asaas_customer_id, asaas_account_id"
-      )
+      .select("shop_id, finance_provision_payload, finance_provision_attempts")
       .maybeSingle();
 
-    if (claimErr || !claimed) {
+    if (claimErr || !claimedFp) {
       const { data: cur } = await supabase
         .from("shops")
-        .select("finance_provision_status, asaas_wallet_id")
+        .select("asaas_wallet_id")
         .eq("id", shopId)
         .maybeSingle();
       if (cur?.asaas_wallet_id && String(cur.asaas_wallet_id).trim()) {
@@ -161,18 +167,38 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
+    const { data: shopScalar, error: shopScalarErr } = await supabase
+      .from("shops")
+      .select("id, name, email, phone, cnpj_cpf, address, asaas_wallet_id, asaas_customer_id, asaas_account_id")
+      .eq("id", shopId)
+      .single();
+
+    if (shopScalarErr || !shopScalar) {
+      await supabase
+        .from("shop_finance_provision")
+        .update({
+          finance_provision_status: "failed",
+          finance_provision_last_error: "Loja não encontrada após claim.",
+          finance_provision_updated_at: new Date().toISOString(),
+        })
+        .eq("shop_id", shopId);
+      results.push({ shopId, ok: false, error: shopScalarErr?.message || "Loja não encontrada." });
+      continue;
+    }
+
+    const claimed = { ...(shopScalar as Record<string, unknown>), ...claimedFp };
     const attempts = Number(claimed.finance_provision_attempts) || 0;
 
     const bumpFailed = async (msg: string) => {
       await supabase
-        .from("shops")
+        .from("shop_finance_provision")
         .update({
           finance_provision_status: "failed",
           finance_provision_last_error: msg.slice(0, 2000),
           finance_provision_attempts: attempts + 1,
           finance_provision_updated_at: new Date().toISOString(),
         })
-        .eq("id", shopId);
+        .eq("shop_id", shopId);
     };
 
     if (shopProvisionerUrl) {
@@ -216,7 +242,7 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         await supabase
-          .from("shops")
+          .from("shop_finance_provision")
           .update({
             finance_provision_status: "awaiting_callback",
             finance_provision_correlation_id: correlationId,
@@ -224,7 +250,7 @@ Deno.serve(async (req: Request) => {
             finance_provision_last_error: null,
             finance_provision_updated_at: new Date().toISOString(),
           })
-          .eq("id", shopId);
+          .eq("shop_id", shopId);
         results.push({ shopId, ok: true, status: "awaiting_callback" });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -387,22 +413,33 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      const updateRow: Record<string, unknown> = {
+      const shopUpdate: Record<string, unknown> = {
         asaas_customer_id: asaasCustomerId,
         asaas_wallet_id: asaasWalletId,
         [walletColumn]: asaasWalletId,
         asaas_account_id: asaasAccountId ?? null,
-        finance_provision_status: "active",
-        finance_provision_last_error: null,
-        finance_provision_attempts: attempts + 1,
-        finance_provision_updated_at: new Date().toISOString(),
       };
-      if (asaasApiKeySub) updateRow.asaas_api_key = asaasApiKeySub;
+      if (asaasApiKeySub) shopUpdate.asaas_api_key = asaasApiKeySub;
 
-      const { error: upErr } = await supabase.from("shops").update(updateRow).eq("id", shopId);
-      if (upErr) {
-        await bumpFailed(upErr.message);
-        results.push({ shopId, ok: false, error: upErr.message });
+      const { error: shopUpErr } = await supabase.from("shops").update(shopUpdate).eq("id", shopId);
+      if (shopUpErr) {
+        await bumpFailed(shopUpErr.message);
+        results.push({ shopId, ok: false, error: shopUpErr.message });
+        continue;
+      }
+
+      const { error: fpUpErr } = await supabase
+        .from("shop_finance_provision")
+        .update({
+          finance_provision_status: "active",
+          finance_provision_last_error: null,
+          finance_provision_attempts: attempts + 1,
+          finance_provision_updated_at: new Date().toISOString(),
+        })
+        .eq("shop_id", shopId);
+      if (fpUpErr) {
+        await bumpFailed(fpUpErr.message);
+        results.push({ shopId, ok: false, error: fpUpErr.message });
         continue;
       }
 

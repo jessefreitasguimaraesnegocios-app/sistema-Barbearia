@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.js';
+import { flattenShopFinanceProvisionInShopRow } from '../../../../services/supabase/mapPartnerShop';
 
 /** Inline: mesmo motivo que `api/partner/wallet.ts` (bundle Vercel + Node ESM). */
 async function insertFinancialAudit(
@@ -37,7 +38,7 @@ async function insertFinancialAudit(
 
 /** Mesmas colunas que `SHOPS_SELECT_ADMIN` (sem `asaas_api_key` — evita payload/serialização e vazamento). */
 const SHOP_ROW_SELECT_AFTER_PATCH =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, finance_provision_status, finance_provision_last_error';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 function normalizeJsonBody(raw: unknown): Record<string, unknown> {
   if (raw == null) return {};
@@ -115,6 +116,7 @@ function readSplitPercent(raw: unknown): number | null {
 }
 
 function mapShopResponse(shop: Record<string, unknown>) {
+  const row = flattenShopFinanceProvisionInShopRow(shop);
   return {
     id: shop.id as string,
     ownerId: shop.owner_id,
@@ -153,14 +155,14 @@ function mapShopResponse(shop: Record<string, unknown>) {
       shop.agenda_slot_minutes != null && Number(shop.agenda_slot_minutes) > 0
         ? Number(shop.agenda_slot_minutes)
         : 30,
-    financeProvisionStatus: shop.finance_provision_status as
+    financeProvisionStatus: row.finance_provision_status as
       | 'pending'
       | 'processing'
       | 'awaiting_callback'
       | 'active'
       | 'failed'
       | undefined,
-    financeProvisionLastError: shop.finance_provision_last_error != null ? String(shop.finance_provision_last_error) : undefined,
+    financeProvisionLastError: row.finance_provision_last_error != null ? String(row.finance_provision_last_error) : undefined,
     services: [],
     professionals: [],
     products: [],

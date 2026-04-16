@@ -9,8 +9,50 @@ export const PARTNER_APPOINTMENT_FUTURE_DAYS = 20;
 /** Pedidos recentes por `created_at` (paginação); entregues de hoje são fundidos à parte. */
 export const PARTNER_ORDERS_RECENT_PAGE_SIZE = 55;
 
+/** Lista de pedidos: sem `handed_over_items_snapshot` (JSON pesado); hidratação em lote só para `DELIVERED`. */
 export const PARTNER_ORDERS_SELECT =
-  'id, client_id, shop_id, items, total, status, created_at, handed_over_at, handed_over_by_user_id, handed_over_by_label, handed_over_items_snapshot';
+  'id, client_id, shop_id, items, total, status, created_at, handed_over_at, handed_over_by_user_id, handed_over_by_label';
+
+const PARTNER_ORDER_SNAPSHOT_CHUNK = 40;
+
+async function hydratePartnerOrderHandoverSnapshots(
+  client: SupabaseClient,
+  shopId: string,
+  rows: Record<string, unknown>[]
+): Promise<Record<string, unknown>[]> {
+  if (!rows.length) return rows;
+  const deliveredIds = [
+    ...new Set(
+      rows
+        .filter((r) => r.status === 'DELIVERED')
+        .map((r) => String(r.id))
+        .filter(Boolean)
+    ),
+  ];
+  if (!deliveredIds.length) return rows;
+
+  const snapById = new Map<string, unknown>();
+  for (let i = 0; i < deliveredIds.length; i += PARTNER_ORDER_SNAPSHOT_CHUNK) {
+    const chunk = deliveredIds.slice(i, i + PARTNER_ORDER_SNAPSHOT_CHUNK);
+    const { data, error } = await client
+      .from('orders')
+      .select('id, handed_over_items_snapshot')
+      .eq('shop_id', shopId)
+      .in('id', chunk);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      const r = row as Record<string, unknown>;
+      snapById.set(String(r.id), r.handed_over_items_snapshot);
+    }
+  }
+
+  return rows.map((r) => {
+    if (r.status !== 'DELIVERED') return r;
+    const id = String(r.id);
+    if (!snapById.has(id)) return r;
+    return { ...r, handed_over_items_snapshot: snapById.get(id) };
+  });
+}
 
 function ymdLocal(d: Date): string {
   const y = d.getFullYear();
@@ -145,7 +187,8 @@ export async function fetchPartnerOrdersRecentPage(
     .range(rangeFrom, rangeTo);
   if (error || !ordRows) return { rows: [], hasMore: false };
   const hasMore = ordRows.length === rangeTo - rangeFrom + 1;
-  return { rows: ordRows as Record<string, unknown>[], hasMore };
+  const hydrated = await hydratePartnerOrderHandoverSnapshots(client, shopId, ordRows as Record<string, unknown>[]);
+  return { rows: hydrated, hasMore };
 }
 
 /** Entregues com `handed_over_at` a partir do início do dia local (painel “hoje”). */
@@ -162,7 +205,7 @@ export async function fetchPartnerOrdersDeliveredSince(
     .gte('handed_over_at', sinceIso)
     .order('handed_over_at', { ascending: false });
   if (error || !data?.length) return [];
-  return data as Record<string, unknown>[];
+  return hydratePartnerOrderHandoverSnapshots(client, shopId, data as Record<string, unknown>[]);
 }
 
 export async function fetchPartnerOrdersWithProfiles(

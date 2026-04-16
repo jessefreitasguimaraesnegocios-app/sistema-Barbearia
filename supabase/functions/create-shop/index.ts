@@ -275,9 +275,6 @@ Deno.serve(async (req: Request) => {
         profile_image,
         banner_image,
         address: [address, addressNumber, complement, province, postalCode].filter(Boolean).join(", ") || address,
-        finance_provision_status: "pending",
-        finance_provision_payload,
-        finance_provision_updated_at: new Date().toISOString(),
       })
       .select("id")
       .single();
@@ -304,6 +301,26 @@ Deno.serve(async (req: Request) => {
           success: false,
           error: "Falha ao obter id da loja",
         }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const { error: fpInsertError } = await supabase.from("shop_finance_provision").insert({
+      shop_id: shopId,
+      finance_provision_status: "pending",
+      finance_provision_payload,
+      finance_provision_updated_at: new Date().toISOString(),
+    });
+    if (fpInsertError) {
+      console.error("[create-shop] shop_finance_provision insert:", fpInsertError);
+      await supabase.from("shops").delete().eq("id", shopId);
+      const { error: delErr } = await supabase.auth.admin.deleteUser(ownerId);
+      if (delErr) console.error("[create-shop] rollback deleteUser:", delErr.message);
+      return new Response(
+        JSON.stringify({ success: false, error: fpInsertError.message }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

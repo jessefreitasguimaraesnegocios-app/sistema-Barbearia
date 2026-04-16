@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: shop, error: fetchErr } = await supabase
     .from("shops")
-    .select("id, finance_provision_status, asaas_wallet_id")
+    .select("id, asaas_wallet_id, shop_finance_provision(finance_provision_status)")
     .eq("id", shopId)
     .maybeSingle();
 
@@ -79,7 +79,12 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: false, error: "Loja não encontrada." }, 404);
   }
 
-  if (shop.finance_provision_status === "active") {
+  const fpEmb = (shop as { shop_finance_provision?: { finance_provision_status?: string } | { finance_provision_status?: string }[] | null })
+    .shop_finance_provision;
+  const fpRow = Array.isArray(fpEmb) ? fpEmb[0] : fpEmb;
+  const financeStatus = fpRow?.finance_provision_status;
+
+  if (financeStatus === "active") {
     const existingWallet = shop.asaas_wallet_id != null ? String(shop.asaas_wallet_id).trim() : "";
     const incomingWallet = body.asaasWalletId != null ? String(body.asaasWalletId).trim() : "";
     if (!incomingWallet || !existingWallet || incomingWallet === existingWallet) {
@@ -90,20 +95,20 @@ Deno.serve(async (req: Request) => {
   if (body.error != null && String(body.error).trim() !== "") {
     const errMsg = String(body.error).trim().slice(0, 2000);
     const { data: cur } = await supabase
-      .from("shops")
+      .from("shop_finance_provision")
       .select("finance_provision_attempts")
-      .eq("id", shopId)
+      .eq("shop_id", shopId)
       .single();
     const attempts = Number(cur?.finance_provision_attempts) || 0;
     await supabase
-      .from("shops")
+      .from("shop_finance_provision")
       .update({
         finance_provision_status: "failed",
         finance_provision_last_error: errMsg,
         finance_provision_attempts: attempts + 1,
         finance_provision_updated_at: new Date().toISOString(),
       })
-      .eq("id", shopId);
+      .eq("shop_id", shopId);
     return jsonResponse({ success: true, status: "failed" });
   }
 
@@ -112,27 +117,36 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: false, error: "asaasWalletId é obrigatório quando não há error." }, 400);
   }
 
-  const updateRow: Record<string, unknown> = {
+  const shopUpdate: Record<string, unknown> = {
     asaas_wallet_id: walletId,
     [walletColumn]: walletId,
-    finance_provision_status: "active",
-    finance_provision_last_error: null,
-    finance_provision_updated_at: new Date().toISOString(),
   };
 
   if (body.asaasCustomerId != null && String(body.asaasCustomerId).trim() !== "") {
-    updateRow.asaas_customer_id = String(body.asaasCustomerId).trim();
+    shopUpdate.asaas_customer_id = String(body.asaasCustomerId).trim();
   }
   if (body.asaasAccountId != null && String(body.asaasAccountId).trim() !== "") {
-    updateRow.asaas_account_id = String(body.asaasAccountId).trim();
+    shopUpdate.asaas_account_id = String(body.asaasAccountId).trim();
   }
   if (body.asaasApiKey != null && String(body.asaasApiKey).trim() !== "") {
-    updateRow.asaas_api_key = String(body.asaasApiKey).trim();
+    shopUpdate.asaas_api_key = String(body.asaasApiKey).trim();
   }
 
-  const { error: upErr } = await supabase.from("shops").update(updateRow).eq("id", shopId);
-  if (upErr) {
-    return jsonResponse({ success: false, error: upErr.message }, 500);
+  const { error: shopUpErr } = await supabase.from("shops").update(shopUpdate).eq("id", shopId);
+  if (shopUpErr) {
+    return jsonResponse({ success: false, error: shopUpErr.message }, 500);
+  }
+
+  const { error: fpUpErr } = await supabase
+    .from("shop_finance_provision")
+    .update({
+      finance_provision_status: "active",
+      finance_provision_last_error: null,
+      finance_provision_updated_at: new Date().toISOString(),
+    })
+    .eq("shop_id", shopId);
+  if (fpUpErr) {
+    return jsonResponse({ success: false, error: fpUpErr.message }, 500);
   }
 
   return jsonResponse({ success: true, status: "active" });

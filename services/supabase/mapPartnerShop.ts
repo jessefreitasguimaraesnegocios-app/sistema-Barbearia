@@ -1,6 +1,21 @@
 import type { Professional, Product, Service, Shop } from '../../types';
 import { formatDbTime, normalizeSplitPercent } from './_format';
 
+/** Achata embed PostgREST `shop_finance_provision(...)` para o shape esperado pelos mappers. */
+export function flattenShopFinanceProvisionInShopRow(row: Record<string, unknown>): Record<string, unknown> {
+  const emb = row.shop_finance_provision;
+  const first = Array.isArray(emb)
+    ? (emb[0] as Record<string, unknown> | undefined)
+    : (emb as Record<string, unknown> | undefined);
+  if (!first) return row;
+  const { shop_finance_provision: _removed, ...rest } = row;
+  return {
+    ...rest,
+    finance_provision_status: first.finance_provision_status,
+    finance_provision_last_error: first.finance_provision_last_error,
+  };
+}
+
 function dedupeByKey<T extends Record<string, unknown>>(arr: T[], keyFn: (x: T) => string): T[] {
   const seen = new Set<string>();
   return arr.filter((x) => {

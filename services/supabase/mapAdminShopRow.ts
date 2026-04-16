@@ -1,6 +1,8 @@
 import type { Shop } from '../../types';
+import { flattenShopFinanceProvisionInShopRow } from './mapPartnerShop';
 
-export function mapAdminShopRow(s: Record<string, unknown>): Shop {
+export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
+  const s = flattenShopFinanceProvisionInShopRow(raw);
   return {
     id: String(s.id),
     ownerId: String(s.owner_id),

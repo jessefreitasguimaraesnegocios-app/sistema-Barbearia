@@ -6,7 +6,7 @@
  * Rode `npm run dev:all` (vite + esta API) para o painel admin local funcionar
  * (`/api/admin/runtime-mode`, create-shop, wallet, etc.).
  */
-import 'dotenv/config';
+import './lib/server/loadDevEnv.ts';
 import express from 'express';
 import type { Request } from 'express';
 import onboardingHandler from './api/partner/onboarding.ts';

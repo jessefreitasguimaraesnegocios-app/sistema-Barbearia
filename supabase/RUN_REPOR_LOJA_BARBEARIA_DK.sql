@@ -1,15 +1,46 @@
--- Repor dados da loja Barbearia D_K com subconta Asaas existente.
--- Pré-requisito: usuário dk@gmail.com já criado em Authentication → Users.
--- O script busca o UUID desse usuário e usa como owner_id.
+-- =============================================================================
+-- Repor loja + perfil dono (template idempotente — edite variáveis no bloco)
+-- =============================================================================
+--
+-- Pré-requisito: usuário já existe em Authentication (mesmo e-mail que v_owner_email).
+-- Se a loja com v_shop_email já existir: só sincroniza profiles (não duplica shop).
+--
+-- IDs Asaas abaixo são EXEMPLO do fluxo antigo; substitua pelos da SUA subconta
+-- ou deixe NULL se ainda não tiver provisionado.
+--
+-- NÃO commite segredos reais.
+-- =============================================================================
 
 DO $$
 DECLARE
-  OWNER_UUID UUID;
-  new_shop_id UUID;
+  v_owner_email       text := 'dk@gmail.com';
+  v_shop_email        text := 'dk@gmail.com';
+  v_shop_name         text := 'Barbearia D_K';
+  v_phone             text := '31985125108';
+  v_cnpj_cpf          text := '14028066638';
+  v_address           text := 'Rua Antônio Olinto Ferreira, 53, Bom Jesus, Contagem, MG, 32185-410';
+  v_asaas_account_id  text := NULL; -- ex.: UUID subconta Asaas
+  v_asaas_wallet_id   text := NULL; -- ex.: UUID carteira split
+  OWNER_UUID          uuid;
+  existing_shop_id    uuid;
+  new_shop_id         uuid;
 BEGIN
-  SELECT id INTO OWNER_UUID FROM auth.users WHERE email = 'dk@gmail.com' LIMIT 1;
+  SELECT id INTO OWNER_UUID FROM auth.users WHERE email = v_owner_email LIMIT 1;
   IF OWNER_UUID IS NULL THEN
-    RAISE EXCEPTION 'Crie primeiro o usuário com email dk@gmail.com em Authentication → Users → Add user';
+    RAISE EXCEPTION 'Crie primeiro o usuário % em Authentication → Users.', v_owner_email;
+  END IF;
+
+  SELECT id INTO existing_shop_id
+  FROM public.shops
+  WHERE lower(btrim(email)) = lower(btrim(v_shop_email))
+  LIMIT 1;
+
+  IF existing_shop_id IS NOT NULL THEN
+    RAISE NOTICE 'Loja já existe (id=%). Atualizando apenas profiles.shop_id.', existing_shop_id;
+    INSERT INTO public.profiles (id, role, shop_id)
+    VALUES (OWNER_UUID, 'barbearia', existing_shop_id)
+    ON CONFLICT (id) DO UPDATE SET role = 'barbearia', shop_id = excluded.shop_id;
+    RETURN;
   END IF;
 
   INSERT INTO public.shops (
@@ -26,14 +57,14 @@ BEGIN
     subscription_amount
   ) VALUES (
     OWNER_UUID,
-    'Barbearia D_K',
+    v_shop_name,
     'BARBER',
-    'dk@gmail.com',
-    '31985125108',
-    '14028066638',
-    'Rua Antônio Olinto Ferreira, 53, Bom Jesus, Contagem, MG, 32185-410',
-    '86349c7e-1e82-478c-9b4c-a7d04544bdb8',
-    '71140c96-bf08-421b-8590-99a8e7cbcb96',
+    v_shop_email,
+    v_phone,
+    v_cnpj_cpf,
+    v_address,
+    v_asaas_account_id,
+    v_asaas_wallet_id,
     true,
     99.00
   )
@@ -41,5 +72,7 @@ BEGIN
 
   INSERT INTO public.profiles (id, role, shop_id)
   VALUES (OWNER_UUID, 'barbearia', new_shop_id)
-  ON CONFLICT (id) DO UPDATE SET role = 'barbearia', shop_id = new_shop_id;
+  ON CONFLICT (id) DO UPDATE SET role = 'barbearia', shop_id = excluded.shop_id;
+
+  RAISE NOTICE 'Loja criada id=% para owner=%.', new_shop_id, v_owner_email;
 END $$;

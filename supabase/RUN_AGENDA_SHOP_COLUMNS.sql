@@ -1,7 +1,15 @@
 -- =============================================================================
--- Agenda do parceiro: colunas em `shops` + política de leitura de perfil
--- Cole no Supabase: Dashboard → SQL Editor → New query → Run
--- (Corrige erro: "Could not find the 'agenda_slot_minutes' column of 'shops'")
+-- Agenda do parceiro: colunas em `shops` + policy de leitura de perfil
+-- =============================================================================
+--
+-- FONTE CANÔNICA (já entra no `npm run db push`):
+--   supabase/migrations/20260326200000_shop_agenda_hours_and_profile_appointments.sql
+--
+-- Este arquivo é uma cópia IDEMPOTENTE para o SQL Editor quando quiser
+-- re-aplicar à mão (ex.: dúvida se o remoto está igual ao repo).
+-- Seguro rodar várias vezes.
+--
+-- Dashboard → SQL Editor → colar → Run
 -- =============================================================================
 
 ALTER TABLE public.shops

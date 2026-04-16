@@ -2,7 +2,7 @@
 // Atualiza subscription_active, subscription_amount, split_percent (prod) e split_percent_sandbox da loja (service role)
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
+import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.js';
 
 /** Inline: mesmo motivo que `api/partner/wallet.ts` (bundle Vercel + Node ESM). */
 async function insertFinancialAudit(

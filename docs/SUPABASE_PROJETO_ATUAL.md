@@ -4,6 +4,26 @@ O repositório já aponta o script `npm run supabase:link` e os exemplos de `.en
 
 ---
 
+## Resumo — o que falta / confirmar (guia direto)
+
+### Banco (`pbqedfdfnxwyoemqizsv`)
+
+1. **`db push` / migrations** — Aplicam **só** o que está em `supabase/migrations/`. Os arquivos `supabase/RUN_*.sql` **não** rodam sozinhos com `db push` (ver [supabase/README.md](../supabase/README.md) — secção sobre `RUN_*.sql`).
+2. **Agenda na tabela `shops`** — Se já correste `npm run db push` e apareceu *up to date*, o DDL da agenda **já está** na migration `20260326200000_shop_agenda_hours_and_profile_appointments.sql`. **Não é obrigatório** abrir `RUN_AGENDA_SHOP_COLUMNS.sql` no SQL Editor.
+3. **Confirmar visualmente (mata dúvida):** Dashboard → **Table Editor** → `shops` → colunas `workday_start`, `workday_end`, `lunch_start`, `lunch_end`, `agenda_slot_minutes`. Se todas existem, está alinhado com o repo.
+4. **`RUN_IN_SQL_EDITOR.sql`**, **`RUN_ATUALIZAR_*`**, **`RUN_REPOR_*`** — Opcionais / legado / seed (ex. caso D_K). Só mudam algo se **alguém colar e der Run** no SQL Editor. Para o app “padrão”, pode ignorar.
+
+### Fora do Postgres (obrigatório para o app funcionar de ponta a ponta)
+
+5. **`.env` / `.env.local`** na tua máquina — URL e chaves **deste** projeto (secção 1 abaixo).
+6. **Edge Functions → Secrets** no dashboard — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, Asaas, webhooks, etc. (secção 4). Sem isso as functions quebram em runtime.
+7. **Vercel** (se usas) — Mesmas variáveis + **redeploy**.
+8. **Auth → URL Configuration** — Site URL + redirect URLs (secção 6).
+9. **Usuário admin** — No projeto novo não existe o login antigo até criares utilizador em Auth e `profiles.role = 'admin'` (ou fluxo que uses).
+10. **Asaas** — Webhooks apontando para `…/pbqedfdfnxwyoemqizsv.supabase.co/functions/v1/asaas-webhook` (e `shop-finance-webhook` se aplicável).
+
+---
+
 ## URLs fixas deste projeto
 
 | Uso | URL |

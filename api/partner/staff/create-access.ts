@@ -14,7 +14,14 @@ export default async function handler(
   req: {
     method?: string;
     headers?: Record<string, string | string[] | undefined>;
-    body?: { professionalId?: string; email?: string; password?: string; shopId?: string };
+    body?: {
+      professionalId?: string;
+      email?: string;
+      password?: string;
+      shopId?: string;
+      /** Redefine e-mail/senha do Auth já vinculado (sem recriar usuário nem carteira). */
+      action?: string;
+    };
   },
   res: {
     setHeader: (k: string, v: string) => void;
@@ -45,18 +52,26 @@ export default async function handler(
 
   const body = req.body || {};
   const professionalId = typeof body.professionalId === 'string' ? body.professionalId.trim() : '';
-  const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
+  const emailRaw = typeof body.email === 'string' ? body.email : '';
+  const email = normalizeEmail(emailRaw);
   const password = typeof body.password === 'string' ? body.password : '';
   const shopIdBody = typeof body.shopId === 'string' ? body.shopId.trim() : '';
+  const isResetCredentials = body.action === 'reset_credentials';
 
-  if (!professionalId || !email || !password) {
+  if (!professionalId || !password) {
     return res.status(400).json({
       success: false,
-      error: 'Informe professionalId, email e password.',
+      error: 'Informe professionalId e password.',
     });
   }
   if (password.length < 6) {
     return res.status(400).json({ success: false, error: 'A senha deve ter pelo menos 6 caracteres.' });
+  }
+  if (!isResetCredentials && !email) {
+    return res.status(400).json({
+      success: false,
+      error: 'Informe professionalId, email e password.',
+    });
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -67,9 +82,13 @@ export default async function handler(
     return res.status(401).json({ success: false, error: 'Sessão inválida ou expirada.' });
   }
 
+  const rateRoute = isResetCredentials ? 'staff-reset-credentials' : 'staff-create-access';
+  const rateSubject = isResetCredentials
+    ? `staff-reset-credentials:${ownerId}:${professionalId}`
+    : `staff-create-access:${ownerId}:${professionalId}`;
   const { data: allowedByRateLimit, error: rateErr } = await supabase.rpc('security_check_rate_limit', {
-    p_route: 'staff-create-access',
-    p_subject: `staff-create-access:${ownerId}:${professionalId}`,
+    p_route: rateRoute,
+    p_subject: rateSubject,
     p_limit: 8,
     p_window_seconds: 60,
   });
@@ -125,6 +144,70 @@ export default async function handler(
   }
 
   const existingUserId = (professional as { user_id?: string | null }).user_id;
+
+  if (isResetCredentials) {
+    if (!existingUserId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Este profissional ainda não tem login. Use criar acesso.',
+      });
+    }
+
+    const { data: staffUser, error: staffUserErr } = await supabase.auth.admin.getUserById(existingUserId);
+    if (staffUserErr || !staffUser?.user) {
+      return res.status(500).json({
+        success: false,
+        error: staffUserErr?.message || 'Não foi possível carregar o usuário de login da equipe.',
+      });
+    }
+
+    const currentEmail = normalizeEmail(staffUser.user.email || '');
+    const targetEmail = email || currentEmail;
+    if (!targetEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Informe o e-mail de login ou cadastre um e-mail no profissional.',
+      });
+    }
+
+    const updates: { password: string; email?: string; email_confirm?: boolean } = { password };
+    if (targetEmail !== currentEmail) {
+      updates.email = targetEmail;
+      updates.email_confirm = true;
+    }
+
+    const { error: updateErr } = await supabase.auth.admin.updateUserById(existingUserId, updates);
+    if (updateErr) {
+      const msg = updateErr.message || 'Não foi possível atualizar o acesso.';
+      const low = msg.toLowerCase();
+      if (low.includes('already') || low.includes('registered') || low.includes('duplicate')) {
+        return res.status(409).json({
+          success: false,
+          error: 'Este e-mail já está em uso por outra conta. Use outro e-mail.',
+        });
+      }
+      return res.status(400).json({ success: false, error: msg });
+    }
+
+    const { error: syncEmailErr } = await supabase
+      .from('professionals')
+      .update({ email: targetEmail })
+      .eq('id', professionalId)
+      .eq('shop_id', ownerShopId);
+    if (syncEmailErr) {
+      return res.status(500).json({
+        success: false,
+        error: 'Login atualizado, mas falhou ao sincronizar e-mail no cadastro: ' + syncEmailErr.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      userId: existingUserId,
+      message: 'E-mail e/ou senha de Sou parceiro atualizados. O profissional pode entrar com os novos dados.',
+    });
+  }
+
   if (existingUserId) {
     return res.status(400).json({
       success: false,

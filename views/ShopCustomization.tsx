@@ -208,15 +208,22 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
   const [staffLoginPassword, setStaffLoginPassword] = useState<Record<string, string>>({});
   const [staffCreatingId, setStaffCreatingId] = useState<string | null>(null);
 
-  const createStaffAccess = async (proId: string) => {
-    const email = (staffLoginEmail[proId] || '').trim().toLowerCase();
+  const submitStaffAccess = async (proId: string, mode: 'create' | 'reset') => {
+    const rawEmail = staffLoginEmail[proId];
+    const email =
+      typeof rawEmail === 'string' && rawEmail.trim() !== '' ? rawEmail.trim().toLowerCase() : '';
     const password = staffLoginPassword[proId] || '';
-    if (!email || !password) {
-      alert('Preencha e-mail e senha inicial para o acesso em Sou parceiro.');
+    if (mode === 'create') {
+      if (!email || !password) {
+        alert('Preencha e-mail e senha inicial para o acesso em Sou parceiro.');
+        return;
+      }
+    } else if (!password) {
+      alert('Informe a nova senha (mín. 6 caracteres). O e-mail pode ficar em branco para manter o atual.');
       return;
     }
     if (password.length < 6) {
-      alert('A senha inicial deve ter pelo menos 6 caracteres.');
+      alert('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
     setStaffCreatingId(proId);
@@ -227,22 +234,41 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
         alert('Sessão expirada. Entre novamente.');
         return;
       }
+      const body: Record<string, string> = {
+        professionalId: proId,
+        password,
+        shopId: shop.id,
+      };
+      if (mode === 'create') {
+        body.email = email;
+      } else {
+        body.action = 'reset_credentials';
+        if (email) body.email = email;
+      }
       const res = await fetch(`${window.location.origin}/api/partner/staff/create-access`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ professionalId: proId, email, password, shopId: shop.id }),
+        body: JSON.stringify(body),
       });
       const json = (await res.json()) as { error?: string; message?: string };
       if (!res.ok) {
-        alert(json.error || 'Falha ao criar acesso.');
+        alert(json.error || (mode === 'create' ? 'Falha ao criar acesso.' : 'Falha ao atualizar acesso.'));
         return;
       }
-      alert(json.message || 'Acesso criado com sucesso.');
-      setStaffLoginEmail((prev) => ({ ...prev, [proId]: '' }));
-      setStaffLoginPassword((prev) => ({ ...prev, [proId]: '' }));
+      alert(json.message || (mode === 'create' ? 'Acesso criado com sucesso.' : 'Acesso atualizado.'));
+      setStaffLoginEmail((prev) => {
+        const next = { ...prev };
+        delete next[proId];
+        return next;
+      });
+      setStaffLoginPassword((prev) => {
+        const next = { ...prev };
+        delete next[proId];
+        return next;
+      });
       onStaffAccessCreated?.();
     } catch {
-      alert('Erro de rede ao criar acesso.');
+      alert(mode === 'create' ? 'Erro de rede ao criar acesso.' : 'Erro de rede ao atualizar acesso.');
     } finally {
       setStaffCreatingId(null);
     }
@@ -838,7 +864,44 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                      <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Acesso Sou parceiro</p>
                        {pro.authUserId ? (
-                         <p className="text-xs text-emerald-600 font-semibold">Login da equipe ativo para este profissional.</p>
+                         <>
+                           <p className="text-xs text-emerald-600 font-semibold">
+                             Login da equipe ativo — redefina senha ou e-mail abaixo sem recriar usuário ou carteira.
+                           </p>
+                           <p className="text-[10px] text-gray-500">
+                             Deixe o e-mail em branco (ou igual ao atual) para manter o login; informe a nova senha.
+                           </p>
+                           <input
+                             type="email"
+                             autoComplete="off"
+                             placeholder="E-mail do login (opcional se for o mesmo)"
+                             value={
+                               staffLoginEmail[pro.id] !== undefined ? staffLoginEmail[pro.id] : (pro.email ?? '')
+                             }
+                             onChange={(e) =>
+                               setStaffLoginEmail((prev) => ({ ...prev, [pro.id]: e.target.value }))
+                             }
+                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100"
+                           />
+                           <input
+                             type="password"
+                             autoComplete="new-password"
+                             placeholder="Nova senha (mín. 6 caracteres)"
+                             value={staffLoginPassword[pro.id] ?? ''}
+                             onChange={(e) =>
+                               setStaffLoginPassword((prev) => ({ ...prev, [pro.id]: e.target.value }))
+                             }
+                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100"
+                           />
+                           <button
+                             type="button"
+                             disabled={staffCreatingId === pro.id}
+                             onClick={() => submitStaffAccess(pro.id, 'reset')}
+                             className="w-full py-2 rounded-xl text-xs font-bold bg-(--shop-primary) text-white hover:brightness-95 disabled:opacity-60"
+                           >
+                             {staffCreatingId === pro.id ? 'Atualizando…' : 'Atualizar acesso'}
+                           </button>
+                         </>
                        ) : (
                          <>
                            <p className="text-[10px] text-gray-500">
@@ -867,7 +930,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                            <button
                              type="button"
                              disabled={staffCreatingId === pro.id}
-                             onClick={() => createStaffAccess(pro.id)}
+                             onClick={() => submitStaffAccess(pro.id, 'create')}
                              className="w-full py-2 rounded-xl text-xs font-bold bg-(--shop-primary) text-white hover:brightness-95 disabled:opacity-60"
                            >
                              {staffCreatingId === pro.id ? 'Criando…' : 'Criar acesso'}

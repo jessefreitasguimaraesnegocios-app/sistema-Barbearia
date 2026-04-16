@@ -2,6 +2,11 @@
 import React, { useState, useRef } from 'react';
 import type { Shop, Product, Service, Professional, ShopType } from '../types';
 import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
+import {
+  formatBrazilCpfCnpj,
+  formatBrazilPhone,
+  normalizeLoginEmailInput,
+} from '../lib/brInputMasks';
 import { supabase } from '../src/lib/supabase';
 
 function isUuid(id: string): boolean {
@@ -842,9 +847,14 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                    <div>
                      <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">Telefone</label>
                      <input
-                       type="text"
-                       value={pro.phone || ''}
-                       onChange={(e) => updateProfessional(pro.id, { phone: e.target.value })}
+                       type="tel"
+                       inputMode="numeric"
+                       autoComplete="tel"
+                       placeholder="(00) 00000-0000"
+                       value={formatBrazilPhone(pro.phone || '')}
+                       onChange={(e) =>
+                         updateProfessional(pro.id, { phone: formatBrazilPhone(e.target.value) })
+                       }
                        className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
                      />
                    </div>
@@ -852,8 +862,13 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                     <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">CPF/CNPJ</label>
                     <input
                       type="text"
-                      value={pro.cpfCnpj || ''}
-                      onChange={(e) => updateProfessional(pro.id, { cpfCnpj: e.target.value })}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                      value={formatBrazilCpfCnpj(pro.cpfCnpj || '')}
+                      onChange={(e) =>
+                        updateProfessional(pro.id, { cpfCnpj: formatBrazilCpfCnpj(e.target.value) })
+                      }
                       className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
                     />
                    </div>
@@ -873,15 +888,24 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                            </p>
                            <input
                              type="email"
-                             autoComplete="off"
-                             placeholder="E-mail do login (opcional se for o mesmo)"
-                             value={
-                               staffLoginEmail[pro.id] !== undefined ? staffLoginEmail[pro.id] : (pro.email ?? '')
-                             }
+                             inputMode="email"
+                             autoComplete="username"
+                             spellCheck={false}
+                             autoCapitalize="none"
+                             autoCorrect="off"
+                             placeholder="nome@exemplo.com (opcional)"
+                             value={normalizeLoginEmailInput(
+                               staffLoginEmail[pro.id] !== undefined
+                                 ? staffLoginEmail[pro.id]
+                                 : (pro.email ?? '')
+                             )}
                              onChange={(e) =>
-                               setStaffLoginEmail((prev) => ({ ...prev, [pro.id]: e.target.value }))
+                               setStaffLoginEmail((prev) => ({
+                                 ...prev,
+                                 [pro.id]: normalizeLoginEmailInput(e.target.value),
+                               }))
                              }
-                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100"
+                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
                            />
                            <input
                              type="password"
@@ -909,13 +933,20 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                            </p>
                            <input
                              type="email"
-                             autoComplete="off"
-                             placeholder="E-mail do login"
-                             value={staffLoginEmail[pro.id] ?? ''}
+                             inputMode="email"
+                             autoComplete="username"
+                             spellCheck={false}
+                             autoCapitalize="none"
+                             autoCorrect="off"
+                             placeholder="nome@exemplo.com"
+                             value={normalizeLoginEmailInput(staffLoginEmail[pro.id] ?? '')}
                              onChange={(e) =>
-                               setStaffLoginEmail((prev) => ({ ...prev, [pro.id]: e.target.value }))
+                               setStaffLoginEmail((prev) => ({
+                                 ...prev,
+                                 [pro.id]: normalizeLoginEmailInput(e.target.value),
+                               }))
                              }
-                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100"
+                             className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
                            />
                            <input
                              type="password"

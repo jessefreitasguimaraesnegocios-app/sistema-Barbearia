@@ -880,7 +880,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                            }
                            window.open(url, '_blank', 'noopener,noreferrer');
                          }}
-                         className="shrink-0 flex min-w-[4.5rem] items-center justify-center rounded-lg bg-[#25D366] px-5 py-2.5 text-white shadow-sm hover:brightness-95 active:brightness-90 border border-[#1ebe5b] sm:min-w-[5rem] sm:px-6"
+                         className="shrink-0 flex min-w-18 items-center justify-center rounded-lg bg-[#25D366] px-5 py-2.5 text-white shadow-sm hover:brightness-95 active:brightness-90 border border-[#1ebe5b] sm:min-w-20 sm:px-6"
                        >
                          <i className="fab fa-whatsapp text-2xl leading-none sm:text-[1.75rem]" aria-hidden />
                        </button>

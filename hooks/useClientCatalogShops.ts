@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MutableRefObject } from 'react';
 import type { Shop } from '../types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClientCatalogEntry } from '../services/supabase/shops';
@@ -16,7 +15,7 @@ import {
   writeClientCatalogCache,
 } from '../lib/clientCatalogCache';
 
-/** Debounce após postgres_changes (lojas / catálogo); estoque em ShopDetails também tem canal dedicado. */
+/** Debounce após postgres_changes em `shops`; estoque em ShopDetails escuta `shops` e refetch de produtos. */
 const REALTIME_DEBOUNCE_MS = 320;
 
 type UseClientCatalogShopsOptions = {
@@ -28,12 +27,9 @@ type UseClientCatalogShopsOptions = {
 /**
  * Catálogo público: pinta primeiro do localStorage, sincroniza com API em background
  * (páginas + incremental por `updated_at`) e mantém Realtime com debounce.
+ * Só `postgres_changes` em `shops`: alterações em services/professionals/products disparam
+ * trigger que atualiza `shops.updated_at` (menos tabelas na publicação Realtime).
  */
-function addShopIdFromRealtimeRow(ref: MutableRefObject<Set<string>>, row: Record<string, unknown> | null | undefined) {
-  const sid = row?.shop_id ?? row?.shopId;
-  if (sid != null && String(sid).trim()) ref.current.add(String(sid));
-}
-
 export function useClientCatalogShops({ client, enabled }: UseClientCatalogShopsOptions) {
   const [shops, setShops] = useState<Shop[]>(() => entriesToShops(readClientCatalogCache()?.entries ?? []));
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
@@ -162,10 +158,6 @@ export function useClientCatalogShops({ client, enabled }: UseClientCatalogShops
         if (p.eventType === 'DELETE') return;
         const row = (p.new ?? p.old) as Record<string, unknown> | undefined;
         if (row?.id != null) pendingRealtimeShopIdsRef.current.add(String(row.id));
-        scheduleFlush();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, (p) => {
-        addShopIdFromRealtimeRow(pendingRealtimeShopIdsRef, (p.new ?? p.old) as Record<string, unknown> | undefined);
         scheduleFlush();
       })
       .subscribe();

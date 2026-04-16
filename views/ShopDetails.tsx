@@ -8,6 +8,10 @@ import {
   type BookingBlock,
 } from '../lib/agendaSlots';
 import { mapClientCatalogProductRow } from '../services/supabase/mapClientCatalogShop';
+import { PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL } from '../services/supabase/shops';
+
+/** Estoque na página da loja: `shops` pulsa `updated_at` quando `products` muda (trigger). */
+const SHOP_DETAILS_PRODUCTS_RT_DEBOUNCE_MS = 280;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -202,34 +206,45 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   }, [shop.id, productsStockSig]);
 
   useEffect(() => {
+    const shopId = shop.id;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const refetchProducts = async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select(PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL)
+        .eq('shop_id', shopId);
+      if (error) return;
+      if (!data?.length) {
+        setLiveProducts([]);
+        return;
+      }
+      const rows = (data as Record<string, unknown>[]).map((raw) => mapClientCatalogProductRow(raw));
+      rows.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      setLiveProducts(rows);
+    };
+
+    const scheduleRefetch = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        debounce = null;
+        void refetchProducts();
+      }, SHOP_DETAILS_PRODUCTS_RT_DEBOUNCE_MS);
+    };
+
     const channel = supabase
-      .channel(`shop-details-products-${shop.id}`)
+      .channel(`shop-details-catalog-${shopId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'products', filter: `shop_id=eq.${shop.id}` },
-        (payload) => {
-          if (payload.eventType === 'DELETE') {
-            const oldRow = payload.old as Record<string, unknown> | undefined;
-            const id = oldRow?.id != null ? String(oldRow.id) : '';
-            if (!id) return;
-            setLiveProducts((prev) => prev.filter((p) => p.id !== id));
-            return;
-          }
-          const raw = (payload.new ?? payload.old) as Record<string, unknown> | undefined;
-          if (!raw || raw.id == null) return;
-          const row = mapClientCatalogProductRow(raw);
-          setLiveProducts((prev) => {
-            const idx = prev.findIndex((p) => p.id === row.id);
-            if (idx === -1) return [...prev, row].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-            const copy = [...prev];
-            copy[idx] = row;
-            return copy;
-          });
+        { event: '*', schema: 'public', table: 'shops', filter: `id=eq.${shopId}` },
+        () => {
+          scheduleRefetch();
         }
       )
       .subscribe();
 
     return () => {
+      if (debounce) clearTimeout(debounce);
       void supabase.removeChannel(channel);
     };
   }, [shop.id]);

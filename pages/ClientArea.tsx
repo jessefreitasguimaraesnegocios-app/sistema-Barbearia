@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ClientHome from '../views/ClientHome';
@@ -37,10 +37,26 @@ import {
 
 type ClientNavView = 'client-home' | 'shop-details' | 'client-appointments' | 'client-orders' | 'client-profile';
 
+const CLIENT_VIEW_PARAM = 'view';
+const CLIENT_SHOP_PARAM = 'shopId';
+const CLIENT_VIEWS: readonly ClientNavView[] = [
+  'client-home',
+  'shop-details',
+  'client-appointments',
+  'client-orders',
+  'client-profile',
+];
+
+function parseClientViewParam(value: string | null): ClientNavView {
+  if (!value) return 'client-home';
+  return CLIENT_VIEWS.includes(value as ClientNavView) ? (value as ClientNavView) : 'client-home';
+}
+
 export default function ClientArea() {
   const queryClient = useQueryClient();
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [showSignUp, setShowSignUp] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -85,6 +101,27 @@ export default function ClientArea() {
 
   const { shops, catalogRefreshing } = useClientCatalogShops({ client: supabase, enabled: catalogEnabled });
 
+  const setClientRoute = useCallback(
+    (view: ClientNavView, shopId?: string | null, replace = false) => {
+      const params = new URLSearchParams(location.search);
+      if (view === 'client-home') {
+        params.delete(CLIENT_VIEW_PARAM);
+        params.delete(CLIENT_SHOP_PARAM);
+      } else {
+        params.set(CLIENT_VIEW_PARAM, view);
+        if (view === 'shop-details' && shopId) params.set(CLIENT_SHOP_PARAM, shopId);
+        else params.delete(CLIENT_SHOP_PARAM);
+      }
+      const nextSearch = params.toString();
+      const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
+      const currentUrl = `${location.pathname}${location.search}`;
+      if (nextUrl !== currentUrl) {
+        navigate(nextUrl, { replace });
+      }
+    },
+    [location.pathname, location.search, navigate]
+  );
+
   useEffect(() => {
     setSelectedShop((prev) => {
       if (!prev) return prev;
@@ -103,6 +140,67 @@ export default function ClientArea() {
       };
     });
   }, [shops, shopDetailsLoadingId]);
+
+  useEffect(() => {
+    if (user?.role !== 'CLIENT' || profileHydrating) return;
+    const params = new URLSearchParams(location.search);
+    const routeView = parseClientViewParam(params.get(CLIENT_VIEW_PARAM));
+    const routeShopId = (params.get(CLIENT_SHOP_PARAM) || '').trim();
+
+    if (routeView !== 'shop-details') {
+      if (currentView !== routeView) setCurrentView(routeView);
+      return;
+    }
+
+    if (!routeShopId) {
+      setCurrentView('client-home');
+      setSelectedShop(null);
+      setClientRoute('client-home', null, true);
+      return;
+    }
+
+    setCurrentView('shop-details');
+    const fromCatalog = shops.find((s) => s.id === routeShopId) || null;
+    if (fromCatalog) {
+      setSelectedShop((prev) => (prev?.id === fromCatalog.id ? prev : fromCatalog));
+    }
+
+    if (selectedShop?.id === routeShopId && selectedShop.services.length > 0) return;
+    if (shopDetailsLoadingId === routeShopId) return;
+
+    setShopDetailsLoadingId(routeShopId);
+    void (async () => {
+      try {
+        const detailed = await queryClient.fetchQuery({
+          queryKey: ['client-area', 'shop-detail', routeShopId],
+          queryFn: () => fetchClientCatalogShopDetailById(supabase, routeShopId),
+          staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
+        });
+        if (!detailed) {
+          setCurrentView('client-home');
+          setSelectedShop(null);
+          setClientRoute('client-home', null, true);
+          return;
+        }
+        setSelectedShop(detailed);
+      } catch {
+        /* se falhar detalhe, mantém fallback do catálogo */
+      } finally {
+        setShopDetailsLoadingId((prev) => (prev === routeShopId ? null : prev));
+      }
+    })();
+  }, [
+    currentView,
+    location.search,
+    profileHydrating,
+    queryClient,
+    selectedShop?.id,
+    selectedShop?.services.length,
+    shopDetailsLoadingId,
+    setClientRoute,
+    shops,
+    user?.role,
+  ]);
 
   const fetchAppointmentsFirstPage = useCallback(async () => {
     if (!user?.id) return;
@@ -259,6 +357,7 @@ export default function ClientArea() {
       if (user?.role !== 'CLIENT') return;
       setSelectedShop(shop);
       setCurrentView('shop-details');
+      setClientRoute('shop-details', shop.id);
       setShopDetailsLoadingId(shop.id);
       void (async () => {
         try {
@@ -276,7 +375,7 @@ export default function ClientArea() {
         }
       })();
     },
-    [queryClient, user?.role]
+    [queryClient, setClientRoute, user?.role]
   );
 
   useEffect(() => {
@@ -410,6 +509,11 @@ export default function ClientArea() {
   const navigateClientView = (view: ClientNavView) => {
     if (profileHydrating && view !== 'client-home') return;
     setCurrentView(view);
+    if (view === 'shop-details') {
+      if (selectedShop?.id) setClientRoute('shop-details', selectedShop.id);
+      return;
+    }
+    setClientRoute(view);
   };
 
   if (currentView === 'shop-details' && selectedShop && user?.role === 'CLIENT') {
@@ -441,13 +545,18 @@ export default function ClientArea() {
             refetchAppointmentsAndOrders();
             addNotification('Pagamento confirmado', 'Seu agendamento foi registrado como pago.', 'SUCCESS');
             setCurrentView('client-home');
+            setClientRoute('client-home');
           }}
           onOrder={() => {
             refetchAppointmentsAndOrders();
             addNotification('Pagamento confirmado', 'Seu pedido foi registrado como pago.', 'SUCCESS');
             setCurrentView('client-home');
+            setClientRoute('client-home');
           }}
-          onBack={() => setCurrentView('client-home')}
+          onBack={() => {
+            setCurrentView('client-home');
+            setClientRoute('client-home');
+          }}
         />
       </Layout>
     );

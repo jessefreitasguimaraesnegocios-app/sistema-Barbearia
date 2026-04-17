@@ -351,9 +351,9 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
         return;
       }
       if ('error' in result) {
-        window.alert(
-          `${result.error}\n\nVamos salvar a versão comprimida direto na base para não bloquear agora.`
-        );
+        if (import.meta.env.DEV) {
+          console.warn('[shop-media-upload] fallback to compressed base64:', result.error);
+        }
       }
 
       if (uploadTarget.type === 'SHOP_PROFILE') {

@@ -341,28 +341,37 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
         file,
         uploadTarget.id
       );
-      if ('error' in result) {
-        window.alert(result.error);
+      const imageValue =
+        'error' in result
+          ? (result.dataUrl ?? '')
+          : result.publicUrl;
+
+      if (!imageValue) {
+        window.alert('Não foi possível processar esta imagem. Tente outro arquivo.');
         return;
       }
-      const publicUrl = result.publicUrl;
+      if ('error' in result) {
+        window.alert(
+          `${result.error}\n\nVamos salvar a versão comprimida direto na base para não bloquear agora.`
+        );
+      }
 
       if (uploadTarget.type === 'SHOP_PROFILE') {
-        setFormData({ ...formData, profileImage: publicUrl });
+        setFormData({ ...formData, profileImage: imageValue });
       } else if (uploadTarget.type === 'SHOP_BANNER') {
-        setFormData({ ...formData, bannerImage: publicUrl });
+        setFormData({ ...formData, bannerImage: imageValue });
       } else if (uploadTarget.type === 'PRO' && uploadTarget.id) {
         setFormData({
           ...formData,
           professionals: formData.professionals.map((p) =>
-            p.id === uploadTarget.id ? { ...p, avatar: publicUrl } : p
+            p.id === uploadTarget.id ? { ...p, avatar: imageValue } : p
           ),
         });
       } else if (uploadTarget.type === 'PRODUCT' && uploadTarget.id) {
         setFormData({
           ...formData,
           products: formData.products.map((p) =>
-            p.id === uploadTarget.id ? { ...p, image: publicUrl } : p
+            p.id === uploadTarget.id ? { ...p, image: imageValue } : p
           ),
         });
       }

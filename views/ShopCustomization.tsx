@@ -9,6 +9,7 @@ import {
   normalizeLoginEmailInput,
 } from '../lib/brInputMasks';
 import { supabase } from '../src/lib/supabase';
+import { uploadShopMediaAndGetPublicUrl } from '../lib/shopMediaUpload';
 
 function isUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -311,36 +312,69 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ type: 'SHOP_PROFILE' | 'SHOP_BANNER' | 'PRO' | 'PRODUCT', id?: string } | null>(null);
   const [pendingServiceType, setPendingServiceType] = useState<string>('');
+  const [imageUploading, setImageUploading] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !uploadTarget) return;
+    if (!file || !uploadTarget || imageUploading) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      
+    if ((uploadTarget.type === 'PRO' || uploadTarget.type === 'PRODUCT') && !uploadTarget.id) {
+      window.alert('Guarde ou selecione o item antes de enviar a imagem.');
+      e.target.value = '';
+      setUploadTarget(null);
+      return;
+    }
+
+    if (!isUuid(shop.id)) {
+      window.alert('Loja ainda sem ID válido; não é possível enviar imagem.');
+      e.target.value = '';
+      setUploadTarget(null);
+      return;
+    }
+
+    setImageUploading(true);
+    try {
+      const result = await uploadShopMediaAndGetPublicUrl(
+        supabase,
+        shop.id,
+        uploadTarget.type,
+        file,
+        uploadTarget.id
+      );
+      if ('error' in result) {
+        window.alert(result.error);
+        return;
+      }
+      const publicUrl = result.publicUrl;
+
       if (uploadTarget.type === 'SHOP_PROFILE') {
-        setFormData({ ...formData, profileImage: base64String });
+        setFormData({ ...formData, profileImage: publicUrl });
       } else if (uploadTarget.type === 'SHOP_BANNER') {
-        setFormData({ ...formData, bannerImage: base64String });
+        setFormData({ ...formData, bannerImage: publicUrl });
       } else if (uploadTarget.type === 'PRO' && uploadTarget.id) {
         setFormData({
           ...formData,
-          professionals: formData.professionals.map(p => p.id === uploadTarget.id ? { ...p, avatar: base64String } : p)
+          professionals: formData.professionals.map((p) =>
+            p.id === uploadTarget.id ? { ...p, avatar: publicUrl } : p
+          ),
         });
       } else if (uploadTarget.type === 'PRODUCT' && uploadTarget.id) {
         setFormData({
           ...formData,
-          products: formData.products.map(p => p.id === uploadTarget.id ? { ...p, image: base64String } : p)
+          products: formData.products.map((p) =>
+            p.id === uploadTarget.id ? { ...p, image: publicUrl } : p
+          ),
         });
       }
+    } finally {
+      setImageUploading(false);
       setUploadTarget(null);
-    };
-    reader.readAsDataURL(file);
+      e.target.value = '';
+    }
   };
 
   const triggerUpload = (type: 'SHOP_PROFILE' | 'SHOP_BANNER' | 'PRO' | 'PRODUCT', id?: string) => {
+    if (imageUploading) return;
     setUploadTarget({ type, id });
     fileInputRef.current?.click();
   };

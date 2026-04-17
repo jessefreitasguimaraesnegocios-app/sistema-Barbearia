@@ -458,7 +458,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
           tip: tipAmount > 0 ? tipAmount : undefined,
         },
       });
-      console.log("Asaas Split Payment Response:", data);
+      if (import.meta.env.DEV) {
+        console.log('Asaas Split Payment Response:', data);
+      }
 
       const invoiceUrl = pickInvoiceUrl(data as Record<string, unknown>);
       const pix = pickPixQrFromResponse(data as Record<string, unknown>);
@@ -570,7 +572,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
           total: cartTotal,
         },
       });
-      console.log("Asaas Split Order Response:", data);
+      if (import.meta.env.DEV) {
+        console.log('Asaas Split Order Response:', data);
+      }
 
       const invoiceUrl = pickInvoiceUrl(data as Record<string, unknown>);
       const pix = pickPixQrFromResponse(data as Record<string, unknown>);

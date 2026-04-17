@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { resizeImageFileToJpegDataUrl } from '../lib/imageResize';
 
 interface ClientProfileProps {
   user: User;
@@ -61,41 +62,23 @@ const ClientProfile: React.FC<ClientProfileProps> = ({ user }) => {
 
   const isComplete = !!(user.name && user.email && user.cpfCnpj && (user.cpfCnpj.length === 11 || user.cpfCnpj.length === 14) && user.phone);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const max = 400;
-        let w = img.width;
-        let h = img.height;
-        if (w > max || h > max) {
-          if (w > h) {
-            h = Math.round((h * max) / w);
-            w = max;
-          } else {
-            w = Math.round((w * max) / h);
-            h = max;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          setAvatarUrl(dataUrl);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, w, h);
-        const resized = canvas.toDataURL('image/jpeg', 0.85);
-        setAvatarUrl(resized);
-      };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
+    const maxFileBytes = 5 * 1024 * 1024;
+    if (file.size > maxFileBytes) {
+      window.alert('Arquivo muito grande (máx. 5 MB). Escolha outra imagem.');
+      e.target.value = '';
+      return;
+    }
+    const resized = await resizeImageFileToJpegDataUrl(file, {
+      maxWidth: 400,
+      maxHeight: 400,
+      quality: 0.85,
+      maxFileBytes,
+    });
+    if (resized) setAvatarUrl(resized);
+    else window.alert('Não foi possível processar esta imagem. Use JPEG ou PNG.');
     e.target.value = '';
   };
 

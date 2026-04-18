@@ -6,7 +6,7 @@ Checklist curto antes de soltar **homologação** ou **produção**. Marca os it
 
 ## Banco
 
-- [ ] Migrations aplicadas no ambiente certo (`supabase db push`, script do time, etc.).
+- [ ] Migrations aplicadas no ambiente certo (`npm run db:push`, `npx supabase db push` ou fluxo do time).
 - [ ] Nada pendente em `supabase/migrations/` que ainda não tenha ido pro banco alvo.
 
 ---
@@ -31,6 +31,7 @@ Checklist curto antes de soltar **homologação** ou **produção**. Marca os it
 ## Pagamentos / Asaas (se mexeu)
 
 - [ ] Edge functions e webhooks revisados — URL, secrets, token do webhook, `--no-verify-jwt` onde precisa.
+- [ ] Parceiro (opcional): `/api/partner/onboarding` e carteira (`/api/partner/wallet`) respondem sem 500 quando a loja tem subconta/chave configurada.
 
 ---
 

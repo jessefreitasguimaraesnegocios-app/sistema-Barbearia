@@ -393,6 +393,8 @@ export default function PartnerArea() {
     }
 
     for (const p of updated.products || []) {
+      const catalogId =
+        p.catalogItemId && isUuid(String(p.catalogItemId).trim()) ? String(p.catalogItemId).trim() : null;
       if (isUuid(p.id)) {
         const { error: e } = await supabase.from('products').update({
           name: p.name,
@@ -403,6 +405,7 @@ export default function PartnerArea() {
           image: p.image ?? null,
           stock: Number(p.stock) || 0,
           desired_net_receipt: null,
+          catalog_item_id: catalogId,
         }).match({ id: p.id, shop_id: shopId });
         if (e) throw new Error(`Produtos: ${e.message}`);
       } else {
@@ -416,6 +419,7 @@ export default function PartnerArea() {
           image: p.image ?? null,
           stock: Number(p.stock) || 0,
           desired_net_receipt: null,
+          catalog_item_id: catalogId,
         });
         if (e) throw new Error(`Produtos: ${e.message}`);
       }

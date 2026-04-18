@@ -51,7 +51,7 @@ Tudo que é **service role**, **ASAAS_API_KEY** ou segredo de webhook fica **no 
 
 ### Onde colocar (produção vs sandbox)
 
-O código usa **defaults** alinhados à documentação Asaas v3: produção `https://api.asaas.com/v3`, sandbox `https://api-sandbox.asaas.com/v3` (ver `asaas-webhook` / `create-payment` e `_shared/asaasEnv.ts`). Se definires `ASAAS_API_URL*`, usa URL **completa** da API (sem colar `CHAVE=valor` no campo do Dashboard).
+O código usa **defaults** alinhados à documentação Asaas v3: produção `https://api.asaas.com/v3`, sandbox `https://api-sandbox.asaas.com/v3` (ver `asaas-webhook` / `create-payment` e `_shared/asaasEnv.ts`). Se você definir `ASAAS_API_URL*`, use URL **completa** da API (sem colar `CHAVE=valor` no campo do Dashboard).
 
 | Variável | Uso |
 |----------|-----|
@@ -72,6 +72,10 @@ Opcionais que às vezes aparecem no `.env.example`:
 |----------|------|
 | `ASAAS_DEFAULT_CUSTOMER_ID` | Mais para teste |
 | `ASAAS_WALLET_ID` | Só se o projeto usar split com carteira da plataforma |
+
+### Chave por loja ou profissional (`asaas_api_key` no banco)
+
+Não vai no `.env` do deploy: fica em **`shops.asaas_api_key`** ou **`professionals.asaas_api_key`** (subconta Asaas), gerada no fluxo de provisionamento (`process-shop-finance`, onboarding, etc.). O servidor usa essa chave em rotas como **`/api/partner/wallet`** (saldo, extrato, saque) chamando a API Asaas **como aquela subconta**. A **`ASAAS_API_KEY`** da plataforma é outra coisa: serve para criar cobranças e subcontas na conta mãe.
 
 ---
 

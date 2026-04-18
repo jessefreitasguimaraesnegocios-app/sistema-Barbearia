@@ -20,8 +20,8 @@ Bom para spike ou ambiente descartável. Para time e produção, prefere a opç�
 ## Opção B — CLI + migrations (recomendado)
 
 1. `npx supabase login` (abre o navegador).
-2. Linka o projeto, por exemplo:  
-   `npx supabase link --project-ref pbqedfdfnxwyoemqizsv`  
+2. Linka o projeto: na raiz, `npm run supabase:link` (usa o `project-ref` já definido no `package.json`) **ou**  
+   `npx supabase link --project-ref SEU_PROJECT_REF`  
    (senha do banco em **Settings → Database**, se pedir.)
 3. Empurra o que está em `supabase/migrations/`:  
    `npx supabase db push`  

@@ -8,18 +8,18 @@ O repositório já aponta o script `npm run supabase:link` e os exemplos de `.en
 
 ### Banco (`pbqedfdfnxwyoemqizsv`)
 
-1. **`db push` / migrations** — Aplicam **só** o que está em `supabase/migrations/`. Os arquivos `supabase/RUN_*.sql` **não** rodam sozinhos com `db push` (ver [supabase/README.md](../supabase/README.md) — secção sobre `RUN_*.sql`).
-2. **Agenda na tabela `shops`** — Se já correste `npm run db push` e apareceu *up to date*, o DDL da agenda **já está** na migration `20260326200000_shop_agenda_hours_and_profile_appointments.sql`. **Não é obrigatório** abrir `RUN_AGENDA_SHOP_COLUMNS.sql` no SQL Editor.
+1. **`db push` / migrations** — Aplicam **só** o que está em `supabase/migrations/`. Os arquivos `supabase/RUN_*.sql` **não** rodam sozinhos com `db push` (ver [supabase/README.md](../supabase/README.md) — seção sobre `RUN_*.sql`).
+2. **Agenda na tabela `shops`** — Se você já rodou `npm run db:push` (ou `npx supabase db push`) e apareceu *up to date*, o DDL da agenda **já está** na migration `20260326200000_shop_agenda_hours_and_profile_appointments.sql`. **Não é obrigatório** abrir `RUN_AGENDA_SHOP_COLUMNS.sql` no SQL Editor.
 3. **Confirmar visualmente (mata dúvida):** Dashboard → **Table Editor** → `shops` → colunas `workday_start`, `workday_end`, `lunch_start`, `lunch_end`, `agenda_slot_minutes`. Se todas existem, está alinhado com o repo.
 4. **`RUN_IN_SQL_EDITOR.sql`**, **`RUN_ATUALIZAR_*`**, **`RUN_REPOR_*`** — Opcionais / legado / seed (ex. caso D_K). Só mudam algo se **alguém colar e der Run** no SQL Editor. Para o app “padrão”, pode ignorar.
 
 ### Fora do Postgres (obrigatório para o app funcionar de ponta a ponta)
 
-5. **`.env` / `.env.local`** na tua máquina — URL e chaves **deste** projeto (secção 1 abaixo).
-6. **Edge Functions → Secrets** no dashboard — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, Asaas, webhooks, etc. (secção 4). Sem isso as functions quebram em runtime.
-7. **Vercel** (se usas) — Mesmas variáveis + **redeploy**.
-8. **Auth → URL Configuration** — Site URL + redirect URLs (secção 6).
-9. **Usuário admin** — No projeto novo não existe o login antigo até criares utilizador em Auth e `profiles.role = 'admin'` (ou fluxo que uses).
+5. **`.env` / `.env.local`** no seu ambiente — URL e chaves **deste** projeto (seção 1 abaixo).
+6. **Edge Functions → Secrets** no dashboard — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, Asaas, webhooks, etc. (seção 4). Sem isso as functions quebram em runtime.
+7. **Vercel** (se você usa) — Mesmas variáveis + **redeploy**.
+8. **Auth → URL Configuration** — Site URL + redirect URLs (seção 6).
+9. **Usuário admin** — No projeto novo não existe o login antigo até você criar usuário em Auth e `profiles.role = 'admin'` (ou o fluxo que o time usar).
 10. **Asaas** — Webhooks apontando para `…/pbqedfdfnxwyoemqizsv.supabase.co/functions/v1/asaas-webhook` (e `shop-finance-webhook` se aplicável).
 
 ---
@@ -43,13 +43,13 @@ Qualquer URL ainda com outro `*.supabase.co` no Asaas ou em `.env` da Vercel con
 
 ---
 
-## 1. Sua máquina — `.env` / `.env.local`
+## 1. Ambiente local — `.env` / `.env.local`
 
-Atualize **na mão** (não commitar):
+Atualize **manualmente** (não commitar):
 
 - `VITE_SUPABASE_URL=https://pbqedfdfnxwyoemqizsv.supabase.co`
-- `VITE_SUPABASE_ANON_KEY=<anon do novo projeto>`
-- `SUPABASE_SERVICE_ROLE_KEY=<service_role do novo>`
+- `VITE_SUPABASE_ANON_KEY=<anon deste projeto>`
+- `SUPABASE_SERVICE_ROLE_KEY=<service_role deste projeto>`
 - `SUPABASE_URL` igual à URL do projeto (recomendado para `api/*` e scripts)
 - `SUPABASE_ANON_KEY` (opcional, se alguma rota usar)
 
@@ -118,7 +118,8 @@ Em **Project Settings → Edge Functions → Secrets**, configure no mínimo (es
 **Opcionais** (só se o fluxo usar)
 
 - `SHOP_FINANCE_WEBHOOK_SECRET` — `shop-finance-webhook`
-- `ASAAS_SHOP_PROVISIONER_URL`, `ASAAS_SHOP_PROVISIONER_TOKEN`, `ASAAS_SHOP_PROVISIONER_APP_ID`, `ASAAS_PROVISIONER_ENV` — `process-shop-finance`
+- `ASAAS_SHOP_PROVISIONER_URL`, `ASAAS_SHOP_PROVISIONER_TOKEN`, `ASAAS_SHOP_PROVISIONER_APP_ID` — delegar criação da subconta da loja a serviço externo (`process-shop-finance`)
+- `ASAAS_PROVISIONER_ENV` — usado **só** na Edge `process-shop-finance` para forçar/alinhar ambiente (`sandbox` / `production`) na resolução de URL; **não** confundir com `ASAAS_PROVISIONER_*` do provisionador de **profissionais** (`provision-wallets`; ver **[ASAAS_PROVISIONER_ENV.md](../ASAAS_PROVISIONER_ENV.md)**)
 
 Detalhe por variável: **[SECRETS_AND_KEYS.md](../SECRETS_AND_KEYS.md)**.
 
@@ -156,10 +157,8 @@ Faça **redeploy** após salvar.
 
 ---
 
-## Status verificado neste repo (CLI)
+## Manutenção contínua (vale refazer após mudanças)
 
-- **Link:** `pbqedfdfnxwyoemqizsv` já aparecia como projeto linkado (`supabase projects list`).
-- **Migrations:** `npx supabase db push` → *Remote database is up to date.*
-- **Edge Functions:** antes não havia funções no projeto; após `npm run supabase:functions-deploy` estão publicadas: `create-shop`, `create-payment`, `process-shop-finance`, `shop-finance-webhook`, `asaas-webhook`.
-
-Se rodar `npx supabase functions list` de novo, as cinco devem aparecer. **Secrets** das functions e **`.env` / Vercel** continuam sendo configuração manual (o deploy não copia secrets do projeto antigo).
+- **Migrations:** `npm run db:push` ou `npx supabase db push` — remoto alinhado ao que está em `supabase/migrations/`.
+- **Edge Functions:** `npm run supabase:functions-deploy` — publica/atualiza `create-shop`, `create-payment`, `process-shop-finance`, `shop-finance-webhook`, `asaas-webhook`. Confira com `npx supabase functions list`.
+- **Secrets** das functions e **`.env` / Vercel** são sempre manuais ao trocar de projeto: o deploy **não** copia secrets de um ambiente para outro.

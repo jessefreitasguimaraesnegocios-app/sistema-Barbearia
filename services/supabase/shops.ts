@@ -22,7 +22,7 @@ export const SERVICES_SELECT_PARTNER_BUNDLE =
   'id, shop_id, name, description, price, duration';
 
 export const PRODUCTS_SELECT_PARTNER_BUNDLE =
-  'id, shop_id, name, description, price, promo_price, category, image, stock';
+  'id, shop_id, name, description, price, promo_price, category, image, stock, catalog_item_id';
 
 /**
  * Catálogo cliente (home/lista): só colunas de `shops` — profissionais vêm num segundo
@@ -38,7 +38,7 @@ export const SERVICES_SELECT_CLIENT_CATALOG_DETAIL =
   'id, name, description, price, duration';
 
 export const PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL =
-  'id, name, description, price, promo_price, category, image, stock';
+  'id, name, description, price, promo_price, category, image, stock, catalog_item_id';
 
 /** @deprecated Usar `SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS` + batch em `professionals`. Mantido alias para leitores legados. */
 export const SHOPS_SELECT_CLIENT_CATALOG_LIST = SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS;

@@ -6,7 +6,7 @@ Resumo do que foi implementado para reduzir tráfego Supabase (PostgREST + Realt
 
 ## 1. Pedidos da loja (parceiro) — Realtime sem lista inteira
 
-**Ficheiro:** `hooks/useRealtimePartnerOrders.ts`
+**Arquivo:** `hooks/useRealtimePartnerOrders.ts`
 
 - Antes: cada evento em `public.orders` disparava `fetchPartnerOrdersWithProfiles` (lista completa + `profiles` em batch).
 - Agora: merge local (INSERT / UPDATE / DELETE), no mesmo espírito de `useRealtimeOrders` na área cliente.
@@ -16,7 +16,7 @@ Resumo do que foi implementado para reduzir tráfego Supabase (PostgREST + Realt
 
 ## 2. Bundle da loja (parceiro) — Realtime granular
 
-**Ficheiros:** `hooks/useShop.ts`, `services/supabase/mapPartnerShop.ts`, `services/supabase/shops.ts`
+**Arquivos:** `hooks/useShop.ts`, `services/supabase/mapPartnerShop.ts`, `services/supabase/shops.ts`
 
 - Antes: qualquer `postgres_changes` em `shops`, `services`, `professionals` ou `products` chamava `reloadShop()` → bundle completo (1 shop + 3 listas).
 - Agora:
@@ -28,7 +28,7 @@ Resumo do que foi implementado para reduzir tráfego Supabase (PostgREST + Realt
 
 ## 3. Agendamentos e pedidos parceiro — janela de datas e paginação de pedidos
 
-**Ficheiro:** `services/supabase/partnerShopActivity.ts`
+**Arquivo:** `services/supabase/partnerShopActivity.ts`
 
 **Agendamentos**
 
@@ -53,25 +53,26 @@ Resumo do que foi implementado para reduzir tráfego Supabase (PostgREST + Realt
 
 ## 4. Detalhe da loja (cliente) — produtos via Realtime sem refetch total
 
-**Ficheiro:** `views/ShopDetails.tsx`
+**Arquivo:** `views/ShopDetails.tsx`
 
 - Antes: cada evento em `products` refazia `select` de **todos** os produtos da loja.
 - Agora: merge na lista `liveProducts` a partir do payload (INSERT/UPDATE/DELETE).
 
 ---
 
-## 5. Catálogo público — `select` mais enxuto
+## 5. Catálogo público — lista leve + detalhe sob demanda
 
-**Ficheiro:** `services/supabase/shops.ts` — constante `SHOPS_SELECT_CLIENT_CATALOG`
+**Arquivo:** `services/supabase/shops.ts`
 
-- Removidos do embed da loja (catálogo cliente) campos não usados no fluxo cliente na UI: `cnpj_cpf`, `email`, `phone`, `pix_key`, Asaas (`asaas_account_id`, `asaas_wallet_id`), `split_percent`, `pass_fees_to_customer`.
-- Mantidos `subscription_active` / `subscription_amount` para o modelo `Shop` e possíveis regras futuras.
+- **Home / lista:** `SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS` (só colunas de `shops`) + busca em lote de `professionals` (`PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST` por chunks de `shop_id`) — evita embed PostgREST gigante por loja.
+- **Detalhe da loja:** `fetchClientCatalogShopDetailById` carrega `services` e `products` em paralelo com `SERVICES_SELECT_CLIENT_CATALOG_DETAIL` / `PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL`.
+- Aliases `SHOPS_SELECT_CLIENT_CATALOG_LIST`, `SHOPS_SELECT_CLIENT_CATALOG_DETAIL` e `SHOPS_SELECT_CLIENT_CATALOG` apontam para o mesmo núcleo de colunas da loja; o ganho de egress vem da **separação** lista vs relacionamentos pesados.
 
 ---
 
 ## 6. Admin — estatísticas leves + lista paginada
 
-**Ficheiros:** `services/supabase/shops.ts`, `pages/AdminArea.tsx`, `views/AdminDashboard.tsx`
+**Arquivos:** `services/supabase/shops.ts`, `pages/AdminArea.tsx`, `views/AdminDashboard.tsx`
 
 - `fetchAdminShopsAggregateStats`: uma query só com `subscription_active`, `subscription_amount` para **total de lojas**, **assinaturas ativas** e **MRR estimado** no topo.
 - `fetchShopsForAdminPage` + `ADMIN_SHOPS_PAGE_SIZE` (**30**), ordenação por nome, `.range`.
@@ -88,7 +89,7 @@ Resumo do que foi implementado para reduzir tráfego Supabase (PostgREST + Realt
 | Janela agenda parceiro | `PARTNER_APPOINTMENT_PAST_DAYS`, `PARTNER_APPOINTMENT_FUTURE_DAYS`, `partnerAgendaDateRange()` |
 | Tamanho página pedidos parceiro | `PARTNER_ORDERS_RECENT_PAGE_SIZE` |
 | Admin lista | `ADMIN_SHOPS_PAGE_SIZE` |
-| Catálogo cliente | `SHOPS_SELECT_CLIENT_CATALOG` em `shops.ts` |
+| Catálogo cliente (lista + selects de detalhe) | `SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS`, `PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST`, `SERVICES_SELECT_CLIENT_CATALOG_DETAIL`, `PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL` em `shops.ts` |
 
 ---
 

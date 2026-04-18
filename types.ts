@@ -53,6 +53,8 @@ export interface Product {
   category: string;
   image: string;
   stock: number;
+  /** Quando preenchido, produto veio do catálogo global (`product_catalog_items`). */
+  catalogItemId?: string | null;
 }
 
 export interface Shop {

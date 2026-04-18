@@ -64,4 +64,4 @@ Quem tem perfil **profissional** vinculado à loja:
 
 Um **hub** onde o cliente acha loja, agenda e paga; o parceiro (e a equipe) manda no dia a dia; o admin mantém o ecossistema e o financeiro no trilho.
 
-Mais detalhe de deploy e secrets: **[README.md](./README.md)**.
+Mais detalhe de deploy e secrets: **[README.md](./README.md)**. Guias técnicos (webhook, egress, migração): **[docs/README.md](./docs/README.md)**.

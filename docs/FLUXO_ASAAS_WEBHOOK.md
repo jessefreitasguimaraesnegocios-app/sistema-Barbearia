@@ -2,12 +2,12 @@
 
 Visão geral de como o sistema reage aos eventos do Asaas após as mudanças de mensalidade da plataforma e webhook.
 
-## Actores
+## Atores
 
-| Actor | Papel |
+| Ator | Papel |
 |--------|--------|
 | **Asaas (conta mãe)** | Cobranças da **mensalidade da plataforma** por estabelecimento (assinatura). |
-| **Asaas (conta da loja / split)** | Cobranças de **agendamento** e **pedidos** (PIX) dos clientes. |
+| **Asaas (PIX com split)** | Cobranças de **agendamento** e **pedidos** criadas pela **API da plataforma** (`create-payment` / `api/payments/create`), com `split` para a carteira da loja ou do profissional — o webhook configurado no painel Asaas recebe os eventos dessa mesma conta. |
 | **Edge Function `asaas-webhook`** | Recebe webhooks, idempotência, atualiza BD. |
 | **Supabase (Postgres)** | `shops`, `appointments`, `orders`, tabelas de dedupe de webhook. |
 | **Admin (portal)** | Edita `asaas_platform_subscription_id`, mensalidade, split, etc. |
@@ -46,7 +46,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   C[Cliente ShopDetails] -->|cria PIX| API[create-payment / API]
-  API --> AsaasL[Asaas loja/split]
+  API --> AsaasL[Asaas cobrança + split]
   AsaasL -->|webhook pagamento| W[asaas-webhook]
   W -->|UPDATE appointments/orders| DB[(Postgres)]
   DB --> C[Refetch / UI atualizada]

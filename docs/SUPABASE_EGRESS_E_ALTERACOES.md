@@ -1,13 +1,13 @@
 # Resumo: egress no Supabase e alterações no projeto
 
-Documento para quando migrares para um plano com **mais quota de egress** (ou quiseres **voltar a comportamentos “máxima comodidade”** em troca de mais tráfego).
+Documento para quando você migrar para um plano com **mais quota de egress** (ou quiser **voltar a comportamentos de “máxima comodidade”** em troca de mais tráfego).
 
 ---
 
 ## O que aconteceu
 
 - No **Supabase (plano Free)**, o painel de **Usage** mostrou **Egress acima do limite** (~7,7 GB / 5 GB no ciclo de faturação).
-- **Egress** conta **toda a saída de rede** do projeto: respostas do **PostgREST** (os teus `.from().select()`), **Auth**, **Realtime**, **Storage** (imagens/ficheiros), **Edge Functions**, etc. — não é só “SQL”.
+- **Egress** conta **toda a saída de rede** do projeto: respostas do **PostgREST** (os teus `.from().select()`), **Auth**, **Realtime**, **Storage** (imagens/arquivos), **Edge Functions**, etc. — não é só “SQL”.
 - O **tamanho da base** e outras métricas estavam baixas; o gargalo era **volume de dados transferidos** (JSON grande, listas completas, refetch em cadeia, imagens, etc.).
 
 ---
@@ -19,17 +19,17 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 - **Objetivo:** cada resposta HTTP traz só colunas que a UI precisa → **menos bytes** por request.
 - **Onde:**
   - `services/supabase/shops.ts` — `fetchPartnerShopBundle`: `services` e `products` deixaram de usar `select('*')` e passaram a constantes `SERVICES_SELECT_PARTNER_BUNDLE` e `PRODUCTS_SELECT_PARTNER_BUNDLE` (alinhadas com `mapPartnerShopFromBundle`).
-  - Área do cliente — agendamentos e pedidos: selects explícitos (ver ficheiros abaixo).
+  - Área do cliente — agendamentos e pedidos: selects explícitos (ver arquivos abaixo).
 
-**Para “máxima simplicidade” com banco grande:** podes voltar a `select('*')` onde quiseres debug ou colunas dinâmicas; **não melhora performance do Postgres**, só **aumenta egress** e payload no browser.
+**Para “máxima simplicidade” com banco grande:** você pode voltar a `select('*')` onde quiser debug ou colunas dinâmicas; **não melhora performance do Postgres**, só **aumenta egress** e payload no browser.
 
 ---
 
 ### 2. Área do cliente: paginação + Realtime sem refetch de pedidos
 
-**Ficheiros principais:**
+**Arquivos principais:**
 
-| Ficheiro | Alteração |
+| Arquivo | Alteração |
 |----------|-----------|
 | `services/supabase/clientListQueries.ts` | `CLIENT_LIST_PAGE_SIZE` (20), `APPOINTMENTS_SELECT_CLIENT` (inclui `created_at` para ordenação estável), `sortAppointmentsClientList`. |
 | `services/supabase/orderMapping.ts` | `ORDERS_SELECT_CLIENT`, `mapRowToOrder`, `sortOrdersNewestFirst`. |
@@ -44,9 +44,9 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 
 **Para voltar à “melhor comodidade” com capacidade alta:**
 
-1. Aumentar ou remover limite: em `clientListQueries.ts`, altera `CLIENT_LIST_PAGE_SIZE` (ex.: 50, 100) ou implementa “carregar tudo” num único request.
-2. Remover paginação na UI: deixa de passar `hasMore` / `onLoadMore` e volta a um único `select(...).order(...)` **sem** `.range()`.
-3. Se quiseres **sempre** lista 100% sincronizada com o servidor a cada evento (não recomendado em escala), podes remover `useRealtimeOrders` e voltar a subscrever o canal com `() => fetchOrders()` — **aumenta egress** de novo.
+1. Aumentar ou remover limite: em `clientListQueries.ts`, altere `CLIENT_LIST_PAGE_SIZE` (ex.: 50, 100) ou implemente “carregar tudo” num único request.
+2. Remover paginação na UI: deixe de passar `hasMore` / `onLoadMore` e volte a um único `select(...).order(...)` **sem** `.range()`.
+3. Se quiser **sempre** lista 100% sincronizada com o servidor a cada evento (não recomendado em escala), remova `useRealtimeOrders` e volte a inscrever o canal com `() => fetchOrders()` — **aumenta egress** de novo.
 
 ---
 
@@ -59,7 +59,7 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 
 ### 4. Catálogo público de lojas (contexto, pouco código alterado neste doc)
 
-- O **maior peso** de egress pode continuar a vir de **`SHOPS_SELECT_CLIENT_CATALOG`** (lojas com `services`, `professionals`, `products` embutidos) + **Realtime** + **imagens** (Storage/CDN).
+- O **maior peso** de egress pode continuar a vir do **catálogo** (muitas lojas + profissionais/serviços/produtos) + **Realtime** + **imagens** (Storage/CDN). A lista da home usa selects enxutos e relacionamentos fatiados — ver `SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS` e `docs/MELHORIAS_EGRESS_E_PERFORMANCE.md`.
 - O hook **`useClientCatalogShops`** já usa **localStorage** (`lib/clientCatalogCache`) para pintar rápido e sincronizar em background — isso **não** é TanStack Query; é cache próprio do catálogo.
 
 ### Atualização aplicada (lista leve + detalhe)
@@ -75,9 +75,9 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 
 ### 5. TanStack Query — cache da primeira página + invalidação após pagamento
 
-**Ideia (Supabase em linguagem simples):** “menos pedidos repetidos à rede” **sem** estragar fluxos em que o utilizador **acabou de pagar** e precisa ver lista fresca.
+**Ideia (Supabase em linguagem simples):** “menos pedidos repetidos à rede” **sem** estragar fluxos em que o usuário **acabou de pagar** e precisa ver lista fresca.
 
-| Ficheiro | Função |
+| Arquivo | Função |
 |----------|--------|
 | `package.json` | Dependência `@tanstack/react-query`. |
 | `contexts/AppQueryProvider.tsx` | `QueryClientProvider` + defaults (`refetchOnWindowFocus: false`, `staleTime` base 30s, `retry: 1`). |
@@ -107,7 +107,7 @@ Documento para quando migrares para um plano com **mais quota de egress** (ou qu
 - Ajustes de sintaxe canónica (v4), ex.: `text-[var(--app-text)]` → `text-(--app-text)`, `dark:[color-scheme:dark]` → `dark:scheme-dark`, etc.
 - **Não alteram** egress nem Supabase; são só **lint / consistência de classes**.
 
-Ficheiros tocados nessa limpeza (memória útil): `components/Layout.tsx`, `LoginForm.tsx`, `ThemeLogoButton.tsx`, `views/ShopCustomization.tsx`.
+Arquivos tocados nessa limpeza (memória útil): `components/Layout.tsx`, `LoginForm.tsx`, `ThemeLogoButton.tsx`, `views/ShopCustomization.tsx`.
 
 ---
 
@@ -117,14 +117,14 @@ Ficheiros tocados nessa limpeza (memória útil): `components/Layout.tsx`, `Logi
 - [ ] Manter `select` explícito (boa prática mesmo com plano pago) ou relaxar para `*` só onde fizer sentido operacional.
 - [ ] Manter **merge Realtime** em `orders` (costuma ser win em qualquer plano); só voltar a refetch total se tiveres um motivo forte.
 - [ ] Rever **imagens** (CDN, cache HTTP, tamanhos) — costuma ser o maior egress fora do JSON.
-- [ ] Aumentar `CLIENT_AREA_FIRST_PAGE_STALE_MS` só se aceitares menos pedidos à rede e possível desfasagem rara vs Realtime; após pagamento a invalidação continua a mandar na rede.
+- [ ] Aumentar `CLIENT_AREA_FIRST_PAGE_STALE_MS` só se aceitar menos pedidos à rede e possível desfasagem rara vs Realtime; após pagamento a invalidação continua a mandar na rede.
 - [ ] Revisar logs Auth (`/user`, `/token`) por referer/IP e garantir que não há loops de sessão em telas que montam headers de API.
 
 ---
 
 ## Como voltar ao comportamento anterior (rollback guiado)
 
-Se um dia quiseres voltar para o fluxo “mais simples / mais tráfego”, usa esta ordem:
+Se um dia quiser voltar para o fluxo “mais simples / mais tráfego”, use esta ordem:
 
 | Arquivo | Mudança feita | Como desfazer |
 |---------|---------------|---------------|
@@ -133,7 +133,7 @@ Se um dia quiseres voltar para o fluxo “mais simples / mais tráfego”, usa e
 | `hooks/useClientCatalogShops.ts` | Realtime da home deixou de subscrever `services` e `products` para cortar tráfego | Reativar listeners `.on(... table: 'services')` e `.on(... table: 'products')` se quiser atualização imediata total no catálogo da home |
 | `contexts/AuthContext.tsx` | `refreshProfile` trocado de `auth.getUser()` para `auth.getSession()` (menos `/user`) | Voltar para `auth.getUser()` em `refreshProfile` se preferires validação remota por chamada (mais Auth egress) |
 | `pages/PartnerArea.tsx` | Login parceiro usa `void refreshProfile()` (não bloqueante) | Voltar para `await refreshProfile()` no submit de login |
-| `docs/EGRESS_24H_BASELINE_CHECK.md` | Checklist de medição antes/depois | Apenas manter como histórico, ou remover se não quiseres controle de baseline |
+| `docs/EGRESS_24H_BASELINE_CHECK.md` | Checklist de medição antes/depois | Manter como modelo de baseline; ver também **[docs/README.md](./README.md)** |
 
 ### Efeito esperado ao desfazer
 
@@ -145,11 +145,11 @@ Se um dia quiseres voltar para o fluxo “mais simples / mais tráfego”, usa e
 
 ### Rollback técnico (git)
 
-Se quiseres desfazer só este pacote, usa o commit hash correspondente e reverte:
+Se quiser desfazer só este pacote, use o commit hash correspondente e reverta:
 
 `git revert <hash_do_commit_das_otimizacoes_de_egress>`
 
-Se quiseres desfazer seletivo por arquivo, faz rollback apenas nos caminhos acima.
+Se quiser desfazer de forma seletiva por arquivo, faça rollback apenas nos caminhos acima.
 
 ---
 

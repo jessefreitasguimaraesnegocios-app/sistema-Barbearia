@@ -14,6 +14,7 @@ export function mapClientCatalogProductRow(p: Record<string, unknown>): Product 
       p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974'
     ),
     stock: Number(p.stock) || 0,
+    catalogItemId: p.catalog_item_id != null ? String(p.catalog_item_id) : null,
   };
 }
 

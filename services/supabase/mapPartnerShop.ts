@@ -61,20 +61,23 @@ export function mapPartnerProfessionalsFromRows(
 }
 
 export function mapPartnerProductsFromRows(rawProducts: Record<string, unknown>[]): Product[] {
-  return dedupeByKey(rawProducts, (p) => `${String(p.name || '').trim()}|${Number(p.price)}|${String(p.category || 'Geral').trim()}`).map(
-    (p) => ({
-      id: String(p.id),
-      name: String(p.name),
-      description: String(p.description || ''),
-      price: Number(p.price),
-      promoPrice: p.promo_price != null ? Number(p.promo_price) : undefined,
-      category: String(p.category || 'Geral'),
-      image: String(
-        p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974'
-      ),
-      stock: Number(p.stock) || 0,
-    })
-  );
+  return dedupeByKey(rawProducts, (p) => {
+    const cid = p.catalog_item_id != null ? String(p.catalog_item_id).trim() : '';
+    if (cid) return `cid:${cid}`;
+    return `${String(p.name || '').trim()}|${Number(p.price)}|${String(p.category || 'Geral').trim()}`;
+  }).map((p) => ({
+    id: String(p.id),
+    name: String(p.name),
+    description: String(p.description || ''),
+    price: Number(p.price),
+    promoPrice: p.promo_price != null ? Number(p.promo_price) : undefined,
+    category: String(p.category || 'Geral'),
+    image: String(
+      p.image || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974'
+    ),
+    stock: Number(p.stock) || 0,
+    catalogItemId: p.catalog_item_id != null ? String(p.catalog_item_id) : null,
+  }));
 }
 
 /** Atualiza só metadados da loja (linha `shops`); mantém `services` / `professionals` / `products` de `prev`. */

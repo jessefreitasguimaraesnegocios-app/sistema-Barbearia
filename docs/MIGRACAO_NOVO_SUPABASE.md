@@ -92,7 +92,7 @@ As funções estão em `supabase/functions/`:
 | Função | Notas rápidas |
 |--------|----------------|
 | `create-shop` | Cria loja + dono; secrets de Supabase + Asaas conforme código. |
-| `create-payment` | `--no-verify-jwt` no deploy (já usado no script do repo). |
+| `create-payment` | Deploy com `--no-verify-jwt` (script `npm run supabase:functions-deploy` e `supabase/config.toml` → `[functions.create-payment] verify_jwt = false`; a função valida o usuário com `auth.getUser(jwt)` no corpo). |
 | `process-shop-finance` | Provisionamento financeiro. |
 | `shop-finance-webhook` | Webhook interno; configure segredos (`SHOP_FINANCE_WEBHOOK_SECRET`, etc.). |
 | `asaas-webhook` | Webhook Asaas; tokens em secrets (`ASAAS_WEBHOOK_TOKEN`, sandbox, etc.). |

@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Shop, Product, Service, Professional, ShopType } from '../types';
 import { shopPrimaryStyleVars } from '../lib/shopBrandCss';
 import {
@@ -10,12 +10,30 @@ import {
 } from '../lib/brInputMasks';
 import { supabase } from '../src/lib/supabase';
 import { uploadShopMediaAndGetPublicUrl } from '../lib/shopMediaUpload';
+import {
+  fetchProductCatalogForShopType,
+  type ProductCatalogCategoryRow,
+  type ProductCatalogItemRow,
+} from '../services/supabase/productCatalog';
 
 function isUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
 const ASAAS_FEE = 1.99;
+
+/** Categorias de produto no catálogo (alinhadas à migration `product_catalog_categories`). */
+const PRODUCT_CATEGORY_PRESETS: Record<ShopType, readonly string[]> = {
+  BARBER: ['Produtos para cabelo', 'Produtos para barba', 'Máquinas & ferramentas', 'Acessórios'],
+  SALON: ['Produtos capilares', 'Química & coloração', 'Tratamentos', 'Equipamentos profissionais'],
+  MANICURE: ['Esmaltes & finalização', 'Alongamento de unhas', 'Cuidados & preparação', 'Equipamentos & acessórios'],
+};
+
+function productCatalogOptgroupLabel(shopType: ShopType, categoryName: string): string {
+  if (shopType === 'BARBER') return `💈 ${categoryName}`;
+  if (shopType === 'SALON') return `💇‍♀️ ${categoryName}`;
+  return `💅 ${categoryName}`;
+}
 
 /** Tipos de serviço padronizados — barbearia (nome exibido e salvo em `Service.name`) */
 const BARBER_STANDARD_SERVICE_OPTIONS: readonly string[] = [
@@ -196,7 +214,8 @@ function dedupeProfessionals(pros: Professional[]): Professional[] {
 function dedupeProducts(products: Product[]): Product[] {
   const seen = new Set<string>();
   return products.filter((p) => {
-    const k = `${(p.name || '').trim()}|${p.price}|${(p.category || 'Geral').trim()}`;
+    const cid = (p.catalogItemId || '').trim();
+    const k = cid ? `cid:${cid}` : `${(p.name || '').trim()}|${p.price}|${(p.category || 'Geral').trim()}`;
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
@@ -312,7 +331,31 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ type: 'SHOP_PROFILE' | 'SHOP_BANNER' | 'PRO' | 'PRODUCT', id?: string } | null>(null);
   const [pendingServiceType, setPendingServiceType] = useState<string>('');
+  const [productCatalog, setProductCatalog] = useState<ProductCatalogCategoryRow[]>([]);
+  const [pendingCatalogItemId, setPendingCatalogItemId] = useState<string>('');
   const [imageUploading, setImageUploading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchProductCatalogForShopType(supabase, shop.type).then((rows) => {
+      if (!cancelled) setProductCatalog(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [shop.type]);
+
+  function findCatalogItem(
+    catalogItemId: string
+  ): { item: ProductCatalogItemRow; categoryName: string } | null {
+    const id = catalogItemId.trim();
+    if (!id) return null;
+    for (const cat of productCatalog) {
+      const item = cat.items.find((i) => i.id === id);
+      if (item) return { item, categoryName: cat.name };
+    }
+    return null;
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -393,17 +436,50 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
     setFormData({ ...formData, products: formData.products.filter(p => p.id !== id) });
   };
 
+  const defaultProductCategory = PRODUCT_CATEGORY_PRESETS[formData.type][0] ?? 'Geral';
+
   const addProduct = () => {
     const newProduct: Product = {
       id: Math.random().toString(36).substr(2, 9),
       name: 'Novo Produto',
       description: 'Descrição do produto',
       price: 0,
-      category: 'Geral',
+      category: defaultProductCategory,
       image: 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974',
-      stock: 10
+      stock: 10,
+      catalogItemId: null,
     };
     setFormData({ ...formData, products: [...formData.products, newProduct] });
+  };
+
+  const addProductFromCatalog = () => {
+    const cid = pendingCatalogItemId.trim();
+    if (!cid) {
+      window.alert('Selecione um produto do catálogo na lista.');
+      return;
+    }
+    if (formData.products.some((p) => p.catalogItemId === cid)) {
+      window.alert('Este item do catálogo já está na sua vitrine.');
+      return;
+    }
+    const found = findCatalogItem(cid);
+    if (!found) {
+      window.alert('Item do catálogo não encontrado. Atualize a página e tente de novo.');
+      return;
+    }
+    const { item, categoryName } = found;
+    const newProduct: Product = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: item.name,
+      description: item.description || '',
+      price: 0,
+      category: categoryName,
+      image: item.defaultImage || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974',
+      stock: 0,
+      catalogItemId: item.id,
+    };
+    setFormData({ ...formData, products: dedupeProducts([...formData.products, newProduct]) });
+    setPendingCatalogItemId('');
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
@@ -1082,19 +1158,60 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
         </div>
       ) : (
         <div className="bg-white p-6 md:p-8 rounded-4xl border border-gray-100 shadow-sm animate-fade-in">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-xl font-bold text-gray-900">Gerenciar Vitrine</h3>
-            <button 
-              onClick={addProduct}
-              className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] dark:bg-[color-mix(in_srgb,var(--shop-primary)_34%,#0a0a0a)] dark:text-[color-mix(in_srgb,var(--shop-primary)_88%,#fafafa)] dark:border dark:border-[color-mix(in_srgb,var(--shop-primary)_42%,#3f3f46)] dark:hover:bg-[color-mix(in_srgb,var(--shop-primary)_42%,#111)]"
-            >
-              <i className="fas fa-plus text-xs"></i> Novo Produto
-            </button>
+          <div className="flex flex-col gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <h3 className="text-xl font-bold text-gray-900">Gerenciar Vitrine</h3>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={addProduct}
+                  className="text-sm bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary) px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-[color-mix(in_srgb,var(--shop-primary)_18%,white)] dark:bg-[color-mix(in_srgb,var(--shop-primary)_34%,#0a0a0a)] dark:text-[color-mix(in_srgb,var(--shop-primary)_88%,#fafafa)] dark:border dark:border-[color-mix(in_srgb,var(--shop-primary)_42%,#3f3f46)] dark:hover:bg-[color-mix(in_srgb,var(--shop-primary)_42%,#111)]"
+                >
+                  <i className="fas fa-plus text-xs"></i> Produto próprio
+                </button>
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col md:flex-row gap-3 md:items-end">
+              <div className="flex-1 min-w-0">
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">
+                  Adicionar do catálogo (Belo Horizonte / referência)
+                </label>
+                <select
+                  value={pendingCatalogItemId}
+                  onChange={(e) => setPendingCatalogItemId(e.target.value)}
+                  className="w-full bg-white p-2.5 rounded-xl text-sm border border-gray-200"
+                >
+                  <option value="">Escolha um produto…</option>
+                  {productCatalog.map((cat) => (
+                    <optgroup key={cat.id} label={productCatalogOptgroupLabel(formData.type, cat.name)}>
+                      {cat.items
+                        .filter((it) => !formData.products.some((p) => p.catalogItemId === it.id))
+                        .map((it) => (
+                          <option key={it.id} value={it.id}>
+                            {it.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={addProductFromCatalog}
+                className="shrink-0 text-sm font-bold px-4 py-2.5 rounded-xl bg-(--shop-primary) text-white hover:brightness-95"
+              >
+                Adicionar à vitrine
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              O catálogo é compartilhado entre todos os estabelecimentos: cada um define preço, estoque e foto. Você também pode criar produtos próprios abaixo.
+            </p>
           </div>
 
           {(() => {
             const platformFeePct = 100 - (shop.splitPercent ?? 95);
             const passFees = formData.passFeesToCustomer ?? false;
+            const presets = PRODUCT_CATEGORY_PRESETS[formData.type];
             return (
               <>
                 <label className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 mb-6 cursor-pointer">
@@ -1201,13 +1318,56 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">Categoria</label>
-                        <input 
-                          type="text" 
-                          value={product.category} 
-                          onChange={(e) => updateProduct(product.id, { category: e.target.value })}
-                          className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
-                        />
+                        <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">
+                          Categoria
+                        </label>
+                        {product.catalogItemId ? (
+                          <>
+                            <p className="text-[11px] text-gray-500 mb-1">Catálogo compartilhado</p>
+                            <select
+                              value={presets.includes(product.category) ? product.category : presets[0]}
+                              onChange={(e) => updateProduct(product.id, { category: e.target.value })}
+                              className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
+                            >
+                              {presets.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        ) : (
+                          <>
+                            <select
+                              value={presets.includes(product.category) ? product.category : '__other__'}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === '__other__') {
+                                  updateProduct(product.id, { category: 'Personalizada' });
+                                  return;
+                                }
+                                updateProduct(product.id, { category: v });
+                              }}
+                              className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
+                            >
+                              {presets.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                              <option value="__other__">Outra (personalizada)</option>
+                            </select>
+                            {!presets.includes(product.category) ? (
+                              <input
+                                type="text"
+                                value={product.category}
+                                onChange={(e) => updateProduct(product.id, { category: e.target.value })}
+                                placeholder="Nome da sua categoria"
+                                className="w-full mt-2 bg-white p-2 rounded-lg text-sm border border-gray-200"
+                              />
+                            ) : null}
+                          </>
+                        )}
                       </div>
                       <div className="flex justify-end gap-2 pt-2">
                         <button 

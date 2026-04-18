@@ -97,6 +97,10 @@ Recebe `amount`, `customerName`, `customerEmail` e `booking` ou `order` (com `sh
 
 Sem carteira no contexto → pagamento **não** passa.
 
+### Catálogo global de **produtos** (barbearia / salão / manicure)
+
+Tabelas `product_catalog_categories` e `product_catalog_items` (migration `20260418150100_product_catalog_shared_bh.sql`): um item mestre compartilhado; cada loja grava em `products` com `catalog_item_id`, preço, estoque e foto próprios. Na personalização da loja, o parceiro escolhe itens do catálogo ou cria produto próprio.
+
 ### Subconta dos **profissionais**
 
 `POST /api/partner/professionals/provision-wallets` fala com o provisionador externo. Variáveis: ver **[ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md)**.
@@ -132,5 +136,6 @@ Antes de soltar versão: **[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)**.
 |---------|---------|
 | [SOBRE-O-APP.md](./SOBRE-O-APP.md) | Visão de produto (cliente / parceiro / admin / staff) |
 | [SECRETS_AND_KEYS.md](./SECRETS_AND_KEYS.md) | Onde colocar cada chave sem vazar |
-| [ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md) | Provisionador de subcontas |
+| [ASAAS_PROVISIONER_ENV.md](./ASAAS_PROVISIONER_ENV.md) | Provisionador de subcontas (profissionais) |
+| [docs/README.md](./docs/README.md) | Índice dos guias (webhook, egress, migração Supabase) |
 | [supabase/README.md](./supabase/README.md) | Schema rápido (SQL Editor vs CLI) |

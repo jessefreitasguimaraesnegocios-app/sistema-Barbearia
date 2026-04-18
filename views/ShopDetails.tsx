@@ -837,7 +837,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                     {shop.professionals.some((p) => p.juniorPricePercent != null) ? (
                       <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 dark:bg-amber-950/40 dark:border-amber-900/60 dark:text-amber-100">
                         Esta loja tem profissionais júnior: o valor final depende de quem você escolher no próximo
-                        passo (50% ou 90% do preço de tabela).
+                        passo (entre 50% e 90% do preço de tabela, conforme configurado para cada profissional).
                       </p>
                     ) : null}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

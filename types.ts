@@ -43,7 +43,7 @@ export interface Professional {
   /** Preenchido quando o profissional já tem usuário em Sou parceiro */
   authUserId?: string | null;
   /**
-   * Quando 50–90, na agenda o cliente paga esse percentual do preço de tabela do serviço.
+   * Quando definido (inteiro entre 50 e 90), na agenda o cliente paga esse % do preço de tabela do serviço.
    * `null` / omitido = preço integral.
    */
   juniorPricePercent?: number | null;

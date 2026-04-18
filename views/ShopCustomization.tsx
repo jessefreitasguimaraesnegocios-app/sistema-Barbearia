@@ -15,6 +15,7 @@ import {
   type ProductCatalogCategoryRow,
   type ProductCatalogItemRow,
 } from '../services/supabase/productCatalog';
+import { clampJuniorPricePercent } from '../lib/juniorServicePrice';
 
 function isUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -981,7 +982,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                         if (v === 'full') {
                           updateProfessional(pro.id, { juniorPricePercent: null });
                         } else {
-                          updateProfessional(pro.id, { juniorPricePercent: 50 });
+                          updateProfessional(pro.id, { juniorPricePercent: 70 });
                         }
                       }}
                       className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
@@ -994,34 +995,27 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                       </option>
                     </select>
                     {pro.juniorPricePercent != null && (
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-2 space-y-2">
                         <p className="text-[9px] text-gray-500 font-medium leading-snug">
-                          Valor cobrado do cliente em relação ao preço de tabela (todos os serviços com este
-                          profissional):
+                          Percentual do preço de tabela cobrado do cliente (entre 50% e 90%) — vale para todos os
+                          serviços com este profissional:
                         </p>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => updateProfessional(pro.id, { juniorPricePercent: 50 })}
-                            className={`flex-1 py-2 rounded-xl text-[10px] font-bold border-2 transition-all ${
-                              pro.juniorPricePercent === 50
-                                ? 'border-(--shop-primary) bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary)'
-                                : 'border-gray-100 bg-white text-gray-500 hover:border-gray-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300'
-                            }`}
-                          >
-                            50% da tabela
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateProfessional(pro.id, { juniorPricePercent: 90 })}
-                            className={`flex-1 py-2 rounded-xl text-[10px] font-bold border-2 transition-all ${
-                              pro.juniorPricePercent === 90
-                                ? 'border-(--shop-primary) bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary)'
-                                : 'border-gray-100 bg-white text-gray-500 hover:border-gray-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300'
-                            }`}
-                          >
-                            90% da tabela
-                          </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <input
+                            type="range"
+                            min={50}
+                            max={90}
+                            step={1}
+                            aria-label="Percentual do preço de tabela para profissional júnior"
+                            value={clampJuniorPricePercent(Number(pro.juniorPricePercent) || 70)}
+                            onChange={(e) =>
+                              updateProfessional(pro.id, { juniorPricePercent: Number(e.target.value) })
+                            }
+                            className="min-w-[120px] flex-1 h-2 rounded-full accent-(--shop-primary)"
+                          />
+                          <span className="text-sm font-black text-(--shop-primary) tabular-nums w-12 shrink-0 text-right">
+                            {clampJuniorPricePercent(Number(pro.juniorPricePercent) || 70)}%
+                          </span>
                         </div>
                       </div>
                     )}

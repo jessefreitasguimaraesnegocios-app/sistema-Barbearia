@@ -358,6 +358,10 @@ export default function PartnerArea() {
 
     for (const p of updated.professionals || []) {
       if (isUuid(p.id)) {
+        const juniorPct =
+          p.juniorPricePercent != null && Number.isFinite(Number(p.juniorPricePercent))
+            ? Math.min(90, Math.max(50, Math.round(Number(p.juniorPricePercent))))
+            : null;
         const proPatch: Record<string, unknown> = {
           name: p.name,
           specialty: p.specialty ?? null,
@@ -365,6 +369,7 @@ export default function PartnerArea() {
           phone: p.phone?.trim() || null,
           cpf_cnpj: p.cpfCnpj?.replace(/\D/g, '') || null,
           birth_date: p.birthDate?.trim() || null,
+          junior_price_percent: juniorPct,
         };
         if (p.splitPercent !== undefined) {
           proPatch.split_percent = clampSplit(Number(p.splitPercent));
@@ -376,6 +381,10 @@ export default function PartnerArea() {
         const { error: e } = await supabase.from('professionals').update(proPatch).match({ id: p.id, shop_id: shopId });
         if (e) throw new Error(`Equipe: ${e.message}`);
       } else {
+        const juniorPctInsert =
+          p.juniorPricePercent != null && Number.isFinite(Number(p.juniorPricePercent))
+            ? Math.min(90, Math.max(50, Math.round(Number(p.juniorPricePercent))))
+            : null;
         const { error: e } = await supabase.from('professionals').insert({
           shop_id: shopId,
           name: p.name,
@@ -387,6 +396,7 @@ export default function PartnerArea() {
           split_percent: p.splitPercent != null ? clampSplit(Number(p.splitPercent)) : null,
           split_percent_sandbox:
             p.splitPercentSandbox != null ? clampSplit(Number(p.splitPercentSandbox)) : null,
+          junior_price_percent: juniorPctInsert,
         });
         if (e) throw new Error(`Equipe: ${e.message}`);
       }

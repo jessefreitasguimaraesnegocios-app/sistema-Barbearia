@@ -88,6 +88,7 @@ function mockSupabaseForPartnerBundle() {
                   split_percent: null,
                   split_percent_sandbox: null,
                   user_id: null,
+                  junior_price_percent: null,
                 },
               ],
               error: null,

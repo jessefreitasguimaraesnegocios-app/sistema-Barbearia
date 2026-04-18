@@ -42,6 +42,11 @@ export interface Professional {
   splitPercentSandbox?: number | null;
   /** Preenchido quando o profissional já tem usuário em Sou parceiro */
   authUserId?: string | null;
+  /**
+   * Quando 50–90, na agenda o cliente paga esse percentual do preço de tabela do serviço.
+   * `null` / omitido = preço integral.
+   */
+  juniorPricePercent?: number | null;
 }
 
 export interface Product {

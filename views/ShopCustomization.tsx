@@ -563,6 +563,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
       birthDate: '',
       splitPercent: 95,
       splitPercentSandbox: null,
+      juniorPricePercent: null,
     };
     setFormData({ ...formData, professionals: [...formData.professionals, newPro] });
   };
@@ -968,6 +969,62 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                       onChange={(e) => updateProfessional(pro.id, { specialty: e.target.value })}
                       className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none text-(--shop-primary) font-medium"
                     />
+                   </div>
+                   <div>
+                    <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">
+                      Cobrança dos serviços na agenda
+                    </label>
+                    <select
+                      value={pro.juniorPricePercent == null ? 'full' : 'junior'}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === 'full') {
+                          updateProfessional(pro.id, { juniorPricePercent: null });
+                        } else {
+                          updateProfessional(pro.id, { juniorPricePercent: 50 });
+                        }
+                      }}
+                      className="w-full bg-white px-3 py-1.5 rounded-lg text-xs border border-gray-100 focus:ring-2 focus:ring-(--shop-primary) outline-none"
+                    >
+                      <option value="full">Preço integral (tabela de serviços)</option>
+                      <option value="junior">
+                        {formData.type === 'BARBER'
+                          ? 'Barbeiro júnior (desconto)'
+                          : 'Profissional júnior (desconto)'}
+                      </option>
+                    </select>
+                    {pro.juniorPricePercent != null && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-[9px] text-gray-500 font-medium leading-snug">
+                          Valor cobrado do cliente em relação ao preço de tabela (todos os serviços com este
+                          profissional):
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateProfessional(pro.id, { juniorPricePercent: 50 })}
+                            className={`flex-1 py-2 rounded-xl text-[10px] font-bold border-2 transition-all ${
+                              pro.juniorPricePercent === 50
+                                ? 'border-(--shop-primary) bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary)'
+                                : 'border-gray-100 bg-white text-gray-500 hover:border-gray-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300'
+                            }`}
+                          >
+                            50% da tabela
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateProfessional(pro.id, { juniorPricePercent: 90 })}
+                            className={`flex-1 py-2 rounded-xl text-[10px] font-bold border-2 transition-all ${
+                              pro.juniorPricePercent === 90
+                                ? 'border-(--shop-primary) bg-[color-mix(in_srgb,var(--shop-primary)_12%,white)] text-(--shop-primary)'
+                                : 'border-gray-100 bg-white text-gray-500 hover:border-gray-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300'
+                            }`}
+                          >
+                            90% da tabela
+                          </button>
+                        </div>
+                      </div>
+                    )}
                    </div>
                    <div>
                      <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5 tracking-widest">

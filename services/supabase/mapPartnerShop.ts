@@ -1,4 +1,5 @@
 import type { Professional, Product, Service, Shop } from '../../types';
+import { juniorPricePercentFromDb } from '../../lib/juniorServicePrice';
 import { formatDbTime, normalizeSplitPercent } from './_format';
 
 /** Achata embed PostgREST `shop_finance_provision(...)` para o shape esperado pelos mappers. */
@@ -56,6 +57,7 @@ export function mapPartnerProfessionalsFromRows(
       splitPercent: normalizeSplitPercent(p.split_percent, shopSplit),
       splitPercentSandbox: p.split_percent_sandbox != null ? Number(p.split_percent_sandbox) : null,
       authUserId: (p.user_id as string | null | undefined) ?? null,
+      juniorPricePercent: juniorPricePercentFromDb(p.junior_price_percent),
     })
   );
 }

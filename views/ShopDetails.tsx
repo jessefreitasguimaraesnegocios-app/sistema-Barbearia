@@ -9,6 +9,7 @@ import {
 } from '../lib/agendaSlots';
 import { mapClientCatalogProductRow } from '../services/supabase/mapClientCatalogShop';
 import { PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL } from '../services/supabase/shops';
+import { effectiveServicePriceForProfessional } from '../lib/juniorServicePrice';
 
 /** Estoque na página da loja: `shops` pulsa `updated_at` quando `products` muda (trigger). */
 const SHOP_DETAILS_PRODUCTS_RT_DEBOUNCE_MS = 280;
@@ -357,6 +358,15 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
   const teamProIds = useMemo(() => shop.professionals.map((p) => p.id), [shop.professionals]);
 
+  const effectiveBookingServicePrice = useMemo(() => {
+    if (!selectedService) return 0;
+    return effectiveServicePriceForProfessional(selectedService.price, selectedPro);
+  }, [selectedService, selectedPro]);
+
+  useEffect(() => {
+    setTipAmount(0);
+  }, [selectedPro?.id, selectedService?.id]);
+
   useEffect(() => {
     if (!selectedDate || !shop?.id) {
       setBookingBlocks([]);
@@ -425,7 +435,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     setIsProcessing(true);
     
     try {
-      const totalAmount = (selectedService.price + tipAmount);
+      const totalAmount = effectiveBookingServicePrice + tipAmount;
       const normalizedTime = selectedTime.length === 5 ? `${selectedTime}:00` : selectedTime;
       const bookingIdempotencyKey = buildIdempotencyKey('booking', [
         user.id,
@@ -439,7 +449,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       const data = await callCreatePayment({
         idempotencyKey: bookingIdempotencyKey,
         // Backend soma `amount + tip`; aqui `amount` é só o serviço para evitar dupla soma da gorjeta.
-        amount: selectedService.price,
+        amount: effectiveBookingServicePrice,
         tip: tipAmount,
         description: `Agendamento: ${selectedService.name} na ${shop.name}${tipAmount > 0 ? ' (inclui gorjeta)' : ''}`,
         customerName,
@@ -824,6 +834,12 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                 {step === 1 && (
                   <div className="animate-fade-in space-y-6">
                     <h3 className="text-xl md:text-2xl font-bold text-gray-900">Escolha o serviço</h3>
+                    {shop.professionals.some((p) => p.juniorPricePercent != null) ? (
+                      <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 dark:bg-amber-950/40 dark:border-amber-900/60 dark:text-amber-100">
+                        Esta loja tem profissionais júnior: o valor final depende de quem você escolher no próximo
+                        passo (50% ou 90% do preço de tabela).
+                      </p>
+                    ) : null}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {shop.services.map(s => (
                         <button 
@@ -861,6 +877,20 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                           <img src={p.avatar} className="w-16 h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl mx-auto mb-3 object-cover shadow-sm" alt={p.name} />
                           <h4 className="font-bold text-gray-900 text-sm md:text-base">{p.name}</h4>
                           <p className="text-[10px] text-indigo-600 font-medium uppercase truncate">{p.specialty}</p>
+                          {selectedService ? (
+                            <div className="mt-2 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">
+                              {p.juniorPricePercent != null ? (
+                                <>
+                                  <span>R$ {effectiveServicePriceForProfessional(selectedService.price, p).toFixed(2)}</span>
+                                  <span className="block font-medium text-gray-500 dark:text-zinc-400 normal-case">
+                                    tabela R$ {Number(selectedService.price).toFixed(2)} · {p.juniorPricePercent}%
+                                  </span>
+                                </>
+                              ) : (
+                                <span>R$ {Number(selectedService.price).toFixed(2)}</span>
+                              )}
+                            </div>
+                          ) : null}
                         </button>
                       ))}
                     </div>
@@ -1044,6 +1074,18 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                                 <span className="text-sm text-gray-500">Horário</span>
                                 <span className="text-sm font-bold text-gray-900">{selectedTime}</span>
                               </div>
+                              {selectedPro?.juniorPricePercent != null && selectedService ? (
+                                <div className="flex justify-between items-start gap-2 text-amber-800 dark:text-amber-200">
+                                  <span className="text-sm">Valor do serviço (júnior)</span>
+                                  <span className="text-sm font-bold text-right">
+                                    R$ {effectiveBookingServicePrice.toFixed(2)}
+                                    <span className="block text-[10px] font-medium text-gray-500 dark:text-zinc-400">
+                                      tabela R$ {Number(selectedService.price).toFixed(2)} ·{' '}
+                                      {selectedPro.juniorPricePercent}%
+                                    </span>
+                                  </span>
+                                </div>
+                              ) : null}
                               {tipAmount > 0 && (
                                 <div className="flex justify-between items-center text-green-600">
                                   <span className="text-sm">Gorjeta</span>
@@ -1052,7 +1094,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                               )}
                               <div className="pt-3 border-t border-gray-200 flex justify-between items-center">
                                 <span className="font-bold text-gray-900">Total</span>
-                                <span className="text-xl font-black text-indigo-600">R$ {(selectedService?.price + tipAmount).toFixed(2)}</span>
+                                <span className="text-xl font-black text-indigo-600">
+                                  R$ {(effectiveBookingServicePrice + tipAmount).toFixed(2)}
+                                </span>
                               </div>
                            </div>
                         </div>
@@ -1062,7 +1106,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                           <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Adicionar Gorjeta</h4>
                           <div className="grid grid-cols-4 gap-2">
                             {[0, 5, 10, 15].map((percent) => {
-                              const amount = percent === 0 ? 0 : (selectedService?.price || 0) * (percent / 100);
+                              const amount =
+                                percent === 0 ? 0 : effectiveBookingServicePrice * (percent / 100);
                               return (
                                 <button
                                   key={percent}

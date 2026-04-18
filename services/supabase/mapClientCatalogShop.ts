@@ -1,4 +1,5 @@
 import type { Product, Shop } from '../../types';
+import { juniorPricePercentFromDb } from '../../lib/juniorServicePrice';
 import { formatDbTime } from './_format';
 
 /** Uma linha de `products` (mesmo shape do embed no catálogo cliente). */
@@ -67,6 +68,7 @@ export function mapClientCatalogRow(s: Record<string, unknown>): Shop {
       name: String(p.name),
       specialty: String(p.specialty || ''),
       avatar: String(p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(String(p.name))}`),
+      juniorPricePercent: juniorPricePercentFromDb(p.junior_price_percent),
     })),
     products: ((s.products as Record<string, unknown>[]) || []).map((p) => mapClientCatalogProductRow(p)),
   } as Shop;

@@ -15,7 +15,7 @@ export const SHOPS_SELECT_PARTNER_SINGLE =
   'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, updated_at, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 export const PROFESSIONALS_SELECT_PARTNER =
-  'id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, split_percent_sandbox, user_id';
+  'id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, split_percent_sandbox, user_id, junior_price_percent';
 
 /** Colunas usadas por `mapPartnerShopFromBundle` — evita `select('*')` (menos egress). */
 export const SERVICES_SELECT_PARTNER_BUNDLE =
@@ -32,7 +32,7 @@ export const SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS =
   'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes';
 
 export const PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST =
-  'id, shop_id, name, specialty, avatar';
+  'id, shop_id, name, specialty, avatar, junior_price_percent';
 
 export const SERVICES_SELECT_CLIENT_CATALOG_DETAIL =
   'id, name, description, price, duration';

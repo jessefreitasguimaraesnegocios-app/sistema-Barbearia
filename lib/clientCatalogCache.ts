@@ -28,6 +28,14 @@ export function mergeCatalogEntries(existing: ClientCatalogEntry[], incoming: Cl
   return Array.from(map.values()).sort((a, b) => a.shop.name.localeCompare(b.shop.name, 'pt-BR', { sensitivity: 'base' }));
 }
 
+/** Remove entradas cuja loja já não existe no Postgres (ex.: delete no dashboard / SQL). */
+export function pruneCatalogEntriesToShopIds(
+  entries: ClientCatalogEntry[],
+  validShopIds: Set<string>
+): ClientCatalogEntry[] {
+  return entries.filter((e) => validShopIds.has(e.shop.id));
+}
+
 export function entriesToShops(entries: ClientCatalogEntry[]): Shop[] {
   return entries.map((e) => e.shop);
 }

@@ -6,11 +6,13 @@ import {
   CLIENT_CATALOG_PAGE_SIZE,
   fetchClientCatalogByShopIds,
   fetchClientCatalogPage,
+  fetchClientCatalogShopIdsAll,
   fetchClientCatalogUpdatedSince,
 } from '../services/supabase/shops';
 import {
   entriesToShops,
   mergeCatalogEntries,
+  pruneCatalogEntriesToShopIds,
   readClientCatalogCache,
   writeClientCatalogCache,
 } from '../lib/clientCatalogCache';
@@ -47,15 +49,19 @@ export function useClientCatalogShops({ client, enabled }: UseClientCatalogShops
     const since = cached?.maxRowUpdatedAt;
 
     if (since && since > '1970-01-01T00:00:00.001Z') {
-      const incoming = await fetchClientCatalogUpdatedSince(client, since);
-      if (!incoming.length) return;
+      const [incoming, validIds] = await Promise.all([
+        fetchClientCatalogUpdatedSince(client, since),
+        fetchClientCatalogShopIdsAll(client),
+      ]);
       const merged = mergeCatalogEntries(cached?.entries ?? [], incoming);
-      applyMergedEntries(merged);
+      const pruned = pruneCatalogEntriesToShopIds(merged, validIds);
+      applyMergedEntries(pruned);
       return;
     }
 
     let from = 0;
-    let accumulated = mergeCatalogEntries([], cached?.entries ?? []);
+    /** Só dados do servidor: merge com cache antigo mantinha lojas já apagadas no banco. */
+    let accumulated: ClientCatalogEntry[] = [];
     for (;;) {
       const page = await fetchClientCatalogPage(client, from, from + CLIENT_CATALOG_PAGE_SIZE - 1);
       accumulated = mergeCatalogEntries(accumulated, page);
@@ -103,19 +109,26 @@ export function useClientCatalogShops({ client, enabled }: UseClientCatalogShops
           let changed = false;
 
           if (since && since > '1970-01-01T00:00:00.001Z') {
-            const incoming = await fetchClientCatalogUpdatedSince(client, since);
-            if (incoming.length) {
-              accumulated = mergeCatalogEntries(accumulated, incoming);
-              changed = true;
-            }
+            const [incoming, validIds] = await Promise.all([
+              fetchClientCatalogUpdatedSince(client, since),
+              fetchClientCatalogShopIdsAll(client),
+            ]);
+            accumulated = pruneCatalogEntriesToShopIds(
+              mergeCatalogEntries(accumulated, incoming),
+              validIds
+            );
+            changed = true;
           }
 
           if (pendingIds.length) {
             const byIds = await fetchClientCatalogByShopIds(client, pendingIds);
             if (byIds.length) {
               accumulated = mergeCatalogEntries(accumulated, byIds);
-              changed = true;
             }
+            const validIdsPending = await fetchClientCatalogShopIdsAll(client);
+            const afterPrune = pruneCatalogEntriesToShopIds(accumulated, validIdsPending);
+            if (afterPrune.length !== accumulated.length || byIds.length) changed = true;
+            accumulated = afterPrune;
           }
 
           if (changed) {

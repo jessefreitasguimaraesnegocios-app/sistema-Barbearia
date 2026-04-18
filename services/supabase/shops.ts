@@ -256,6 +256,27 @@ export async function fetchClientCatalogUpdatedSince(client: SupabaseClient, sin
   return buildClientCatalogEntries(shopRows, prosByShop);
 }
 
+const CLIENT_CATALOG_ID_PAGE_SIZE = 1000;
+
+/** IDs de todas as lojas (só `id`) — leve; usado para podar cache/localStorage após deletes. */
+export async function fetchClientCatalogShopIdsAll(client: SupabaseClient): Promise<Set<string>> {
+  const ids = new Set<string>();
+  let from = 0;
+  for (;;) {
+    const { data, error } = await client
+      .from('shops')
+      .select('id')
+      .order('name', { ascending: true })
+      .range(from, from + CLIENT_CATALOG_ID_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    for (const row of data as { id: unknown }[]) ids.add(String(row.id));
+    if (data.length < CLIENT_CATALOG_ID_PAGE_SIZE) break;
+    from += CLIENT_CATALOG_ID_PAGE_SIZE;
+  }
+  return ids;
+}
+
 const CLIENT_CATALOG_BY_ID_CHUNK = 40;
 
 /** Refetch de lojas por id (Realtime): evita buraco do sync só com `gt(updated_at, maxGlobal)` quando outra loja tem carimbo mais recente. */

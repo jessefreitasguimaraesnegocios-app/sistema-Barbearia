@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { ClientCatalogEntry } from '../services/supabase/shops';
-import { mergeCatalogEntries, computeMaxRowUpdatedAt, entriesToShops } from './clientCatalogCache';
+import {
+  mergeCatalogEntries,
+  computeMaxRowUpdatedAt,
+  entriesToShops,
+  pruneCatalogEntriesToShopIds,
+} from './clientCatalogCache';
 
 function entry(id: string, name: string, ts: string): ClientCatalogEntry {
   return {
@@ -32,6 +37,12 @@ describe('clientCatalogCache', () => {
     const m = mergeCatalogEntries(a, b);
     expect(m.map((e) => e.shop.id)).toEqual(['2', '1']);
     expect(m.find((e) => e.shop.id === '1')?.shop.name).toBe('Beta Novo');
+  });
+
+  it('pruneCatalogEntriesToShopIds removes stale shops', () => {
+    const entries = [entry('1', 'A', '2026-01-01T00:00:00Z'), entry('2', 'B', '2026-01-02T00:00:00Z')];
+    const pruned = pruneCatalogEntriesToShopIds(entries, new Set(['2']));
+    expect(pruned.map((e) => e.shop.id)).toEqual(['2']);
   });
 
   it('computeMaxRowUpdatedAt picks latest ISO', () => {

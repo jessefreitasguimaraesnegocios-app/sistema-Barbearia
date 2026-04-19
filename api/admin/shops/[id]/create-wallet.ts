@@ -1,13 +1,28 @@
 // Vercel Serverless: POST /api/admin/shops/:id/create-wallet
 // Cria subconta Asaas para loja que ainda não tem asaas_wallet_id (atualiza a loja com walletId)
 
+import {
+  asaasRuntimeModeFromPlatformRow,
+  parseShopAsaasRuntimeOverride,
+  resolveEffectiveAsaasRuntimeMode,
+} from '../../../../lib/payments/resolve-shop-split';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.js';
 
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 type RuntimeMode = 'production' | 'sandbox';
-function resolveMode(): RuntimeMode {
-  return ASAAS_API_URL.toLowerCase().includes('sandbox') ? 'sandbox' : 'production';
+
+function asaasCredentialsForMode(mode: RuntimeMode): { apiKey: string; apiUrl: string } {
+  const defaultProd = 'https://api.asaas.com/v3';
+  const defaultSandbox = 'https://api-sandbox.asaas.com/v3';
+  if (mode === 'sandbox') {
+    return {
+      apiKey: (process.env.ASAAS_API_KEY_SANDBOX || process.env.ASAAS_API_KEY || '').trim(),
+      apiUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultSandbox).replace(/\/$/, ''),
+    };
+  }
+  return {
+    apiKey: (process.env.ASAAS_API_KEY || '').trim(),
+    apiUrl: (process.env.ASAAS_API_URL || defaultProd).replace(/\/$/, ''),
+  };
 }
 
 function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): string | null {
@@ -50,24 +65,39 @@ export default async function handler(
     return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
-  if (!ASAAS_API_KEY) {
-    return res.status(500).json({ success: false, error: 'ASAAS_API_KEY não configurada.' });
-  }
-
   try {
     const supabase = auth.supabase;
-    const runtimeMode = resolveMode();
-    const walletColumn = runtimeMode === 'sandbox' ? 'asaas_wallet_id_sandbox' : 'asaas_wallet_id_prod';
 
-    const { data: shop, error: shopError } = await supabase
-      .from('shops')
-      .select('id, name, email, phone, cnpj_cpf, asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox')
-      .eq('id', shopId)
-      .single();
+    const [{ data: plat }, { data: shop, error: shopError }] = await Promise.all([
+      supabase.from('platform_runtime_settings').select('asaas_mode').eq('singleton_id', true).maybeSingle(),
+      supabase
+        .from('shops')
+        .select(
+          'id, name, email, phone, cnpj_cpf, asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, asaas_runtime_mode'
+        )
+        .eq('id', shopId)
+        .single(),
+    ]);
 
     if (shopError || !shop) {
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
     }
+
+    const platformMode = asaasRuntimeModeFromPlatformRow(plat);
+    const shopOverride = parseShopAsaasRuntimeOverride(
+      (shop as { asaas_runtime_mode?: unknown }).asaas_runtime_mode
+    );
+    const runtimeMode = resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride);
+    const { apiKey: ASAAS_API_KEY, apiUrl: ASAAS_API_URL } = asaasCredentialsForMode(runtimeMode);
+
+    if (!ASAAS_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: `ASAAS_API_KEY não configurada para o ambiente ${runtimeMode} (conta mãe).`,
+      });
+    }
+
+    const walletColumn = runtimeMode === 'sandbox' ? 'asaas_wallet_id_sandbox' : 'asaas_wallet_id_prod';
 
     const currentEnvWallet = (shop as Record<string, unknown>)[walletColumn];
     if (currentEnvWallet != null && String(currentEnvWallet).trim() !== '') {
@@ -139,8 +169,7 @@ export default async function handler(
       });
     }
 
-    const isSandbox = ASAAS_API_URL.toLowerCase().includes('sandbox');
-    if (isSandbox && asaasAccountId) {
+    if (runtimeMode === 'sandbox' && asaasAccountId) {
       try {
         const approveRes = await fetch(`${ASAAS_API_URL}/accounts/${asaasAccountId}/approve`, {
           method: 'POST',

@@ -150,6 +150,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [showEditShopModal, setShowEditShopModal] = useState(false);
   const [shopSearch, setShopSearch] = useState('');
+  const [savingRuntimeShopId, setSavingRuntimeShopId] = useState<string | null>(null);
 
   useEffect(() => {
     const ids = new Set(shops.map((s) => s.id));
@@ -455,6 +456,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const effectiveAsaasRuntimeForShop = (shop: Shop): RuntimeMode =>
+    shop.asaasRuntimeMode ?? runtimeMode;
+
+  const patchShopAsaasRuntimeMode = async (shop: Shop, value: '' | 'production' | 'sandbox') => {
+    setSavingRuntimeShopId(shop.id);
+    try {
+      const response = await fetch(`/api/admin/shops/${shop.id}/subscription`, {
+        method: 'PATCH',
+        headers: await adminAuthHeaders(),
+        body: JSON.stringify({
+          asaasRuntimeMode: value === '' ? 'default' : value,
+        }),
+      });
+      const data = await parseSubscriptionPatchResponse(response);
+      if (data.success && data.shop) {
+        setShops((prev) => prev.map((s) => (s.id === shop.id ? (data.shop as Shop) : s)));
+      } else {
+        alert(data.error || 'Não foi possível atualizar o ambiente Asaas deste parceiro.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao atualizar o ambiente Asaas.');
+    } finally {
+      setSavingRuntimeShopId(null);
+    }
+  };
+
   const deleteShop = async (shop: Shop) => {
     if (!window.confirm(`Excluir o estabelecimento "${shop.name}"? Esta ação não pode ser desfeita.`)) return;
     try {
@@ -545,7 +573,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide ${
               runtimeMode === 'sandbox' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
             }`}
-            title="Ambiente atual usado pelos pagamentos e webhook Asaas"
+            title="Modo global da plataforma. Lojas com 'Padrão da plataforma' seguem este valor; outras podem fixar produção ou sandbox só para si."
           >
             {runtimeModeLoading ? 'Carregando...' : runtimeMode === 'sandbox' ? 'Sandbox ativo' : 'Produção ativa'}
           </div>
@@ -631,6 +659,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       >
                         {shopTypeShortLabel(shop.type)}
                       </span>
+                      <div className="mt-3 space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Ambiente Asaas (loja)
+                        </label>
+                        <select
+                          value={shop.asaasRuntimeMode ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === '' || v === 'production' || v === 'sandbox') {
+                              void patchShopAsaasRuntimeMode(shop, v);
+                            }
+                          }}
+                          disabled={savingRuntimeShopId === shop.id}
+                          className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-gray-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
+                        >
+                          <option value="">Padrão da plataforma</option>
+                          <option value="production">Produção (fixo)</option>
+                          <option value="sandbox">Sandbox (fixo)</option>
+                        </select>
+                        <p className="text-[10px] text-gray-400">
+                          Efetivo:{' '}
+                          {effectiveAsaasRuntimeForShop(shop) === 'sandbox' ? 'Sandbox' : 'Produção'}
+                        </p>
+                      </div>
                     </div>
                     {rowFinancialDirty ? (
                       <span className="rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">
@@ -691,6 +743,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <tr>
                 <th className="px-8 py-4">Estabelecimento</th>
                 <th className="px-8 py-4">Tipo</th>
+                <th className="px-8 py-4 w-52">Ambiente Asaas</th>
                 <th className="px-8 py-4">Status Assinatura</th>
                 <th className="px-8 py-4">Mensalidade</th>
                 <th className="px-8 py-4">Assin. plataforma (Asaas)</th>
@@ -730,6 +783,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     >
                       {shopTypeShortLabel(shop.type)}
                     </span>
+                  </td>
+                  <td className="px-8 py-6 align-top">
+                    <div className="flex flex-col gap-1.5 max-w-52">
+                      <select
+                        value={shop.asaasRuntimeMode ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === '' || v === 'production' || v === 'sandbox') {
+                            void patchShopAsaasRuntimeMode(shop, v);
+                          }
+                        }}
+                        disabled={savingRuntimeShopId === shop.id}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-3 pr-7 text-xs font-semibold text-gray-800 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
+                        title="Padrão = segue o chip global no topo. Fixo = sempre este ambiente para esta loja."
+                      >
+                        <option value="">Padrão da plataforma</option>
+                        <option value="production">Produção (fixo)</option>
+                        <option value="sandbox">Sandbox (fixo)</option>
+                      </select>
+                      <span className="text-[10px] text-gray-400">
+                        Efetivo: {effectiveAsaasRuntimeForShop(shop) === 'sandbox' ? 'Sandbox' : 'Produção'}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-2">

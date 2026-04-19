@@ -2,6 +2,11 @@
 // Cria cobrança Asaas (PIX) com split para a carteira da loja e opcionalmente grava agendamento/pedido PENDING no Supabase
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  asaasRuntimeModeFromPlatformRow,
+  parseShopAsaasRuntimeOverride,
+  resolveEffectiveAsaasRuntimeMode,
+} from "../_shared/asaasEffectiveRuntime.ts";
 import { readAsaasApiKey, readAsaasBaseUrl } from "../_shared/asaasEnv.ts";
 
 const corsHeaders = {
@@ -67,17 +72,18 @@ async function fetchAsaasPixQrCode(
   }
 }
 
-async function resolveAsaasRuntimeConfig(
+async function fetchPlatformAsaasMode(
   supabaseAdmin: ReturnType<typeof createClient>,
-): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string }> {
-  let mode: RuntimeMode = "production";
+): Promise<RuntimeMode> {
   const { data } = await supabaseAdmin
     .from("platform_runtime_settings")
     .select("asaas_mode")
     .eq("singleton_id", true)
     .maybeSingle();
-  if (data?.asaas_mode === "sandbox") mode = "sandbox";
+  return asaasRuntimeModeFromPlatformRow(data);
+}
 
+function buildAsaasRuntimeConfigForMode(mode: RuntimeMode): { mode: RuntimeMode; apiKey: string; apiUrl: string } {
   const defaultProdUrl = "https://api.asaas.com/v3";
   const defaultSandboxUrl = "https://api-sandbox.asaas.com/v3";
   if (mode === "sandbox") {
@@ -300,22 +306,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const asaasRuntime = await resolveAsaasRuntimeConfig(supabaseAdmin);
-    const runtimeMode = asaasRuntime.mode;
-    const asaasApiKey = asaasRuntime.apiKey;
-    const asaasBaseUrl = asaasRuntime.apiUrl;
-    if (!asaasApiKey) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Configuração do gateway de pagamento indisponível (ASAAS_API_KEY em ${asaasRuntime.mode}).`,
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
     /** Service role + JWT: validação server-side documentada (confiável no Edge vs anon getUser sem apikey no cliente). */
     const { data: userData, error: authErr } = await supabaseAdmin.auth.getUser(jwt);
     const user = userData?.user;
@@ -348,6 +338,41 @@ Deno.serve(async (req: Request) => {
     } = body || {};
     const idempotencyKey = bodyIdempotencyKey != null ? String(bodyIdempotencyKey).trim() : "";
 
+    const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
+    const platformMode = await fetchPlatformAsaasMode(supabaseAdmin);
+    let shopRowEarly: Record<string, unknown> | null = null;
+    if (shopId) {
+      const { data: shopEarly, error: shopEarlyErr } = await supabaseAdmin
+        .from("shops")
+        .select(
+          "asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox, asaas_runtime_mode",
+        )
+        .eq("id", shopId)
+        .single();
+      if (!shopEarlyErr && shopEarly) {
+        shopRowEarly = shopEarly as unknown as Record<string, unknown>;
+      }
+    }
+    const shopOverride = shopRowEarly ? parseShopAsaasRuntimeOverride(shopRowEarly.asaas_runtime_mode) : null;
+    const asaasRuntime = buildAsaasRuntimeConfigForMode(
+      resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride),
+    );
+    const runtimeMode = asaasRuntime.mode;
+    const asaasApiKey = asaasRuntime.apiKey;
+    const asaasBaseUrl = asaasRuntime.apiUrl;
+    if (!asaasApiKey) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Configuração do gateway de pagamento indisponível (ASAAS_API_KEY em ${asaasRuntime.mode}).`,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     if (!amount || amount <= 0 || !customerName || !customerEmail) {
       return new Response(
         JSON.stringify({
@@ -368,7 +393,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
     if ((recordType === "booking" || recordType === "order") && !shopId) {
       return new Response(
         JSON.stringify({
@@ -421,18 +445,26 @@ Deno.serve(async (req: Request) => {
     }
 
     if (shopId) {
-      const { data: shop, error: shopErr } = await supabaseAdmin
-        .from("shops")
-        .select("asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox")
-        .eq("id", shopId)
-        .single();
-      if (!shopErr && shop) {
-        const shopWallet = resolveWalletByMode(runtimeMode, shop as unknown as Record<string, unknown>);
+      let shopResolved: Record<string, unknown> | null = shopRowEarly;
+      if (!shopResolved) {
+        const { data: shop, error: shopErr } = await supabaseAdmin
+          .from("shops")
+          .select(
+            "asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox, asaas_runtime_mode",
+          )
+          .eq("id", shopId)
+          .single();
+        if (!shopErr && shop) {
+          shopResolved = shop as unknown as Record<string, unknown>;
+        }
+      }
+      if (shopResolved) {
+        const shopWallet = resolveWalletByMode(runtimeMode, shopResolved);
         if (shopWallet) {
           effectiveWalletId = shopWallet;
           hasShopWallet = true;
         }
-        shopSplitResolved = resolveShopSplitPercent(runtimeMode, shop as Record<string, unknown>);
+        shopSplitResolved = resolveShopSplitPercent(runtimeMode, shopResolved);
         splitToShop = shopSplitResolved;
       }
 

@@ -3,6 +3,11 @@
 // URL base da API Asaas alinha a `platform_runtime_settings.asaas_mode` (igual a `api/payments/create.ts`).
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+  asaasRuntimeModeFromPlatformRow,
+  parseShopAsaasRuntimeOverride,
+  resolveEffectiveAsaasRuntimeMode,
+} from '../../lib/payments/resolve-shop-split';
 
 /** Inline: evita import de `lib/` na Vercel (Node não executa .ts copiado só com includeFiles). */
 async function insertFinancialAudit(
@@ -41,18 +46,21 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPA
 
 type RuntimeMode = 'production' | 'sandbox';
 
-/** Mesma regra que `api/payments/create.ts`: modo vem do admin (`platform_runtime_settings`). */
-async function resolvePartnerWalletAsaasApiBaseUrl(supabase: SupabaseClient): Promise<string> {
+/** Mesma regra que `api/payments/create.ts`: modo global + override opcional por loja (`shops.asaas_runtime_mode`). */
+async function resolvePartnerWalletAsaasApiBaseUrl(supabase: SupabaseClient, shopId: string): Promise<string> {
   let mode: RuntimeMode = 'production';
   try {
-    const { data } = await supabase
-      .from('platform_runtime_settings')
-      .select('asaas_mode')
-      .eq('singleton_id', true)
-      .maybeSingle();
-    if (data?.asaas_mode === 'sandbox') mode = 'sandbox';
+    const [{ data: plat }, { data: shopRow }] = await Promise.all([
+      supabase.from('platform_runtime_settings').select('asaas_mode').eq('singleton_id', true).maybeSingle(),
+      supabase.from('shops').select('asaas_runtime_mode').eq('id', shopId).maybeSingle(),
+    ]);
+    const platformMode = asaasRuntimeModeFromPlatformRow(plat);
+    const shopOverride = parseShopAsaasRuntimeOverride(
+      (shopRow as { asaas_runtime_mode?: unknown } | null)?.asaas_runtime_mode
+    );
+    mode = resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride);
   } catch (e) {
-    console.warn('[api/partner/wallet] platform_runtime_settings read failed, using production Asaas URL', e);
+    console.warn('[api/partner/wallet] runtime mode read failed, using production Asaas URL', e);
   }
 
   const defaultApiUrl = 'https://api.asaas.com/v3';
@@ -182,7 +190,7 @@ export default async function handler(
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  const asaasApiBaseRaw = await resolvePartnerWalletAsaasApiBaseUrl(supabase);
+  const asaasApiBaseRaw = await resolvePartnerWalletAsaasApiBaseUrl(supabase, shopId);
   const baseUrl = asaasApiBaseRaw.startsWith('http') ? asaasApiBaseRaw : `https://${asaasApiBaseRaw}`;
 
   let subAccountKey: string | null = null;

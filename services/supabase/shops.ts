@@ -124,7 +124,7 @@ function buildClientCatalogEntries(
 }
 
 export const SHOPS_SELECT_ADMIN =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, asaas_runtime_mode, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 /** Lista admin paginada por nome. */
 export const ADMIN_SHOPS_PAGE_SIZE = 30;

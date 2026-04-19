@@ -1,4 +1,5 @@
 import type { Shop } from '../../types';
+import { parseShopAsaasRuntimeOverride } from '../../lib/payments/resolve-shop-split';
 import { flattenShopFinanceProvisionInShopRow } from './mapPartnerShop';
 
 export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
@@ -26,6 +27,7 @@ export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
     splitPercent: s.split_percent != null ? Number(s.split_percent) : 95,
     splitPercentSandbox:
       s.split_percent_sandbox != null ? Number(s.split_percent_sandbox) : null,
+    asaasRuntimeMode: parseShopAsaasRuntimeOverride(s.asaas_runtime_mode),
     passFeesToCustomer: s.pass_fees_to_customer === true,
     rating: s.rating != null ? Number(s.rating) : 5,
     asaasAccountId: s.asaas_account_id != null ? String(s.asaas_account_id) : undefined,

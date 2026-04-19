@@ -2,7 +2,13 @@
 // Mesmo contrato da Edge Function create-payment: wallet/split resolvidos por shopId (booking/order); shopWalletId não é mais obrigatório
 
 import { createClient } from '@supabase/supabase-js';
-import { resolveShopSplitPercent, resolveSplitPercentForRuntime } from '../../lib/payments/resolve-shop-split';
+import {
+  asaasRuntimeModeFromPlatformRow,
+  parseShopAsaasRuntimeOverride,
+  resolveEffectiveAsaasRuntimeMode,
+  resolveShopSplitPercent,
+  resolveSplitPercentForRuntime,
+} from '../../lib/payments/resolve-shop-split';
 import { validateOrderLineItemsStock } from '../../lib/validateOrderStock';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -22,10 +28,9 @@ function resolveWalletByMode(mode: RuntimeMode, row: Record<string, unknown>): s
   return legacy != null && String(legacy).trim() !== '' ? String(legacy).trim() : '';
 }
 
-async function resolveAsaasRuntimeConfig(
+async function fetchPlatformAsaasMode(
   supabase: { from: (table: string) => unknown }
-): Promise<{ mode: RuntimeMode; apiKey: string; apiUrl: string }> {
-  let mode: RuntimeMode = 'production';
+): Promise<RuntimeMode> {
   const runtimeSelect = supabase.from('platform_runtime_settings') as {
     select: (fields: string) => {
       eq: (column: string, value: unknown) => { maybeSingle: () => Promise<{ data: { asaas_mode?: string } | null }> };
@@ -35,8 +40,10 @@ async function resolveAsaasRuntimeConfig(
     .select('asaas_mode')
     .eq('singleton_id', true)
     .maybeSingle();
-  if (data?.asaas_mode === 'sandbox') mode = 'sandbox';
+  return asaasRuntimeModeFromPlatformRow(data);
+}
 
+function buildAsaasRuntimeConfig(mode: RuntimeMode): { mode: RuntimeMode; apiKey: string; apiUrl: string } {
   const defaultApiUrl = 'https://api.asaas.com/v3';
   if (mode === 'sandbox') {
     return {
@@ -150,17 +157,6 @@ export default async function handler(
       return res.status(401).json({ success: false, error: 'Não autorizado: token inválido.' });
     }
 
-    const asaasRuntime = await resolveAsaasRuntimeConfig(supabase);
-    const runtimeMode = asaasRuntime.mode;
-    const ASAAS_API_KEY = asaasRuntime.apiKey;
-    const ASAAS_API_URL = asaasRuntime.apiUrl;
-    if (!ASAAS_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        error: `Configuração do gateway de pagamento indisponível (ASAAS_API_KEY em ${asaasRuntime.mode}).`,
-      });
-    }
-
     const body = (req.body || {}) as CreatePaymentBody;
     const {
       amount,
@@ -176,6 +172,35 @@ export default async function handler(
       order: bodyOrder,
     } = body;
     const idempotencyKey = bodyIdempotencyKey != null ? String(bodyIdempotencyKey).trim() : '';
+
+    const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
+    const platformMode = await fetchPlatformAsaasMode(supabase);
+    let shopRowEarly: Record<string, unknown> | null = null;
+    if (shopId) {
+      const { data: shopEarly, error: shopEarlyErr } = await supabase
+        .from('shops')
+        .select(
+          'asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox, asaas_runtime_mode'
+        )
+        .eq('id', shopId)
+        .single();
+      if (!shopEarlyErr && shopEarly) {
+        shopRowEarly = shopEarly as unknown as Record<string, unknown>;
+      }
+    }
+    const shopOverride = shopRowEarly ? parseShopAsaasRuntimeOverride(shopRowEarly.asaas_runtime_mode) : null;
+    const effectiveRuntimeMode = resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride);
+    const asaasRuntime = buildAsaasRuntimeConfig(effectiveRuntimeMode);
+    const runtimeMode = asaasRuntime.mode;
+    const ASAAS_API_KEY = asaasRuntime.apiKey;
+    const ASAAS_API_URL = asaasRuntime.apiUrl;
+    if (!ASAAS_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: `Configuração do gateway de pagamento indisponível (ASAAS_API_KEY em ${asaasRuntime.mode}).`,
+      });
+    }
+
     if (recordType === 'booking' && bodyBooking?.clientId && bodyBooking.clientId !== authUserId) {
       return res.status(403).json({ success: false, error: 'Não autorizado para criar pagamento deste cliente.' });
     }
@@ -210,7 +235,6 @@ export default async function handler(
       return res.status(400).json({ success: false, error: 'idempotencyKey inválido (máximo 190 caracteres).' });
     }
 
-    const shopId = bodyBooking?.shopId || bodyOrder?.shopId;
     let effectiveWalletId = '';
     let splitToShop = 95;
     let shopSplitResolved = 95;
@@ -218,18 +242,26 @@ export default async function handler(
     let hasProfessionalWallet = false;
 
     if (shopId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      const { data: shop, error: shopErr } = await supabase
-        .from('shops')
-        .select('asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox')
-        .eq('id', shopId)
-        .single();
-      if (!shopErr && shop) {
-        const shopWallet = resolveWalletByMode(runtimeMode, shop as unknown as Record<string, unknown>);
+      let shopResolved: Record<string, unknown> | null = shopRowEarly;
+      if (!shopResolved) {
+        const { data: shopData, error: shopFetchErr } = await supabase
+          .from('shops')
+          .select(
+            'asaas_wallet_id, asaas_wallet_id_prod, asaas_wallet_id_sandbox, split_percent, split_percent_sandbox, asaas_runtime_mode'
+          )
+          .eq('id', shopId)
+          .single();
+        if (!shopFetchErr && shopData) {
+          shopResolved = shopData as unknown as Record<string, unknown>;
+        }
+      }
+      if (shopResolved) {
+        const shopWallet = resolveWalletByMode(runtimeMode, shopResolved);
         if (shopWallet) {
           effectiveWalletId = shopWallet;
           hasShopWallet = true;
         }
-        shopSplitResolved = resolveShopSplitPercent(runtimeMode, shop as Record<string, unknown>);
+        shopSplitResolved = resolveShopSplitPercent(runtimeMode, shopResolved);
         splitToShop = shopSplitResolved;
       }
       if (recordType === 'booking' && bodyBooking?.professionalId) {

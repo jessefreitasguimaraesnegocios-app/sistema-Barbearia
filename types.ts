@@ -84,6 +84,11 @@ export interface Shop {
   splitPercent?: number;
   /** % split quando runtime Asaas está em sandbox; null no banco → em pagamentos usa splitPercent */
   splitPercentSandbox?: number | null;
+  /**
+   * Ambiente Asaas só desta loja. `null` / omitido = segue o modo global (`platform_runtime_settings`).
+   * Útil para testar uma loja em sandbox com o restante em produção.
+   */
+  asaasRuntimeMode?: 'production' | 'sandbox' | null;
   /** Se true, na edição de serviços o parceiro informa "valor a receber" e o app calcula o preço mínimo a cobrar (taxa + Asaas), com arredondamento ,50 / próximo real */
   passFeesToCustomer?: boolean;
   rating: number;

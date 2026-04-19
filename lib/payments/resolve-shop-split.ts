@@ -1,5 +1,28 @@
 export type AsaasRuntimeMode = 'production' | 'sandbox';
 
+/** Lê `platform_runtime_settings.asaas_mode` (PostgREST row). */
+export function asaasRuntimeModeFromPlatformRow(
+  data: { asaas_mode?: string } | null | undefined
+): AsaasRuntimeMode {
+  return data?.asaas_mode === 'sandbox' ? 'sandbox' : 'production';
+}
+
+/** Valor em `shops.asaas_runtime_mode`: null / inválido = segue a plataforma. */
+export function parseShopAsaasRuntimeOverride(raw: unknown): AsaasRuntimeMode | null {
+  if (raw == null || raw === '') return null;
+  const s = String(raw).trim().toLowerCase();
+  if (s === 'sandbox') return 'sandbox';
+  if (s === 'production') return 'production';
+  return null;
+}
+
+export function resolveEffectiveAsaasRuntimeMode(
+  platformMode: AsaasRuntimeMode,
+  shopOverride: AsaasRuntimeMode | null
+): AsaasRuntimeMode {
+  return shopOverride ?? platformMode;
+}
+
 function clampSplit(n: number): number {
   return Math.min(100, Math.max(0, n));
 }

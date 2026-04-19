@@ -2,8 +2,17 @@
 // Atualiza subscription_active, subscription_amount, split_percent (prod) e split_percent_sandbox da loja (service role)
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { parseShopAsaasRuntimeOverride } from '../../../../lib/payments/resolve-shop-split';
-import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.js';
+import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.ts';
+
+type AsaasRuntimeOverride = 'production' | 'sandbox';
+
+function parseShopAsaasRuntimeOverride(raw: unknown): AsaasRuntimeOverride | null {
+  if (raw == null || raw === '') return null;
+  const s = String(raw).trim().toLowerCase();
+  if (s === 'sandbox') return 'sandbox';
+  if (s === 'production') return 'production';
+  return null;
+}
 
 /** Cópia local do helper em `mapPartnerShop` — evita import de `services/` na função Vercel (`includeFiles` só cobre `lib/**`). */
 function flattenShopFinanceProvisionInShopRow(row: Record<string, unknown>): Record<string, unknown> {
@@ -302,7 +311,11 @@ export default async function handler(
         msg.toLowerCase().includes('split_percent_sandbox') || msg.includes('PGRST204')
           ? ' Confirme se a migration shops.split_percent_sandbox foi aplicada (npm run db:push).'
           : '';
-      return res.status(400).json({ success: false, error: msg + hintSandbox });
+      const hintRuntime =
+        /asaas_runtime_mode/i.test(msg) && /schema cache|does not exist|PGRST204/i.test(msg)
+          ? ' Confirme se a coluna shops.asaas_runtime_mode existe (migration shop_asaas_runtime_mode_override).'
+          : '';
+      return res.status(400).json({ success: false, error: msg + hintSandbox + hintRuntime });
     }
     if (!shop) {
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });

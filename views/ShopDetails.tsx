@@ -21,6 +21,8 @@ const PAYMENT_API_URL = SUPABASE_URL
   : '/api/payments/create';
 
 const PIX_COPIED_TOAST_MS = 1500;
+/** Janela exibida na UI para o cliente concluir o PIX (cronómetro; não cancela no Asaas). */
+const PIX_PAY_WINDOW_SECONDS = 5 * 60;
 /** Só visualização: o botão copia o payload completo (obrigatório para o PIX). */
 const PIX_PAYLOAD_PREVIEW_MAX_CHARS = 96;
 
@@ -134,6 +136,13 @@ function buildIdempotencyKey(prefix: 'booking' | 'order', parts: Array<string | 
   return `${prefix}_${hash.toString(36)}`;
 }
 
+function formatPixCountdown(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
 interface ShopDetailsProps {
   shop: Shop;
   user: User;
@@ -169,7 +178,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     invoiceUrl?: string;
     amount: number;
     recordId?: string;
-    isDuplicate?: boolean;
   };
   const [inlinePayPix, setInlinePayPix] = useState<InlinePayPix | null>(null);
   /** Fluxo agendamento: resumo → tela dedicada PIX → “Pagamento Aprovado!” → após delay → home. */
@@ -181,6 +189,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
 
   const [pixCopiedToast, setPixCopiedToast] = useState(false);
   const pixCopiedToastTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  /** Cronómetro na tela do PIX (5:00 → 0:00). */
+  const [pixPaySecondsLeft, setPixPaySecondsLeft] = useState<number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -447,6 +457,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         selectedDate,
         normalizedTime,
         totalAmount.toFixed(2),
+        crypto.randomUUID(),
       ]);
       const data = await callCreatePayment({
         idempotencyKey: bookingIdempotencyKey,
@@ -495,7 +506,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         invoiceUrl,
         amount: totalAmount,
         recordId: appointmentId,
-        isDuplicate: Boolean((data as { duplicate?: unknown }).duplicate),
       });
       setBookingPayPhase('pix');
       onRefetchAppointmentsAndOrders?.();
@@ -567,6 +577,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         shop.id,
         cartTotal.toFixed(2),
         JSON.stringify(normalizedItems),
+        crypto.randomUUID(),
       ]);
       const data = await callCreatePayment({
         idempotencyKey: orderIdempotencyKey,
@@ -609,7 +620,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         invoiceUrl,
         amount: cartTotal,
         recordId: orderId,
-        isDuplicate: Boolean((data as { duplicate?: unknown }).duplicate),
       });
       setIsCartOpen(false);
       setOrderPayPhase('pix');
@@ -646,20 +656,6 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
               return;
             }
             setOrderPayPhase('approved');
-            return;
-          }
-          if (st === 'CANCELLED') {
-            setInlinePayPix(null);
-            if (kind === 'booking') {
-              setBookingPayPhase('idle');
-              setStep(1);
-            } else {
-              setOrderPayPhase('idle');
-              setIsOrderProcessing(false);
-            }
-            alert(
-              'O tempo para pagar o PIX (5 minutos) expirou ou o pagamento foi cancelado. Gere um novo pagamento se ainda quiser concluir.'
-            );
           }
         }
       )
@@ -668,6 +664,23 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
       void supabase.removeChannel(channel);
     };
   }, [inlinePayPix?.recordId, inlinePayPix?.kind, onBook, onOrder]);
+
+  useEffect(() => {
+    const inPixBooking = bookingPayPhase === 'pix' && inlinePayPix?.kind === 'booking';
+    const inPixOrder = orderPayPhase === 'pix' && inlinePayPix?.kind === 'order';
+    if (!inPixBooking && !inPixOrder) {
+      setPixPaySecondsLeft(null);
+      return;
+    }
+    setPixPaySecondsLeft(PIX_PAY_WINDOW_SECONDS);
+    const id = window.setInterval(() => {
+      setPixPaySecondsLeft((prev) => {
+        if (prev == null) return null;
+        return prev <= 0 ? 0 : prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [bookingPayPhase, orderPayPhase, inlinePayPix?.recordId, inlinePayPix?.kind]);
 
   /** Segundos na tela «Pagamento Aprovado!» antes de ir ao início (volta do app do banco). */
   const PAYMENT_APPROVED_DELAY_SEC = 15;
@@ -715,8 +728,12 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     }
   }
 
-  function renderPixPayPanel(ctx: InlinePayPix, opts?: { showAutoReturnHint?: boolean }) {
+  function renderPixPayPanel(
+    ctx: InlinePayPix,
+    opts?: { showAutoReturnHint?: boolean; countdownSecondsLeft?: number | null },
+  ) {
     const showHint = opts?.showAutoReturnHint !== false;
+    const cd = opts?.countdownSecondsLeft;
     const imgSrc = pixQrImageSrc(ctx.encodedImage);
     const pixPreview =
       ctx.payload.length > PIX_PAYLOAD_PREVIEW_MAX_CHARS
@@ -724,17 +741,25 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
         : ctx.payload;
     return (
       <div className="space-y-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 p-4 text-left dark:border-emerald-800/50 dark:bg-emerald-950/35">
-        {ctx.isDuplicate && (
-          <p className="rounded-xl border border-amber-400/80 bg-amber-100 p-3 text-sm font-semibold text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/70 dark:text-amber-100">
-            Esta cobrança já existia e foi reaproveitada com segurança. Use o mesmo PIX abaixo.
-          </p>
-        )}
         <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
           <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Valor a pagar</p>
           <p className="text-2xl font-black text-indigo-700 dark:text-indigo-300">
             R$ {ctx.amount.toFixed(2).replace('.', ',')}
           </p>
         </div>
+        {cd != null ? (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-center dark:border-indigo-800/60 dark:bg-indigo-950/50">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-200">
+              Tempo para pagar com PIX
+            </p>
+            <p className="mt-1 font-mono text-3xl font-black tabular-nums tracking-tight text-indigo-950 dark:text-indigo-100">
+              {formatPixCountdown(cd)}
+            </p>
+            <p className="mt-1 text-[10px] leading-snug text-indigo-900/85 dark:text-indigo-200/90">
+              Complete o pagamento no app do banco antes do cronómetro chegar a zero.
+            </p>
+          </div>
+        ) : null}
         {imgSrc ? (
           <div className="flex justify-center rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
             <img src={imgSrc} alt="QR Code PIX" className="h-52 w-52 object-contain" />
@@ -1046,7 +1071,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                             código abaixo no app do seu banco.
                           </p>
                         </div>
-                        {renderPixPayPanel(inlinePayPix, { showAutoReturnHint: false })}
+                        {renderPixPayPanel(inlinePayPix, {
+                          showAutoReturnHint: false,
+                          countdownSecondsLeft: pixPaySecondsLeft,
+                        })}
                         <div className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 py-4 dark:border-emerald-800/50 dark:bg-emerald-950/40">
                           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-950 dark:text-emerald-100">
                             <i className="fas fa-spinner fa-spin text-emerald-600 dark:text-emerald-400" />
@@ -1570,7 +1598,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                       o código no app do banco.
                     </p>
                   </div>
-                  {renderPixPayPanel(inlinePayPix, { showAutoReturnHint: false })}
+                  {renderPixPayPanel(inlinePayPix, {
+                    showAutoReturnHint: false,
+                    countdownSecondsLeft: pixPaySecondsLeft,
+                  })}
                   <div className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 py-4 dark:border-emerald-800/50 dark:bg-emerald-950/40">
                     <p className="flex items-center gap-2 text-sm font-semibold text-emerald-950 dark:text-emerald-100">
                       <i className="fas fa-spinner fa-spin text-emerald-600 dark:text-emerald-400" />

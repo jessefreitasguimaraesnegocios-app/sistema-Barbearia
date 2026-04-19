@@ -6,7 +6,6 @@ import {
   mapPartnerProfessionalsFromRows,
   mapPartnerServicesFromRows,
   mapPartnerShopFromBundle,
-  mergePartnerShopScalarRow,
 } from './mapPartnerShop';
 import { mapClientCatalogRow } from './mapClientCatalogShop';
 import { mapAdminShopRow } from './mapAdminShopRow';
@@ -365,20 +364,6 @@ export async function fetchClientCatalogShopDetailById(
     products: sortClientCatalogChildrenByName((productsRes.data ?? []) as Record<string, unknown>[]),
   };
   return mapClientCatalogRow(merged);
-}
-
-/** @deprecated Prefer `fetchShopsForAdminPage` + `fetchAdminShopsAggregateStats` (menos egress). */
-export async function fetchShopsForAdmin(client: SupabaseClient): Promise<Shop[]> {
-  const merged: Shop[] = [];
-  let from = 0;
-  for (;;) {
-    const { shops, hasMore } = await fetchShopsForAdminPage(client, from, from + ADMIN_SHOPS_PAGE_SIZE - 1);
-    if (!shops.length) break;
-    merged.push(...shops);
-    if (!hasMore) break;
-    from += ADMIN_SHOPS_PAGE_SIZE;
-  }
-  return merged;
 }
 
 export async function fetchPartnerShopRowOnly(

@@ -6,7 +6,7 @@ import {
   parseShopAsaasRuntimeOverride,
   resolveEffectiveAsaasRuntimeMode,
 } from '../../../../lib/payments/resolve-shop-split';
-import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.js';
+import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.ts';
 
 type RuntimeMode = 'production' | 'sandbox';
 

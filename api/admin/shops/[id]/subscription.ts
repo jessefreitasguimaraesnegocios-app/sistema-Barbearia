@@ -4,7 +4,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseShopAsaasRuntimeOverride } from '../../../../lib/payments/resolve-shop-split';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.js';
-import { flattenShopFinanceProvisionInShopRow } from '../../../../services/supabase/mapPartnerShop';
+
+/** Cópia local do helper em `mapPartnerShop` — evita import de `services/` na função Vercel (`includeFiles` só cobre `lib/**`). */
+function flattenShopFinanceProvisionInShopRow(row: Record<string, unknown>): Record<string, unknown> {
+  const emb = row.shop_finance_provision;
+  const first = Array.isArray(emb)
+    ? (emb[0] as Record<string, unknown> | undefined)
+    : (emb as Record<string, unknown> | undefined);
+  if (!first) return row;
+  const { shop_finance_provision: _removed, ...rest } = row;
+  return {
+    ...rest,
+    finance_provision_status: first.finance_provision_status,
+    finance_provision_last_error: first.finance_provision_last_error,
+  };
+}
 
 /** Inline: mesmo motivo que `api/partner/wallet.ts` (bundle Vercel + Node ESM). */
 async function insertFinancialAudit(

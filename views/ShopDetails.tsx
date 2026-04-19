@@ -21,6 +21,8 @@ const PAYMENT_API_URL = SUPABASE_URL
   : '/api/payments/create';
 
 const PIX_COPIED_TOAST_MS = 1500;
+/** Só visualização: o botão copia o payload completo (obrigatório para o PIX). */
+const PIX_PAYLOAD_PREVIEW_MAX_CHARS = 96;
 
 /** Garante access_token fresco (evita POST na Edge sem Bearer → 401). */
 async function ensurePaymentAccessToken(): Promise<string> {
@@ -702,6 +704,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   function renderPixPayPanel(ctx: InlinePayPix, opts?: { showAutoReturnHint?: boolean }) {
     const showHint = opts?.showAutoReturnHint !== false;
     const imgSrc = pixQrImageSrc(ctx.encodedImage);
+    const pixPreview =
+      ctx.payload.length > PIX_PAYLOAD_PREVIEW_MAX_CHARS
+        ? `${ctx.payload.slice(0, PIX_PAYLOAD_PREVIEW_MAX_CHARS)}...`
+        : ctx.payload;
     return (
       <div className="space-y-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 p-4 text-left dark:border-emerald-800/50 dark:bg-emerald-950/35">
         {ctx.isDuplicate && (
@@ -725,12 +731,12 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
               Pix copia e cola
             </p>
-            <textarea
-              readOnly
-              rows={4}
-              className="w-full rounded-xl border border-zinc-200 bg-white p-3 font-mono text-[11px] leading-relaxed text-zinc-900 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
-              value={ctx.payload}
-            />
+            <div
+              className="w-full rounded-xl border border-zinc-200 bg-white p-3 font-mono text-[11px] leading-relaxed text-zinc-900 select-all dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+              title="Pré-visualização resumida. Use “Copiar código PIX” para o código completo."
+            >
+              {pixPreview}
+            </div>
             <button
               type="button"
               onClick={() => void copyPixPayload(ctx.payload)}

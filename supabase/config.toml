@@ -377,7 +377,7 @@ verify_jwt = false
 [functions.create-payment]
 verify_jwt = false
 
-# Cron Vercel → /api/cron/expire-pending-pix; auth Bearer = SERVICE_ROLE (só invocação interna).
+# Agendador externo ou service role: ver comentário no index.ts (x-expire-pix-cron).
 [functions.expire-pending-pix]
 verify_jwt = false
 

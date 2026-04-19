@@ -1,13 +1,15 @@
 /// <reference path="../create-shop/deno.d.ts" />
 // Supabase Edge: expira cobranças PIX pendentes (Asaas DELETE + BD CANCELLED).
-// Invocar com Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY> (ex.: cron Vercel → /api/cron/expire-pending-pix).
+// Auth: (1) Authorization: Bearer <SERVICE_ROLE> OU (2) header x-expire-pix-cron = EXPIRE_PENDING_PIX_CRON_SECRET (Edge secret).
+// Agendador externo (ex. cron-job.org): POST URL da função + apikey (anon) + x-expire-pix-cron — sem rota extra na Vercel (limite Hobby 12 funções).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { readAsaasApiKey, readAsaasBaseUrl } from "../_shared/asaasEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-expire-pix-cron",
 };
 
 type RuntimeMode = "production" | "sandbox";
@@ -83,6 +85,17 @@ async function asaasDeletePayment(apiUrl: string, apiKey: string, paymentId: str
   return res.ok || res.status === 404;
 }
 
+function cronSecretsMatch(expected: string, received: string): boolean {
+  const a = new TextEncoder().encode(expected);
+  const b = new TextEncoder().encode(received);
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a[i] ^ b[i];
+  }
+  return result === 0;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -106,7 +119,14 @@ Deno.serve(async (req: Request) => {
 
   const auth = (req.headers.get("Authorization") || "").trim();
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (!bearer || bearer !== serviceKey) {
+  const cronSecretEnv = (Deno.env.get("EXPIRE_PENDING_PIX_CRON_SECRET") || "").trim();
+  const cronHeader = (req.headers.get("x-expire-pix-cron") || "").trim();
+  const serviceRoleOk = bearer.length > 0 && bearer === serviceKey;
+  const cronOk =
+    cronSecretEnv.length >= 16 &&
+    cronHeader.length > 0 &&
+    cronSecretsMatch(cronSecretEnv, cronHeader);
+  if (!serviceRoleOk && !cronOk) {
     return new Response(JSON.stringify({ ok: false, error: "Não autorizado." }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

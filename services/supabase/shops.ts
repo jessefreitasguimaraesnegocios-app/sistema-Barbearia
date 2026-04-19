@@ -123,8 +123,29 @@ function buildClientCatalogEntries(
   });
 }
 
-export const SHOPS_SELECT_ADMIN =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, asaas_runtime_mode, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+/**
+ * Lista admin sem `asaas_runtime_mode` — use se a migration `20260419120000_shop_asaas_runtime_mode_override`
+ * ainda não foi aplicada no projeto (PostgREST 400 ao pedir coluna inexistente).
+ */
+export const SHOPS_SELECT_ADMIN_CORE =
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+
+export const SHOPS_SELECT_ADMIN = `${SHOPS_SELECT_ADMIN_CORE},asaas_runtime_mode`;
+
+function isMissingAsaasRuntimeModeColumnError(error: {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+} | null): boolean {
+  if (!error) return false;
+  const blob = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''} ${error.code ?? ''}`;
+  if (!/asaas_runtime_mode/i.test(blob)) return false;
+  return (
+    /does not exist|schema cache|Could not find|column.*not found|42703|PGRST204/i.test(blob) ||
+    error.code === 'PGRST204'
+  );
+}
 
 /** Lista admin paginada por nome. */
 export const ADMIN_SHOPS_PAGE_SIZE = 30;
@@ -157,15 +178,26 @@ export async function fetchShopsForAdminPage(
   from: number,
   to: number
 ): Promise<{ shops: Shop[]; hasMore: boolean }> {
-  const { data, error } = await client
+  let res = await client
     .from('shops')
     .select(SHOPS_SELECT_ADMIN)
     .order('name', { ascending: true })
     .range(from, to);
+
+  if (res.error && isMissingAsaasRuntimeModeColumnError(res.error)) {
+    res = (await client
+      .from('shops')
+      .select(SHOPS_SELECT_ADMIN_CORE)
+      .order('name', { ascending: true })
+      .range(from, to)) as typeof res;
+  }
+
+  const { data, error } = res;
   if (error || !data?.length) return { shops: [], hasMore: false };
-  const hasMore = data.length === to - from + 1;
+  const rows = data as Record<string, unknown>[];
+  const hasMore = rows.length === to - from + 1;
   return {
-    shops: data.map((row) => mapAdminShopRow(row as Record<string, unknown>)),
+    shops: rows.map((row) => mapAdminShopRow(row)),
     hasMore,
   };
 }

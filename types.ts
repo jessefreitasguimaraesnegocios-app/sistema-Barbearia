@@ -137,7 +137,7 @@ export interface Order {
   shopId: string;
   items: { productId: string; quantity: number; price: number }[];
   total: number;
-  status: 'PENDING' | 'PAID' | 'DELIVERED';
+  status: 'PENDING' | 'PAID' | 'DELIVERED' | 'CANCELLED';
   date: string;
   /** ISO `created_at` da BD — ordenação / merge Realtime (área cliente). */
   createdAtIso?: string;

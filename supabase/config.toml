@@ -377,6 +377,10 @@ verify_jwt = false
 [functions.create-payment]
 verify_jwt = false
 
+# Cron Vercel → /api/cron/expire-pending-pix; auth Bearer = SERVICE_ROLE (só invocação interna).
+[functions.expire-pending-pix]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

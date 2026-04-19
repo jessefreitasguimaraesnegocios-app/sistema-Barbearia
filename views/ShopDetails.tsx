@@ -646,6 +646,20 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
               return;
             }
             setOrderPayPhase('approved');
+            return;
+          }
+          if (st === 'CANCELLED') {
+            setInlinePayPix(null);
+            if (kind === 'booking') {
+              setBookingPayPhase('idle');
+              setStep(1);
+            } else {
+              setOrderPayPhase('idle');
+              setIsOrderProcessing(false);
+            }
+            alert(
+              'O tempo para pagar o PIX (5 minutos) expirou ou o pagamento foi cancelado. Gere um novo pagamento se ainda quiser concluir.'
+            );
           }
         }
       )

@@ -377,10 +377,6 @@ verify_jwt = false
 [functions.create-payment]
 verify_jwt = false
 
-# Agendador externo ou service role: ver comentário no index.ts (x-expire-pix-cron).
-[functions.expire-pending-pix]
-verify_jwt = false
-
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

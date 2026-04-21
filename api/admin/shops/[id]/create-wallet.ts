@@ -10,6 +10,10 @@ import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.ts';
 
 type RuntimeMode = 'production' | 'sandbox';
 
+function apiKeyColumnByMode(mode: RuntimeMode): 'asaas_api_key_prod' | 'asaas_api_key_sandbox' {
+  return mode === 'sandbox' ? 'asaas_api_key_sandbox' : 'asaas_api_key_prod';
+}
+
 function asaasCredentialsForMode(mode: RuntimeMode): { apiKey: string; apiUrl: string } {
   const defaultProd = 'https://api.asaas.com/v3';
   const defaultSandbox = 'https://api-sandbox.asaas.com/v3';
@@ -98,6 +102,7 @@ export default async function handler(
     }
 
     const walletColumn = runtimeMode === 'sandbox' ? 'asaas_wallet_id_sandbox' : 'asaas_wallet_id_prod';
+    const apiKeyColumn = apiKeyColumnByMode(runtimeMode);
 
     const currentEnvWallet = (shop as Record<string, unknown>)[walletColumn];
     if (currentEnvWallet != null && String(currentEnvWallet).trim() !== '') {
@@ -210,7 +215,10 @@ export default async function handler(
       [walletColumn]: walletId,
       asaas_account_id: asaasAccountId,
     };
-    if (asaasApiKeySub) updates.asaas_api_key = asaasApiKeySub;
+    if (asaasApiKeySub) {
+      updates.asaas_api_key = asaasApiKeySub;
+      updates[apiKeyColumn] = asaasApiKeySub;
+    }
 
     const { data: updated, error: updateError } = await supabase
       .from('shops')

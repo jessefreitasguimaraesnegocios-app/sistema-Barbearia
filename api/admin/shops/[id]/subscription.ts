@@ -232,7 +232,10 @@ export default async function handler(
       subscriptionAmount?: unknown;
       splitPercent?: unknown;
       splitPercentSandbox?: unknown | null;
+      /** legado: quando enviado, replica para prod e sandbox por compatibilidade */
       asaasApiKey?: string | null;
+      asaasApiKeyProd?: string | null;
+      asaasApiKeySandbox?: string | null;
       asaasPlatformSubscriptionId?: string | null;
       /** null | default | '' = voltar ao modo global da plataforma */
       asaasRuntimeMode?: 'production' | 'sandbox' | 'default' | null | '';
@@ -260,8 +263,25 @@ export default async function handler(
       }
     }
 
-    const keyUpdateRequested = body.asaasApiKey !== undefined;
-    if (keyUpdateRequested) updates.asaas_api_key = body.asaasApiKey === '' || body.asaasApiKey === null ? null : String(body.asaasApiKey).trim();
+    const keyLegacyUpdateRequested = body.asaasApiKey !== undefined;
+    const keyProdUpdateRequested = body.asaasApiKeyProd !== undefined;
+    const keySandboxUpdateRequested = body.asaasApiKeySandbox !== undefined;
+    if (keyProdUpdateRequested) {
+      updates.asaas_api_key_prod =
+        body.asaasApiKeyProd === '' || body.asaasApiKeyProd === null ? null : String(body.asaasApiKeyProd).trim();
+    }
+    if (keySandboxUpdateRequested) {
+      updates.asaas_api_key_sandbox =
+        body.asaasApiKeySandbox === '' || body.asaasApiKeySandbox === null ? null : String(body.asaasApiKeySandbox).trim();
+    }
+    if (keyLegacyUpdateRequested) {
+      const normalizedLegacy =
+        body.asaasApiKey === '' || body.asaasApiKey === null ? null : String(body.asaasApiKey).trim();
+      // Compat: clientes antigos enviam uma chave só; replicamos para os dois ambientes.
+      updates.asaas_api_key = normalizedLegacy;
+      if (!keyProdUpdateRequested) updates.asaas_api_key_prod = normalizedLegacy;
+      if (!keySandboxUpdateRequested) updates.asaas_api_key_sandbox = normalizedLegacy;
+    }
     if (body.asaasPlatformSubscriptionId !== undefined) {
       const v = body.asaasPlatformSubscriptionId;
       updates.asaas_platform_subscription_id =
@@ -281,7 +301,7 @@ export default async function handler(
       return res.status(400).json({
         success: false,
         error:
-          'Envie subscriptionActive, subscriptionAmount, splitPercent, splitPercentSandbox, asaasPlatformSubscriptionId, asaasRuntimeMode e/ou asaasApiKey.',
+          'Envie subscriptionActive, subscriptionAmount, splitPercent, splitPercentSandbox, asaasPlatformSubscriptionId, asaasRuntimeMode, asaasApiKeyProd, asaasApiKeySandbox e/ou asaasApiKey.',
       });
     }
 
@@ -315,20 +335,34 @@ export default async function handler(
         /asaas_runtime_mode/i.test(msg) && /schema cache|does not exist|PGRST204/i.test(msg)
           ? ' Confirme se a coluna shops.asaas_runtime_mode existe (migration shop_asaas_runtime_mode_override).'
           : '';
-      return res.status(400).json({ success: false, error: msg + hintSandbox + hintRuntime });
+      const hintApiKeys =
+        /asaas_api_key_(prod|sandbox)/i.test(msg) && /schema cache|does not exist|PGRST204/i.test(msg)
+          ? ' Confirme se a migration `shop_asaas_api_key_per_environment` foi aplicada (shops.asaas_api_key_prod/sandbox).'
+          : '';
+      return res.status(400).json({ success: false, error: msg + hintSandbox + hintRuntime + hintApiKeys });
     }
     if (!shop) {
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
     }
 
-    if (keyUpdateRequested) {
+    if (keyLegacyUpdateRequested || keyProdUpdateRequested || keySandboxUpdateRequested) {
       try {
         await insertFinancialAudit(auth.supabase, {
           shop_id: shopId,
           actor_user_id: auth.userId,
           action: 'SHOP_API_KEY_UPDATED',
           result: 'success',
-          metadata: { cleared: body.asaasApiKey === '' || body.asaasApiKey === null },
+          metadata: {
+            clearedLegacy: keyLegacyUpdateRequested
+              ? body.asaasApiKey === '' || body.asaasApiKey === null
+              : undefined,
+            clearedProd: keyProdUpdateRequested
+              ? body.asaasApiKeyProd === '' || body.asaasApiKeyProd === null
+              : undefined,
+            clearedSandbox: keySandboxUpdateRequested
+              ? body.asaasApiKeySandbox === '' || body.asaasApiKeySandbox === null
+              : undefined,
+          },
           ip: clientMeta.ip,
           user_agent: clientMeta.userAgent,
         });

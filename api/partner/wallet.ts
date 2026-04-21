@@ -47,7 +47,10 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPA
 type RuntimeMode = 'production' | 'sandbox';
 
 /** Mesma regra que `api/payments/create.ts`: modo global + override opcional por loja (`shops.asaas_runtime_mode`). */
-async function resolvePartnerWalletAsaasApiBaseUrl(supabase: SupabaseClient, shopId: string): Promise<string> {
+async function resolvePartnerWalletAsaasRuntime(
+  supabase: SupabaseClient,
+  shopId: string
+): Promise<{ mode: RuntimeMode; apiBaseUrl: string }> {
   let mode: RuntimeMode = 'production';
   try {
     const [{ data: plat }, { data: shopRow }] = await Promise.all([
@@ -65,9 +68,30 @@ async function resolvePartnerWalletAsaasApiBaseUrl(supabase: SupabaseClient, sho
 
   const defaultApiUrl = 'https://api.asaas.com/v3';
   if (mode === 'sandbox') {
-    return (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, '');
+    return {
+      mode,
+      apiBaseUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
+    };
   }
-  return (process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, '');
+  return {
+    mode,
+    apiBaseUrl: (process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
+  };
+}
+
+function shopApiKeyByRuntime(
+  mode: RuntimeMode,
+  row: { asaas_api_key_prod?: unknown; asaas_api_key_sandbox?: unknown; asaas_api_key?: unknown }
+): string {
+  const preferred =
+    mode === 'sandbox'
+      ? row.asaas_api_key_sandbox
+      : row.asaas_api_key_prod;
+  const normalizedPreferred =
+    preferred != null && String(preferred).trim() !== '' ? String(preferred).trim() : '';
+  if (normalizedPreferred) return normalizedPreferred;
+  const legacy = row.asaas_api_key;
+  return legacy != null && String(legacy).trim() !== '' ? String(legacy).trim() : '';
 }
 
 type WalletPartnerOk =
@@ -190,7 +214,7 @@ export default async function handler(
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  const asaasApiBaseRaw = await resolvePartnerWalletAsaasApiBaseUrl(supabase, shopId);
+  const { mode: runtimeMode, apiBaseUrl: asaasApiBaseRaw } = await resolvePartnerWalletAsaasRuntime(supabase, shopId);
   const baseUrl = asaasApiBaseRaw.startsWith('http') ? asaasApiBaseRaw : `https://${asaasApiBaseRaw}`;
 
   let subAccountKey: string | null = null;
@@ -199,7 +223,7 @@ export default async function handler(
   if (partner.mode === 'shop') {
     const { data: shop, error: shopError } = await supabase
       .from('shops')
-      .select('id, asaas_api_key, asaas_account_id')
+      .select('id, asaas_api_key, asaas_api_key_prod, asaas_api_key_sandbox, asaas_account_id')
       .eq('id', shopId)
       .single();
 
@@ -207,7 +231,12 @@ export default async function handler(
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
     }
 
-    subAccountKey = (shop as { asaas_api_key?: string }).asaas_api_key?.trim() || null;
+    const shopKey = shopApiKeyByRuntime(runtimeMode, shop as {
+      asaas_api_key?: unknown;
+      asaas_api_key_prod?: unknown;
+      asaas_api_key_sandbox?: unknown;
+    });
+    subAccountKey = shopKey || null;
     expectedSubAccountId = (shop as { asaas_account_id?: string }).asaas_account_id?.trim() || null;
     if (!subAccountKey) {
       return res.status(400).json({

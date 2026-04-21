@@ -2,12 +2,46 @@
 // Retorna status da conta Asaas e links para envio de documentos (onboarding). Requer JWT do parceiro.
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  asaasRuntimeModeFromPlatformRow,
+  parseShopAsaasRuntimeOverride,
+  resolveEffectiveAsaasRuntimeMode,
+} from '../../lib/payments/resolve-shop-split';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
+type RuntimeMode = 'production' | 'sandbox';
+
+function platformAsaasRuntimeConfig(mode: RuntimeMode): { apiKey: string; apiUrl: string } {
+  const defaultProd = 'https://api.asaas.com/v3';
+  const defaultSandbox = 'https://api-sandbox.asaas.com/v3';
+  if (mode === 'sandbox') {
+    return {
+      apiKey: (process.env.ASAAS_API_KEY_SANDBOX || process.env.ASAAS_API_KEY || '').trim(),
+      apiUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultSandbox).replace(/\/$/, ''),
+    };
+  }
+  return {
+    apiKey: (process.env.ASAAS_API_KEY || '').trim(),
+    apiUrl: (process.env.ASAAS_API_URL || defaultProd).replace(/\/$/, ''),
+  };
+}
+
+function shopApiKeyByRuntime(
+  mode: RuntimeMode,
+  row: { asaas_api_key_prod?: unknown; asaas_api_key_sandbox?: unknown; asaas_api_key?: unknown }
+): string {
+  const preferred =
+    mode === 'sandbox'
+      ? row.asaas_api_key_sandbox
+      : row.asaas_api_key_prod;
+  const normalizedPreferred =
+    preferred != null && String(preferred).trim() !== '' ? String(preferred).trim() : '';
+  if (normalizedPreferred) return normalizedPreferred;
+  const legacy = row.asaas_api_key;
+  return legacy != null && String(legacy).trim() !== '' ? String(legacy).trim() : '';
+}
 
 async function getPartnerShopId(token: string): Promise<{ shopId: string } | { error: string; status: number }> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -74,14 +108,10 @@ export default async function handler(
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return res.status(500).json({ success: false, error: 'Configuração do servidor indisponível.' });
   }
-  if (!ASAAS_API_KEY) {
-    return res.status(500).json({ success: false, error: 'Gateway de pagamento não configurado.' });
-  }
-
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: shop, error: shopError } = await supabase
     .from('shops')
-    .select('id, asaas_account_id, asaas_api_key, asaas_wallet_id')
+    .select('id, asaas_account_id, asaas_api_key, asaas_api_key_prod, asaas_api_key_sandbox, asaas_wallet_id, asaas_runtime_mode')
     .eq('id', partner.shopId)
     .single();
 
@@ -89,7 +119,24 @@ export default async function handler(
     return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
   }
 
-  let subAccountKey: string | null = (shop as { asaas_api_key?: string }).asaas_api_key?.trim() || null;
+  const { data: platformRuntime } = await supabase
+    .from('platform_runtime_settings')
+    .select('asaas_mode')
+    .eq('singleton_id', true)
+    .maybeSingle();
+  const platformMode = asaasRuntimeModeFromPlatformRow(platformRuntime);
+  const shopOverride = parseShopAsaasRuntimeOverride((shop as { asaas_runtime_mode?: unknown }).asaas_runtime_mode);
+  const runtimeMode = resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride);
+  const platformRuntimeConfig = platformAsaasRuntimeConfig(runtimeMode);
+  if (!platformRuntimeConfig.apiKey) {
+    return res.status(500).json({ success: false, error: 'Gateway de pagamento não configurado para o ambiente da loja.' });
+  }
+
+  let subAccountKey: string | null = shopApiKeyByRuntime(runtimeMode, shop as {
+    asaas_api_key?: unknown;
+    asaas_api_key_prod?: unknown;
+    asaas_api_key_sandbox?: unknown;
+  }) || null;
   const asaasAccountId = (shop as { asaas_account_id?: string }).asaas_account_id?.trim() || null;
   const hasWallet = (shop as { asaas_wallet_id?: string }).asaas_wallet_id != null;
 
@@ -105,11 +152,11 @@ export default async function handler(
   // Se não temos chave mas temos id da conta, tentar criar (sem Whitelist de IP = qualquer IP aceito)
   if (!subAccountKey && asaasAccountId) {
     try {
-      const tokenRes = await fetch(`${ASAAS_API_URL}/accounts/${asaasAccountId}/accessTokens`, {
+      const tokenRes = await fetch(`${platformRuntimeConfig.apiUrl}/accounts/${asaasAccountId}/accessTokens`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          access_token: ASAAS_API_KEY,
+          access_token: platformRuntimeConfig.apiKey,
         },
         body: JSON.stringify({ name: 'Smart Cria Onboarding' }),
       });
@@ -117,7 +164,13 @@ export default async function handler(
         const tokenData = (await tokenRes.json()) as { apiKey?: string };
         const newKey = tokenData?.apiKey?.trim();
         if (newKey) {
-          await supabase.from('shops').update({ asaas_api_key: newKey }).eq('id', partner.shopId);
+          const updates: Record<string, unknown> = { asaas_api_key: newKey };
+          if (runtimeMode === 'sandbox') {
+            updates.asaas_api_key_sandbox = newKey;
+          } else {
+            updates.asaas_api_key_prod = newKey;
+          }
+          await supabase.from('shops').update(updates).eq('id', partner.shopId);
           subAccountKey = newKey;
         }
       }
@@ -135,10 +188,10 @@ export default async function handler(
 
   try {
     const [statusRes, docsRes] = await Promise.all([
-      fetch(`${ASAAS_API_URL}/myAccount/status`, {
+      fetch(`${platformRuntimeConfig.apiUrl}/myAccount/status`, {
         headers: { access_token: subAccountKey },
       }),
-      fetch(`${ASAAS_API_URL}/myAccount/documents`, {
+      fetch(`${platformRuntimeConfig.apiUrl}/myAccount/documents`, {
         headers: { access_token: subAccountKey },
       }),
     ]);

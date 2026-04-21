@@ -36,6 +36,9 @@ function resolveEnvironment(asaasApiUrl: string, explicit?: string): "sandbox" |
 function walletColumnByEnvironment(environment: "sandbox" | "production"): "asaas_wallet_id_sandbox" | "asaas_wallet_id_prod" {
   return environment === "sandbox" ? "asaas_wallet_id_sandbox" : "asaas_wallet_id_prod";
 }
+function apiKeyColumnByEnvironment(environment: "sandbox" | "production"): "asaas_api_key_sandbox" | "asaas_api_key_prod" {
+  return environment === "sandbox" ? "asaas_api_key_sandbox" : "asaas_api_key_prod";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -129,6 +132,7 @@ Deno.serve(async (req: Request) => {
 
   const runtimeEnvironment = resolveEnvironment(asaasBaseUrl, Deno.env.get("ASAAS_PROVISIONER_ENV") || undefined);
   const walletColumn = walletColumnByEnvironment(runtimeEnvironment);
+  const apiKeyColumn = apiKeyColumnByEnvironment(runtimeEnvironment);
   const results: Array<{ shopId: string; ok: boolean; status?: string; error?: string }> = [];
 
   for (const shopId of candidateIds) {
@@ -419,7 +423,10 @@ Deno.serve(async (req: Request) => {
         [walletColumn]: asaasWalletId,
         asaas_account_id: asaasAccountId ?? null,
       };
-      if (asaasApiKeySub) shopUpdate.asaas_api_key = asaasApiKeySub;
+      if (asaasApiKeySub) {
+        shopUpdate.asaas_api_key = asaasApiKeySub;
+        shopUpdate[apiKeyColumn] = asaasApiKeySub;
+      }
 
       const { error: shopUpErr } = await supabase.from("shops").update(shopUpdate).eq("id", shopId);
       if (shopUpErr) {

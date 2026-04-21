@@ -3,12 +3,62 @@
 /// <reference path="./deno.d.ts" />
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { readAsaasApiKey, readAsaasBaseUrl } from "../_shared/asaasEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+type RuntimeMode = "production" | "sandbox";
+
+function asaasRuntimeModeFromPlatformRow(data: { asaas_mode?: unknown } | null | undefined): RuntimeMode {
+  return data?.asaas_mode === "sandbox" ? "sandbox" : "production";
+}
+
+function platformAsaasConfigForMode(mode: RuntimeMode): { mode: RuntimeMode; apiKey: string; apiUrl: string } {
+  const defaultProd = "https://api.asaas.com/v3";
+  const defaultSandbox = "https://api-sandbox.asaas.com/v3";
+  if (mode === "sandbox") {
+    return {
+      mode,
+      apiKey: readAsaasApiKey("ASAAS_API_KEY_SANDBOX", "ASAAS_API_KEY"),
+      apiUrl: readAsaasBaseUrl(["ASAAS_API_URL_SANDBOX", "ASAAS_API_URL"], defaultSandbox),
+    };
+  }
+  return {
+    mode,
+    apiKey: readAsaasApiKey("ASAAS_API_KEY"),
+    apiUrl: readAsaasBaseUrl(["ASAAS_API_URL"], defaultProd),
+  };
+}
+
+function normalizeAsaasMobilePhone(rawPhone: unknown): string {
+  const fallback = "11999999999";
+  if (rawPhone == null) return fallback;
+  let digits = String(rawPhone).replace(/\D/g, "");
+  if (!digits) return fallback;
+  if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
+  if (digits.length === 10) digits = `${digits.slice(0, 2)}9${digits.slice(2)}`;
+  if (!/^\d{2}9\d{8}$/.test(digits)) return fallback;
+  return digits;
+}
+
+function nextMonthlyDueDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function asaasErrorMessageFromText(raw: string, fallback: string): string {
+  try {
+    const j = JSON.parse(raw) as { errors?: Array<{ description?: string }>; error?: string };
+    return j?.errors?.[0]?.description || j?.error || raw || fallback;
+  } catch {
+    return raw || fallback;
+  }
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -349,6 +399,89 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Provisionamento automático (best-effort) da assinatura mensal da plataforma na conta mãe.
+    // Se falhar, não aborta criação da loja: admin pode sincronizar depois.
+    let autoSubscriptionId: string | null = null;
+    let autoSubscriptionWarning: string | null = null;
+    try {
+      const { data: runtimeRow } = await supabase
+        .from("platform_runtime_settings")
+        .select("asaas_mode")
+        .eq("singleton_id", true)
+        .maybeSingle();
+      const runtimeMode = asaasRuntimeModeFromPlatformRow(runtimeRow as { asaas_mode?: unknown } | null | undefined);
+      const config = platformAsaasConfigForMode(runtimeMode);
+      if (!config.apiKey) {
+        throw new Error(`ASAAS_API_KEY ausente para ${runtimeMode}.`);
+      }
+
+      const cnpjCpfForCustomer = cpfCnpjDigits.length === 11 || cpfCnpjDigits.length === 14 ? cpfCnpjDigits : "";
+      const customerLookupByCpf = cnpjCpfForCustomer
+        ? await fetch(`${config.apiUrl}/customers?cpfCnpj=${encodeURIComponent(cnpjCpfForCustomer)}&limit=1&offset=0`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json", access_token: config.apiKey },
+        })
+        : null;
+      let asaasCustomerId: string | null = null;
+      if (customerLookupByCpf?.ok) {
+        const j = (await customerLookupByCpf.json()) as { data?: Array<{ id?: string }> };
+        asaasCustomerId = j?.data?.[0]?.id?.trim() || null;
+      }
+      if (!asaasCustomerId) {
+        const customerRes = await fetch(`${config.apiUrl}/customers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", access_token: config.apiKey },
+          body: JSON.stringify({
+            name: String(name),
+            email: String(email),
+            mobilePhone: normalizeAsaasMobilePhone(phoneTrim ?? undefined),
+            cpfCnpj: cnpjCpfForCustomer || undefined,
+          }),
+        });
+        const customerTxt = await customerRes.text();
+        if (!customerRes.ok) {
+          throw new Error(asaasErrorMessageFromText(customerTxt, "Falha ao criar cliente da mensalidade no Asaas."));
+        }
+        const customerJson = JSON.parse(customerTxt) as { id?: string };
+        asaasCustomerId = customerJson?.id?.trim() || null;
+        if (!asaasCustomerId) throw new Error("Asaas não retornou customer id para mensalidade.");
+      }
+
+      const subRes = await fetch(`${config.apiUrl}/subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", access_token: config.apiKey },
+        body: JSON.stringify({
+          customer: asaasCustomerId,
+          billingType: "UNDEFINED",
+          cycle: "MONTHLY",
+          value: subscription_amount,
+          nextDueDate: nextMonthlyDueDate(),
+          description: `Mensalidade plataforma - ${String(name)}`.slice(0, 120),
+          externalReference: `shop:${shopId}:platform-subscription`,
+        }),
+      });
+      const subTxt = await subRes.text();
+      if (!subRes.ok) {
+        throw new Error(asaasErrorMessageFromText(subTxt, "Falha ao criar assinatura mensal no Asaas."));
+      }
+      const subJson = JSON.parse(subTxt) as { id?: string };
+      autoSubscriptionId = subJson?.id?.trim() || null;
+      if (!autoSubscriptionId) throw new Error("Asaas não retornou subscription id da mensalidade.");
+
+      const updatePayload: Record<string, unknown> = {
+        asaas_platform_subscription_id: autoSubscriptionId,
+      };
+      if (asaasCustomerId) updatePayload.asaas_customer_id = asaasCustomerId;
+      const { error: autoSubUpdateErr } = await supabase
+        .from("shops")
+        .update(updatePayload)
+        .eq("id", shopId);
+      if (autoSubUpdateErr) throw new Error(autoSubUpdateErr.message);
+    } catch (autoErr) {
+      autoSubscriptionWarning = autoErr instanceof Error ? autoErr.message : String(autoErr);
+      console.error("[create-shop] auto monthly subscription:", autoSubscriptionWarning);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -356,6 +489,9 @@ Deno.serve(async (req: Request) => {
         ownerCreated: true,
         financeProvisionStatus: "pending",
         financePending: true,
+        autoMonthlySubscriptionCreated: autoSubscriptionId != null,
+        asaasPlatformSubscriptionId: autoSubscriptionId,
+        autoMonthlySubscriptionWarning: autoSubscriptionWarning,
         message:
           "Estabelecimento criado. Dados bancários e vínculo Asaas ficam no teu sistema externo.",
       }),

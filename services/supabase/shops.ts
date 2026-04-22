@@ -139,13 +139,13 @@ export const SHOPS_SELECT_ADMIN = `${SHOPS_SELECT_ADMIN_CORE},asaas_runtime_mode
 export const SHOPS_SELECT_ADMIN_NO_SHARE_CODE = `${SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE},asaas_runtime_mode`;
 /** Lista leve do admin (colunas efetivamente usadas na tabela). */
 export const SHOPS_SELECT_ADMIN_LIST_LIGHT =
-  'id, share_code, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error), asaas_runtime_mode';
+  'id, share_code, owner_id, name, type, profile_image, phone, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error), asaas_runtime_mode';
 export const SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_SHARE_CODE =
-  'id, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error), asaas_runtime_mode';
+  'id, owner_id, name, type, profile_image, phone, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error), asaas_runtime_mode';
 export const SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_RUNTIME =
-  'id, share_code, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+  'id, share_code, owner_id, name, type, profile_image, phone, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 export const SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_SHARE_CODE_NO_RUNTIME =
-  'id, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+  'id, owner_id, name, type, profile_image, phone, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 function isMissingAsaasRuntimeModeColumnError(error: {
   message?: string;
@@ -229,22 +229,24 @@ export async function fetchShopsForAdminPage(
     SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_SHARE_CODE_NO_RUNTIME,
   ];
 
-  let res = await client.from('shops').select(adminSelectFallbacks[0]).order('name', { ascending: true }).range(from, to);
+  // PostgREST typings variam com o string do `select()` (fallbacks), então relaxamos só neste ponto.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let res: any = await client.from('shops').select(adminSelectFallbacks[0]).order('name', { ascending: true }).range(from, to);
   for (let i = 1; i < adminSelectFallbacks.length; i += 1) {
     if (!res.error) break;
     const missingRuntime = isMissingAsaasRuntimeModeColumnError(res.error);
     const missingShare = isMissingShareCodeColumnError(res.error);
     if (!missingRuntime && !missingShare) break;
-    res = (await client
+    res = await client
       .from('shops')
       .select(adminSelectFallbacks[i])
       .order('name', { ascending: true })
-      .range(from, to)) as typeof res;
+      .range(from, to);
   }
 
   const { data, error } = res;
   if (error || !data?.length) return { shops: [], hasMore: false };
-  const rows = data as Record<string, unknown>[];
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
   const hasMore = rows.length === to - from + 1;
   return {
     shops: rows.map((row) => mapAdminShopRow(row)),
@@ -257,16 +259,17 @@ export async function fetchAdminShopById(client: SupabaseClient, shopId: string)
   const id = shopId.trim();
   if (!id) return null;
   const selectFallbacks = [SHOPS_SELECT_ADMIN, SHOPS_SELECT_ADMIN_CORE, SHOPS_SELECT_ADMIN_NO_SHARE_CODE, SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE];
-  let res = await client.from('shops').select(selectFallbacks[0]).eq('id', id).maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let res: any = await client.from('shops').select(selectFallbacks[0]).eq('id', id).maybeSingle();
   for (let i = 1; i < selectFallbacks.length; i += 1) {
     if (!res.error) break;
     const missingRuntime = isMissingAsaasRuntimeModeColumnError(res.error);
     const missingShare = isMissingShareCodeColumnError(res.error);
     if (!missingRuntime && !missingShare) break;
-    res = (await client.from('shops').select(selectFallbacks[i]).eq('id', id).maybeSingle()) as typeof res;
+    res = await client.from('shops').select(selectFallbacks[i]).eq('id', id).maybeSingle();
   }
   if (res.error || !res.data) return null;
-  return mapAdminShopRow(res.data as Record<string, unknown>);
+  return mapAdminShopRow(res.data as unknown as Record<string, unknown>);
 }
 
 export type FetchPartnerShopBundleResult =
@@ -335,7 +338,8 @@ export async function fetchClientCatalogPage(
   from: number,
   to: number
 ): Promise<ClientCatalogEntry[]> {
-  let res = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let res: any = await client
     .from('shops')
     .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
     .order('name', { ascending: true })
@@ -350,7 +354,7 @@ export async function fetchClientCatalogPage(
   const { data, error } = res;
   if (error) throw error;
   if (!data?.length) return [];
-  const shopRows = data as Record<string, unknown>[];
+  const shopRows = (data ?? []) as unknown as Record<string, unknown>[];
   const ids = shopRows.map((r) => String(r.id));
   const prosByShop = await fetchClientCatalogProfessionalsForShopIds(client, ids);
   return buildClientCatalogEntries(shopRows, prosByShop);
@@ -358,7 +362,8 @@ export async function fetchClientCatalogPage(
 
 /** Lojas alteradas desde o último sync (usa `shops.updated_at`, atualizado também por mudanças no catálogo filho). */
 export async function fetchClientCatalogUpdatedSince(client: SupabaseClient, sinceIso: string): Promise<ClientCatalogEntry[]> {
-  let res = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let res: any = await client
     .from('shops')
     .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
     .gt('updated_at', sinceIso)
@@ -373,7 +378,7 @@ export async function fetchClientCatalogUpdatedSince(client: SupabaseClient, sin
   const { data, error } = res;
   if (error) throw error;
   if (!data?.length) return [];
-  const shopRows = data as Record<string, unknown>[];
+  const shopRows = (data ?? []) as unknown as Record<string, unknown>[];
   const ids = shopRows.map((r) => String(r.id));
   const prosByShop = await fetchClientCatalogProfessionalsForShopIds(client, ids);
   return buildClientCatalogEntries(shopRows, prosByShop);
@@ -412,7 +417,8 @@ export async function fetchClientCatalogByShopIds(
   const out: ClientCatalogEntry[] = [];
   for (let i = 0; i < unique.length; i += CLIENT_CATALOG_BY_ID_CHUNK) {
     const chunk = unique.slice(i, i + CLIENT_CATALOG_BY_ID_CHUNK);
-    let res = await client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let res: any = await client
       .from('shops')
       .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
       .in('id', chunk);
@@ -425,7 +431,7 @@ export async function fetchClientCatalogByShopIds(
     const { data, error } = res;
     if (error) throw error;
     if (data?.length) {
-      const shopRows = data as Record<string, unknown>[];
+      const shopRows = (data ?? []) as unknown as Record<string, unknown>[];
       const prosByShop = await fetchClientCatalogProfessionalsForShopIds(
         client,
         shopRows.map((r) => String(r.id))
@@ -444,20 +450,24 @@ export async function fetchClientCatalogShopDetailById(
   const sid = shopId.trim();
   if (!sid) return null;
 
-  let [shopRes, servicesRes, professionalsRes, productsRes] = await Promise.all([
-    client.from('shops').select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS).eq('id', sid).maybeSingle(),
+  let shopRes = await client
+    .from('shops')
+    .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
+    .eq('id', sid)
+    .maybeSingle();
+  if (shopRes.error && isMissingShareCodeColumnError(shopRes.error)) {
+    shopRes = await client
+      .from('shops')
+      .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS_NO_SHARE_CODE)
+      .eq('id', sid)
+      .maybeSingle();
+  }
+
+  const [servicesRes, professionalsRes, productsRes] = await Promise.all([
     client.from('services').select(SERVICES_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
     client.from('professionals').select(PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST).eq('shop_id', sid),
     client.from('products').select(PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
   ]);
-  if (shopRes.error && isMissingShareCodeColumnError(shopRes.error)) {
-    [shopRes, servicesRes, professionalsRes, productsRes] = await Promise.all([
-      client.from('shops').select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS_NO_SHARE_CODE).eq('id', sid).maybeSingle(),
-      client.from('services').select(SERVICES_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
-      client.from('professionals').select(PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST).eq('shop_id', sid),
-      client.from('products').select(PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
-    ]);
-  }
 
   if (shopRes.error || !shopRes.data) return null;
   if (servicesRes.error) throw servicesRes.error;
@@ -465,10 +475,10 @@ export async function fetchClientCatalogShopDetailById(
   if (productsRes.error) throw productsRes.error;
 
   const merged = {
-    ...(shopRes.data as Record<string, unknown>),
-    services: sortClientCatalogChildrenByName((servicesRes.data ?? []) as Record<string, unknown>[]),
-    professionals: sortClientCatalogChildrenByName((professionalsRes.data ?? []) as Record<string, unknown>[]),
-    products: sortClientCatalogChildrenByName((productsRes.data ?? []) as Record<string, unknown>[]),
+    ...(shopRes.data as unknown as Record<string, unknown>),
+    services: sortClientCatalogChildrenByName((servicesRes.data ?? []) as unknown as Record<string, unknown>[]),
+    professionals: sortClientCatalogChildrenByName((professionalsRes.data ?? []) as unknown as Record<string, unknown>[]),
+    products: sortClientCatalogChildrenByName((productsRes.data ?? []) as unknown as Record<string, unknown>[]),
   };
   return mapClientCatalogRow(merged);
 }

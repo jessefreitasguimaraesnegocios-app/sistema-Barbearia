@@ -7,7 +7,7 @@ export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
   return {
     id: String(s.id),
     shareCode: s.share_code != null ? String(s.share_code) : undefined,
-    ownerId: String(s.owner_id),
+    ownerId: s.owner_id != null && String(s.owner_id).trim() !== '' ? String(s.owner_id) : '',
     name: String(s.name || ''),
     type: (s.type as Shop['type']) || 'BARBER',
     description: String(s.description || ''),

@@ -18,40 +18,73 @@ function onlyDigits(value: string | undefined | null): string {
   return String(value || '').replace(/\D/g, '');
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidUuid(id: string | undefined | null): id is string {
+  return Boolean(id && id !== 'undefined' && UUID_RE.test(id));
+}
+
 function normalizeWhatsAppNumber(raw: string): string | null {
   const digits = onlyDigits(raw);
   if (!digits) return null;
   if (digits.startsWith('55')) return digits;
-  if (digits.length >= 10 && digits.length <= 11) return `55${digits}`;
-  return digits.length >= 12 ? digits : null;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  if (digits.length >= 8 && digits.length <= 15) return digits;
+  return null;
+}
+
+/** Abre wa.me no mesmo gesto do clique (alguns mobile browsers bloqueiam `window.open`). */
+function openWhatsAppUrl(digits: string) {
+  const url = `https://wa.me/${digits}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 export default function AdminOwnerWhatsApp({ shops, shopsHasMore, onLoadMoreShops }: AdminOwnerWhatsAppProps) {
   const [ownerProfilesById, setOwnerProfilesById] = useState<Map<string, OwnerProfileRow>>(new Map());
   const [loadingOwners, setLoadingOwners] = useState(false);
+  const [ownersLoadError, setOwnersLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const ownerIds = [...new Set(shops.map((s) => s.ownerId).filter(Boolean))];
+    const ownerIds = [...new Set(shops.map((s) => s.ownerId).filter(isValidUuid))];
     if (!ownerIds.length) {
       setOwnerProfilesById(new Map());
+      setOwnersLoadError(null);
       return;
     }
 
     let cancelled = false;
     setLoadingOwners(true);
+    setOwnersLoadError(null);
     void (async () => {
       try {
         const { data, error } = await supabase
           .from('profiles')
           .select('id, full_name, phone')
           .in('id', ownerIds);
-        if (cancelled || error) return;
+        if (cancelled) return;
+        if (error) {
+          setOwnerProfilesById(new Map());
+          setOwnersLoadError(error.message || 'Não foi possível carregar telefones (permissão/RLS).');
+          return;
+        }
         const map = new Map<string, OwnerProfileRow>();
         for (const row of (data ?? []) as OwnerProfileRow[]) {
           map.set(String(row.id), row);
         }
         setOwnerProfilesById(map);
+        if (map.size < ownerIds.length) {
+          setOwnersLoadError(
+            'Alguns contatos não retornaram (RLS). O telefone da loja aparece quando existir em «shops.phone».'
+          );
+        }
       } finally {
         if (!cancelled) setLoadingOwners(false);
       }
@@ -86,7 +119,7 @@ export default function AdminOwnerWhatsApp({ shops, shopsHasMore, onLoadMoreShop
   }, [ownerProfilesById, search, shops]);
 
   const openWhatsApp = (digits: string) => {
-    window.open(`https://wa.me/${digits}`, '_blank', 'noopener,noreferrer');
+    openWhatsAppUrl(digits);
   };
 
   return (
@@ -110,6 +143,12 @@ export default function AdminOwnerWhatsApp({ shops, shopsHasMore, onLoadMoreShop
           </label>
           <div className="text-xs text-gray-500">{rows.length} contatos exibidos</div>
         </div>
+
+        {ownersLoadError ? (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+            {ownersLoadError}
+          </div>
+        ) : null}
 
         {loadingOwners ? (
           <div className="py-10 text-center text-sm text-gray-500">

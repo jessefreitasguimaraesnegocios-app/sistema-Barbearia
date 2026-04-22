@@ -85,6 +85,14 @@ const Layout: React.FC<LayoutProps> = ({
                 >
                   <i className="fas fa-wallet w-5"></i> Saque
                 </button>
+                <button
+                  onClick={() => onNavigate('admin-owner-whatsapp')}
+                  className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+                    currentView === 'admin-owner-whatsapp' ? navActiveIndigo : navInactive
+                  }`}
+                >
+                  <i className="fab fa-whatsapp w-5"></i> WhatsApp
+                </button>
               </>
             )}
 
@@ -430,6 +438,17 @@ const Layout: React.FC<LayoutProps> = ({
               >
                 <i className="fas fa-wallet text-xl"></i>
                 <span className="mt-1 text-[10px]">Saque</span>
+              </button>
+              <button
+                onClick={() => onNavigate('admin-owner-whatsapp')}
+                className={`flex flex-col items-center rounded-xl p-2 transition-colors duration-200 ${
+                  currentView === 'admin-owner-whatsapp'
+                    ? 'text-indigo-600 dark:text-indigo-300'
+                    : 'text-(--app-text-muted)'
+                }`}
+              >
+                <i className="fab fa-whatsapp text-xl"></i>
+                <span className="mt-1 text-[10px]">WhatsApp</span>
               </button>
             </>
           ) : null}

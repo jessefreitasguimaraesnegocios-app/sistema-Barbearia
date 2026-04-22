@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import AdminDashboard from '../views/AdminDashboard';
 import AdminWallet from '../views/AdminWallet';
+import AdminOwnerWhatsApp from '../views/AdminOwnerWhatsApp';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
 import {
@@ -27,7 +28,7 @@ export default function AdminArea() {
   const [notifications, setNotifications] = useState<
     { id: string; title: string; message: string; type: 'SUCCESS' | 'INFO' | 'WARNING'; timestamp: Date; read: boolean }[]
   >([]);
-  const [currentView, setCurrentView] = useState<'admin-dashboard' | 'admin-wallet'>('admin-dashboard');
+  const [currentView, setCurrentView] = useState<'admin-dashboard' | 'admin-wallet' | 'admin-owner-whatsapp'>('admin-dashboard');
 
   const refreshAdminStats = useCallback(async () => {
     const stats = await fetchAdminShopsAggregateStats(supabase);
@@ -122,6 +123,13 @@ export default function AdminArea() {
           shopsHasMore={shopsHasMore}
           onLoadMoreShops={loadMoreShops}
           onShopCreated={fetchShopsFirstPage}
+        />
+      )}
+      {currentView === 'admin-owner-whatsapp' && (
+        <AdminOwnerWhatsApp
+          shops={shops}
+          shopsHasMore={shopsHasMore}
+          onLoadMoreShops={loadMoreShops}
         />
       )}
       {currentView === 'admin-wallet' && <AdminWallet />}

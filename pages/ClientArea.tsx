@@ -295,26 +295,31 @@ export default function ClientArea() {
     if (user?.role !== 'CLIENT') return;
     if (profileHydrating) return;
 
-    const targetShop = shops.find((shop) => shop.id === deepLinkShopId);
-    if (!targetShop) {
-      if (catalogRefreshing) return;
-      setCurrentView('client-home');
-      setSelectedShop(null);
-      clearDeepLinkShopParam();
-      return;
-    }
+    setShopDetailsLoadingId(deepLinkShopId);
+    void (async () => {
+      try {
+        const detailed = await queryClient.fetchQuery({
+          queryKey: ['client-area', 'shop-detail', deepLinkShopId],
+          queryFn: () => fetchClientCatalogShopDetailById(supabase, deepLinkShopId),
+          staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
+        });
 
-    handleSelectShop(targetShop);
-    clearDeepLinkShopParam();
-  }, [
-    catalogRefreshing,
-    clearDeepLinkShopParam,
-    deepLinkShopId,
-    handleSelectShop,
-    profileHydrating,
-    shops,
-    user?.role,
-  ]);
+        if (detailed) {
+          setSelectedShop(detailed);
+          setCurrentView('shop-details');
+        } else {
+          setCurrentView('client-home');
+          setSelectedShop(null);
+        }
+      } catch {
+        setCurrentView('client-home');
+        setSelectedShop(null);
+      } finally {
+        setShopDetailsLoadingId((prev) => (prev === deepLinkShopId ? null : prev));
+        clearDeepLinkShopParam();
+      }
+    })();
+  }, [clearDeepLinkShopParam, deepLinkShopId, profileHydrating, queryClient, user?.role]);
 
   useEffect(() => {
     if (!profileHydrating) return;

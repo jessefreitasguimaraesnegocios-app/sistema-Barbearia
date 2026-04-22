@@ -137,6 +137,15 @@ export const SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE =
 
 export const SHOPS_SELECT_ADMIN = `${SHOPS_SELECT_ADMIN_CORE},asaas_runtime_mode`;
 export const SHOPS_SELECT_ADMIN_NO_SHARE_CODE = `${SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE},asaas_runtime_mode`;
+/** Lista leve do admin (colunas efetivamente usadas na tabela). */
+export const SHOPS_SELECT_ADMIN_LIST_LIGHT =
+  'id, share_code, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error), asaas_runtime_mode';
+export const SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_SHARE_CODE =
+  'id, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error), asaas_runtime_mode';
+export const SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_RUNTIME =
+  'id, share_code, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+export const SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_SHARE_CODE_NO_RUNTIME =
+  'id, name, type, profile_image, subscription_active, subscription_amount, asaas_account_id, asaas_wallet_id, asaas_platform_subscription_id, email, split_percent, split_percent_sandbox, pass_fees_to_customer, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 function isMissingAsaasRuntimeModeColumnError(error: {
   message?: string;
@@ -179,6 +188,20 @@ export type AdminShopsAggregateStats = {
 
 /** Uma linha leve por loja — totais do painel admin sem carregar `SHOPS_SELECT_ADMIN` inteiro para todas. */
 export async function fetchAdminShopsAggregateStats(client: SupabaseClient): Promise<AdminShopsAggregateStats> {
+  const { data: rpcData, error: rpcError } = await client.rpc('get_admin_shops_aggregate_stats');
+  if (!rpcError && rpcData && typeof rpcData === 'object') {
+    const row = rpcData as {
+      total_shops?: number | null;
+      active_subscriptions?: number | null;
+      mrr_estimate?: number | null;
+    };
+    return {
+      totalShops: Number(row.total_shops) || 0,
+      activeSubscriptions: Number(row.active_subscriptions) || 0,
+      mrrEstimate: Number(row.mrr_estimate) || 0,
+    };
+  }
+
   const { data, error } = await client.from('shops').select('subscription_active, subscription_amount');
   if (error || !data) {
     return { totalShops: 0, activeSubscriptions: 0, mrrEstimate: 0 };
@@ -200,10 +223,10 @@ export async function fetchShopsForAdminPage(
   to: number
 ): Promise<{ shops: Shop[]; hasMore: boolean }> {
   const adminSelectFallbacks = [
-    SHOPS_SELECT_ADMIN,
-    SHOPS_SELECT_ADMIN_CORE,
-    SHOPS_SELECT_ADMIN_NO_SHARE_CODE,
-    SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE,
+    SHOPS_SELECT_ADMIN_LIST_LIGHT,
+    SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_SHARE_CODE,
+    SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_RUNTIME,
+    SHOPS_SELECT_ADMIN_LIST_LIGHT_NO_SHARE_CODE_NO_RUNTIME,
   ];
 
   let res = await client.from('shops').select(adminSelectFallbacks[0]).order('name', { ascending: true }).range(from, to);
@@ -227,6 +250,23 @@ export async function fetchShopsForAdminPage(
     shops: rows.map((row) => mapAdminShopRow(row)),
     hasMore,
   };
+}
+
+/** Detalhe completo de uma loja para modal/edição no admin. */
+export async function fetchAdminShopById(client: SupabaseClient, shopId: string): Promise<Shop | null> {
+  const id = shopId.trim();
+  if (!id) return null;
+  const selectFallbacks = [SHOPS_SELECT_ADMIN, SHOPS_SELECT_ADMIN_CORE, SHOPS_SELECT_ADMIN_NO_SHARE_CODE, SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE];
+  let res = await client.from('shops').select(selectFallbacks[0]).eq('id', id).maybeSingle();
+  for (let i = 1; i < selectFallbacks.length; i += 1) {
+    if (!res.error) break;
+    const missingRuntime = isMissingAsaasRuntimeModeColumnError(res.error);
+    const missingShare = isMissingShareCodeColumnError(res.error);
+    if (!missingRuntime && !missingShare) break;
+    res = (await client.from('shops').select(selectFallbacks[i]).eq('id', id).maybeSingle()) as typeof res;
+  }
+  if (res.error || !res.data) return null;
+  return mapAdminShopRow(res.data as Record<string, unknown>);
 }
 
 export type FetchPartnerShopBundleResult =

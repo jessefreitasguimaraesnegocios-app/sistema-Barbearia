@@ -2,7 +2,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
-import type { AdminShopsAggregateStats } from '../services/supabase/shops';
+import {
+  fetchAdminShopById,
+  type AdminShopsAggregateStats,
+} from '../services/supabase/shops';
 import { APP_NAME } from '../lib/branding';
 import { shopTypeAdminPillClass, shopTypeShortLabel } from '../lib/shopTypeDisplay';
 
@@ -148,6 +151,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [financialDrafts, setFinancialDrafts] = useState<Record<string, ShopFinancialDraft>>({});
   const [savingFinancialShopId, setSavingFinancialShopId] = useState<string | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [selectedShopDetail, setSelectedShopDetail] = useState<Shop | null>(null);
+  const [selectedShopDetailLoading, setSelectedShopDetailLoading] = useState(false);
   const [showEditShopModal, setShowEditShopModal] = useState(false);
   const [shopSearch, setShopSearch] = useState('');
   const [savingRuntimeShopId, setSavingRuntimeShopId] = useState<string | null>(null);
@@ -183,15 +188,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, [shops, shopSearch]);
 
-  const selectedShop = useMemo(
-    () => shops.find((s) => s.id === selectedShopId) ?? null,
-    [shops, selectedShopId]
-  );
+  const selectedShop = useMemo(() => {
+    if (!selectedShopId) return null;
+    if (selectedShopDetail?.id === selectedShopId) return selectedShopDetail;
+    return shops.find((s) => s.id === selectedShopId) ?? null;
+  }, [selectedShopDetail, selectedShopId, shops]);
 
   useEffect(() => {
     if (!selectedShopId) return;
     if (!shops.some((s) => s.id === selectedShopId)) {
       setSelectedShopId(null);
+      setSelectedShopDetail(null);
       setShowEditShopModal(false);
     }
   }, [shops, selectedShopId]);
@@ -214,7 +221,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const openEditShop = useCallback((shop: Shop) => {
     setSelectedShopId(shop.id);
+    setSelectedShopDetail(shop);
     setShowEditShopModal(true);
+    setSelectedShopDetailLoading(true);
+    void (async () => {
+      try {
+        const detailed = await fetchAdminShopById(supabase, shop.id);
+        if (detailed) setSelectedShopDetail((prev) => (prev?.id === shop.id ? detailed : prev));
+      } finally {
+        setSelectedShopDetailLoading(false);
+      }
+    })();
   }, []);
 
   const saveShopFinancialDraft = async (shop: Shop) => {
@@ -244,6 +261,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops((prev) => prev.map((s) => (s.id === shop.id ? (data.shop as Shop) : s)));
+        setSelectedShopDetail((prev) => (prev?.id === shop.id ? (data.shop as Shop) : prev));
         clearFinancialDraft(shop.id);
         void onRefreshAdminStats();
       } else {
@@ -399,6 +417,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops(shops.map(s => s.id === shop.id ? data.shop : s));
+        setSelectedShopDetail((prev) => (prev?.id === shop.id ? (data.shop as Shop) : prev));
         clearFinancialDraft(shop.id);
         void onRefreshAdminStats();
       } else {
@@ -472,6 +491,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const data = await parseSubscriptionPatchResponse(response);
       if (data.success && data.shop) {
         setShops((prev) => prev.map((s) => (s.id === shop.id ? (data.shop as Shop) : s)));
+        setSelectedShopDetail((prev) => (prev?.id === shop.id ? (data.shop as Shop) : prev));
       } else {
         alert(data.error || 'Não foi possível atualizar o ambiente Asaas deste parceiro.');
       }
@@ -491,6 +511,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (data.success) {
         clearFinancialDraft(shop.id);
         setShops(shops.filter(s => s.id !== shop.id));
+        setSelectedShopDetail((prev) => (prev?.id === shop.id ? null : prev));
         void onRefreshAdminStats();
       } else {
         alert(data.error || 'Erro ao excluir estabelecimento.');
@@ -972,6 +993,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <p className="text-xs font-bold uppercase tracking-wide text-indigo-600">Editar parceiro</p>
                   <h3 className="truncate text-xl font-bold text-gray-900">{selectedShop.name}</h3>
                   <p className="truncate text-xs text-gray-500">{selectedShop.email}</p>
+                  {selectedShopDetailLoading ? (
+                    <p className="mt-1 text-[11px] text-gray-400">Carregando detalhes completos...</p>
+                  ) : null}
                 </div>
                 <button
                   type="button"

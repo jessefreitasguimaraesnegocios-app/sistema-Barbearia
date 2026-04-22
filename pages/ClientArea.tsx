@@ -449,6 +449,12 @@ export default function ClientArea() {
   }
 
   const clientMainView: ClientNavView = profileHydrating ? 'client-home' : currentView;
+  const waitingDeepLinkShopOpen =
+    user?.role === 'CLIENT' &&
+    !profileHydrating &&
+    Boolean(deepLinkShopId) &&
+    currentView === 'client-home' &&
+    !selectedShop;
   const navigateClientView = (view: ClientNavView) => {
     if (profileHydrating && view !== 'client-home') return;
     setCurrentView(view);
@@ -505,7 +511,15 @@ export default function ClientArea() {
       onMarkRead={markAllAsRead}
       showClientShellDuringProfileLoad={showClientShellDuringProfileLoad}
     >
-      {clientMainView === 'client-home' && (
+      {waitingDeepLinkShopOpen ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-center text-gray-500">
+            <i className="fas fa-spinner fa-spin text-3xl" />
+            <p className="mt-3 text-sm">Abrindo estabelecimento...</p>
+          </div>
+        </div>
+      ) : null}
+      {clientMainView === 'client-home' && !waitingDeepLinkShopOpen && (
         <ClientHome
           shops={shops}
           catalogRefreshing={catalogRefreshing}

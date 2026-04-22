@@ -189,17 +189,26 @@ export type AdminShopsAggregateStats = {
 /** Uma linha leve por loja — totais do painel admin sem carregar `SHOPS_SELECT_ADMIN` inteiro para todas. */
 export async function fetchAdminShopsAggregateStats(client: SupabaseClient): Promise<AdminShopsAggregateStats> {
   const { data: rpcData, error: rpcError } = await client.rpc('get_admin_shops_aggregate_stats');
-  if (!rpcError && rpcData && typeof rpcData === 'object') {
-    const row = rpcData as {
-      total_shops?: number | null;
-      active_subscriptions?: number | null;
-      mrr_estimate?: number | null;
-    };
-    return {
-      totalShops: Number(row.total_shops) || 0,
-      activeSubscriptions: Number(row.active_subscriptions) || 0,
-      mrrEstimate: Number(row.mrr_estimate) || 0,
-    };
+  if (!rpcError && rpcData != null) {
+    // PostgREST: `returns table (...)` vem como **array** com uma linha, não como objeto solto.
+    const raw = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    if (raw && typeof raw === 'object') {
+      const row = raw as {
+        total_shops?: number | string | null;
+        active_subscriptions?: number | string | null;
+        mrr_estimate?: number | string | null;
+      };
+      const totalShops = Number(row.total_shops);
+      const activeSubscriptions = Number(row.active_subscriptions);
+      const mrrEstimate = Number(row.mrr_estimate);
+      if (Number.isFinite(totalShops) && totalShops >= 0) {
+        return {
+          totalShops,
+          activeSubscriptions: Number.isFinite(activeSubscriptions) ? activeSubscriptions : 0,
+          mrrEstimate: Number.isFinite(mrrEstimate) ? mrrEstimate : 0,
+        };
+      }
+    }
   }
 
   const { data, error } = await client.from('shops').select('subscription_active, subscription_amount');

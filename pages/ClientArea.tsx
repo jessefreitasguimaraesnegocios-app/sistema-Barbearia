@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ClientHome from '../views/ClientHome';
@@ -41,6 +41,7 @@ export default function ClientArea() {
   const queryClient = useQueryClient();
   const { user, loading, signUp, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [showSignUp, setShowSignUp] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -84,6 +85,16 @@ export default function ClientArea() {
   });
 
   const { shops, catalogRefreshing } = useClientCatalogShops({ client: supabase, enabled: catalogEnabled });
+  const deepLinkShopId = searchParams.get('shop')?.trim() ?? '';
+
+  const clearDeepLinkShopParam = useCallback(() => {
+    if (!deepLinkShopId) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('shop');
+      return next;
+    }, { replace: true });
+  }, [deepLinkShopId, setSearchParams]);
 
   useEffect(() => {
     setSelectedShop((prev) => {
@@ -278,6 +289,32 @@ export default function ClientArea() {
     },
     [queryClient, user?.role]
   );
+
+  useEffect(() => {
+    if (!deepLinkShopId) return;
+    if (user?.role !== 'CLIENT') return;
+    if (profileHydrating) return;
+
+    const targetShop = shops.find((shop) => shop.id === deepLinkShopId);
+    if (!targetShop) {
+      if (catalogRefreshing) return;
+      setCurrentView('client-home');
+      setSelectedShop(null);
+      clearDeepLinkShopParam();
+      return;
+    }
+
+    handleSelectShop(targetShop);
+    clearDeepLinkShopParam();
+  }, [
+    catalogRefreshing,
+    clearDeepLinkShopParam,
+    deepLinkShopId,
+    handleSelectShop,
+    profileHydrating,
+    shops,
+    user?.role,
+  ]);
 
   useEffect(() => {
     if (!profileHydrating) return;

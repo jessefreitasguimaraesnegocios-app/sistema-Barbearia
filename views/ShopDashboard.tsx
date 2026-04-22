@@ -102,8 +102,22 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   const [filterPro, setFilterPro] = useState<string>('ALL');
   const [period, setPeriod] = useState<Period>('TODAY');
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [copyLinkState, setCopyLinkState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [gridClock, setGridClock] = useState(0);
   const showAsaasSetupBanner = !staffMode && shouldShowPartnerAsaasSetupBanner(shop);
+
+  const handleCopyShareLink = async () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = `${baseUrl}/?shop=${encodeURIComponent(shop.id)}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyLinkState('copied');
+    } catch {
+      setCopyLinkState('error');
+    } finally {
+      window.setTimeout(() => setCopyLinkState('idle'), 2200);
+    }
+  };
 
   useEffect(() => {
     const id = window.setInterval(() => setGridClock((n) => n + 1), 30_000);
@@ -218,6 +232,25 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void handleCopyShareLink()}
+              className={`rounded-2xl border px-4 py-3 text-xs font-bold transition-all ${
+                copyLinkState === 'copied'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : copyLinkState === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : 'border-indigo-100 bg-white text-indigo-700 hover:bg-indigo-50'
+              }`}
+              title="Copiar link público deste estabelecimento"
+            >
+              <i className="fas fa-link mr-2" />
+              {copyLinkState === 'copied'
+                ? 'Link copiado!'
+                : copyLinkState === 'error'
+                  ? 'Falha ao copiar'
+                  : 'Copiar link da loja'}
+            </button>
             <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
               <div className="text-right">
                 <p className="text-[10px] font-bold text-gray-400 uppercase">

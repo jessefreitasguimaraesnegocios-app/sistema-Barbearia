@@ -12,6 +12,8 @@ import { mapAdminShopRow } from './mapAdminShopRow';
 
 export const SHOPS_SELECT_PARTNER_SINGLE =
   'id, share_code, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, updated_at, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+export const SHOPS_SELECT_PARTNER_SINGLE_NO_SHARE_CODE =
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, updated_at, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 export const PROFESSIONALS_SELECT_PARTNER =
   'id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, split_percent_sandbox, user_id, junior_price_percent';
@@ -29,6 +31,8 @@ export const PRODUCTS_SELECT_PARTNER_BUNDLE =
  */
 export const SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS =
   'id, share_code, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes';
+export const SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS_NO_SHARE_CODE =
+  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes';
 
 export const PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST =
   'id, shop_id, name, specialty, avatar, junior_price_percent';
@@ -128,8 +132,11 @@ function buildClientCatalogEntries(
  */
 export const SHOPS_SELECT_ADMIN_CORE =
   'id, share_code, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+export const SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE =
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 export const SHOPS_SELECT_ADMIN = `${SHOPS_SELECT_ADMIN_CORE},asaas_runtime_mode`;
+export const SHOPS_SELECT_ADMIN_NO_SHARE_CODE = `${SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE},asaas_runtime_mode`;
 
 function isMissingAsaasRuntimeModeColumnError(error: {
   message?: string;
@@ -140,6 +147,21 @@ function isMissingAsaasRuntimeModeColumnError(error: {
   if (!error) return false;
   const blob = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''} ${error.code ?? ''}`;
   if (!/asaas_runtime_mode/i.test(blob)) return false;
+  return (
+    /does not exist|schema cache|Could not find|column.*not found|42703|PGRST204/i.test(blob) ||
+    error.code === 'PGRST204'
+  );
+}
+
+function isMissingShareCodeColumnError(error: {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+} | null): boolean {
+  if (!error) return false;
+  const blob = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''} ${error.code ?? ''}`;
+  if (!/share_code/i.test(blob)) return false;
   return (
     /does not exist|schema cache|Could not find|column.*not found|42703|PGRST204/i.test(blob) ||
     error.code === 'PGRST204'
@@ -177,16 +199,22 @@ export async function fetchShopsForAdminPage(
   from: number,
   to: number
 ): Promise<{ shops: Shop[]; hasMore: boolean }> {
-  let res = await client
-    .from('shops')
-    .select(SHOPS_SELECT_ADMIN)
-    .order('name', { ascending: true })
-    .range(from, to);
+  const adminSelectFallbacks = [
+    SHOPS_SELECT_ADMIN,
+    SHOPS_SELECT_ADMIN_CORE,
+    SHOPS_SELECT_ADMIN_NO_SHARE_CODE,
+    SHOPS_SELECT_ADMIN_CORE_NO_SHARE_CODE,
+  ];
 
-  if (res.error && isMissingAsaasRuntimeModeColumnError(res.error)) {
+  let res = await client.from('shops').select(adminSelectFallbacks[0]).order('name', { ascending: true }).range(from, to);
+  for (let i = 1; i < adminSelectFallbacks.length; i += 1) {
+    if (!res.error) break;
+    const missingRuntime = isMissingAsaasRuntimeModeColumnError(res.error);
+    const missingShare = isMissingShareCodeColumnError(res.error);
+    if (!missingRuntime && !missingShare) break;
     res = (await client
       .from('shops')
-      .select(SHOPS_SELECT_ADMIN_CORE)
+      .select(adminSelectFallbacks[i])
       .order('name', { ascending: true })
       .range(from, to)) as typeof res;
   }
@@ -209,11 +237,19 @@ export async function fetchPartnerShopBundle(
   client: SupabaseClient,
   shopId: string
 ): Promise<FetchPartnerShopBundleResult> {
-  const { data: shopRowRaw, error: shopErr } = await client
+  let shopRes = await client
     .from('shops')
     .select(SHOPS_SELECT_PARTNER_SINGLE)
     .eq('id', shopId)
     .single();
+  if (shopRes.error && isMissingShareCodeColumnError(shopRes.error)) {
+    shopRes = await client
+      .from('shops')
+      .select(SHOPS_SELECT_PARTNER_SINGLE_NO_SHARE_CODE)
+      .eq('id', shopId)
+      .single();
+  }
+  const { data: shopRowRaw, error: shopErr } = shopRes;
   if (shopErr || !shopRowRaw) {
     return { ok: false, error: shopErr?.message ?? 'not_found' };
   }
@@ -259,11 +295,19 @@ export async function fetchClientCatalogPage(
   from: number,
   to: number
 ): Promise<ClientCatalogEntry[]> {
-  const { data, error } = await client
+  let res = await client
     .from('shops')
     .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
     .order('name', { ascending: true })
     .range(from, to);
+  if (res.error && isMissingShareCodeColumnError(res.error)) {
+    res = await client
+      .from('shops')
+      .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS_NO_SHARE_CODE)
+      .order('name', { ascending: true })
+      .range(from, to);
+  }
+  const { data, error } = res;
   if (error) throw error;
   if (!data?.length) return [];
   const shopRows = data as Record<string, unknown>[];
@@ -274,11 +318,19 @@ export async function fetchClientCatalogPage(
 
 /** Lojas alteradas desde o último sync (usa `shops.updated_at`, atualizado também por mudanças no catálogo filho). */
 export async function fetchClientCatalogUpdatedSince(client: SupabaseClient, sinceIso: string): Promise<ClientCatalogEntry[]> {
-  const { data, error } = await client
+  let res = await client
     .from('shops')
     .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
     .gt('updated_at', sinceIso)
     .order('updated_at', { ascending: true });
+  if (res.error && isMissingShareCodeColumnError(res.error)) {
+    res = await client
+      .from('shops')
+      .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS_NO_SHARE_CODE)
+      .gt('updated_at', sinceIso)
+      .order('updated_at', { ascending: true });
+  }
+  const { data, error } = res;
   if (error) throw error;
   if (!data?.length) return [];
   const shopRows = data as Record<string, unknown>[];
@@ -320,10 +372,17 @@ export async function fetchClientCatalogByShopIds(
   const out: ClientCatalogEntry[] = [];
   for (let i = 0; i < unique.length; i += CLIENT_CATALOG_BY_ID_CHUNK) {
     const chunk = unique.slice(i, i + CLIENT_CATALOG_BY_ID_CHUNK);
-    const { data, error } = await client
+    let res = await client
       .from('shops')
       .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS)
       .in('id', chunk);
+    if (res.error && isMissingShareCodeColumnError(res.error)) {
+      res = await client
+        .from('shops')
+        .select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS_NO_SHARE_CODE)
+        .in('id', chunk);
+    }
+    const { data, error } = res;
     if (error) throw error;
     if (data?.length) {
       const shopRows = data as Record<string, unknown>[];
@@ -345,12 +404,20 @@ export async function fetchClientCatalogShopDetailById(
   const sid = shopId.trim();
   if (!sid) return null;
 
-  const [shopRes, servicesRes, professionalsRes, productsRes] = await Promise.all([
+  let [shopRes, servicesRes, professionalsRes, productsRes] = await Promise.all([
     client.from('shops').select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS).eq('id', sid).maybeSingle(),
     client.from('services').select(SERVICES_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
     client.from('professionals').select(PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST).eq('shop_id', sid),
     client.from('products').select(PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
   ]);
+  if (shopRes.error && isMissingShareCodeColumnError(shopRes.error)) {
+    [shopRes, servicesRes, professionalsRes, productsRes] = await Promise.all([
+      client.from('shops').select(SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS_NO_SHARE_CODE).eq('id', sid).maybeSingle(),
+      client.from('services').select(SERVICES_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
+      client.from('professionals').select(PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST).eq('shop_id', sid),
+      client.from('products').select(PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL).eq('shop_id', sid),
+    ]);
+  }
 
   if (shopRes.error || !shopRes.data) return null;
   if (servicesRes.error) throw servicesRes.error;
@@ -375,6 +442,7 @@ export async function fetchClientCatalogShopDetailByShareCode(
   if (!/^[0-9A-Z]{3}$/.test(code)) return null;
 
   const { data, error } = await client.from('shops').select('id').eq('share_code', code).maybeSingle();
+  if (error && isMissingShareCodeColumnError(error)) return null;
   if (error || !data?.id) return null;
   return fetchClientCatalogShopDetailById(client, String(data.id));
 }
@@ -383,11 +451,19 @@ export async function fetchPartnerShopRowOnly(
   client: SupabaseClient,
   shopId: string
 ): Promise<Record<string, unknown> | null> {
-  const { data, error } = await client
+  let res = await client
     .from('shops')
     .select(SHOPS_SELECT_PARTNER_SINGLE)
     .eq('id', shopId)
     .single();
+  if (res.error && isMissingShareCodeColumnError(res.error)) {
+    res = await client
+      .from('shops')
+      .select(SHOPS_SELECT_PARTNER_SINGLE_NO_SHARE_CODE)
+      .eq('id', shopId)
+      .single();
+  }
+  const { data, error } = res;
   if (error || !data) return null;
   return flattenShopFinanceProvisionInShopRow(data as Record<string, unknown>);
 }

@@ -584,14 +584,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <header className="flex justify-between items-center">
+      <header className="space-y-4">
         <div>
           <h2 className="text-3xl font-display font-bold text-gray-900">Portal do Administrador</h2>
           <p className="text-gray-500">Gerenciamento global da plataforma {APP_NAME}.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-stretch gap-2">
           <div
-            className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide ${
+            className={`inline-flex h-11 items-center rounded-xl px-3 text-xs font-black uppercase tracking-wide ${
               runtimeMode === 'sandbox' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
             }`}
             title="Modo global da plataforma. Lojas com 'Padrão da plataforma' seguem este valor; outras podem fixar produção ou sandbox só para si."
@@ -602,13 +602,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             type="button"
             onClick={requestToggleRuntimeMode}
             disabled={runtimeModeLoading}
-            className="bg-slate-900 text-white px-4 py-3 rounded-2xl text-sm font-bold shadow-sm hover:bg-black transition-all disabled:opacity-60"
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-black disabled:opacity-60"
           >
             Alternar ambiente
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-lg transition-all hover:bg-indigo-700"
           >
             <i className="fas fa-plus"></i> Adicionar Parceiro
           </button>

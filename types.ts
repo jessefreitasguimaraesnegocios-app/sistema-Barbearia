@@ -64,6 +64,8 @@ export interface Product {
 
 export interface Shop {
   id: string;
+  /** Código público curto (3 chars base36) para links compartilháveis. */
+  shareCode?: string;
   ownerId: string;
   name: string;
   type: ShopType;

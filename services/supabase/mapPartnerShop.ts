@@ -90,6 +90,7 @@ export function mergePartnerShopScalarRow(prev: Shop, d: Record<string, unknown>
   return {
     ...prev,
     id: String(d.id ?? prev.id),
+    shareCode: d.share_code != null ? String(d.share_code) : prev.shareCode,
     ownerId: String(d.owner_id ?? prev.ownerId),
     name: String(d.name || prev.name),
     type: (d.type as Shop['type']) || prev.type,
@@ -142,6 +143,7 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
 
   return {
     id: String(d.id),
+    shareCode: d.share_code != null ? String(d.share_code) : undefined,
     ownerId: String(d.owner_id),
     name: String(d.name || ''),
     type: (d.type as Shop['type']) || 'BARBER',

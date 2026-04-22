@@ -19,7 +19,10 @@ import { useRealtimeAppointments } from '../hooks/useRealtimeAppointments';
 import { useRealtimeOrders } from '../hooks/useRealtimeOrders';
 import { useClientCatalogShops } from '../hooks/useClientCatalogShops';
 import { mapRowToOrder, ORDERS_SELECT_CLIENT, sortOrdersNewestFirst } from '../services/supabase/orderMapping';
-import { fetchClientCatalogShopDetailById } from '../services/supabase/shops';
+import {
+  fetchClientCatalogShopDetailById,
+  fetchClientCatalogShopDetailByShareCode,
+} from '../services/supabase/shops';
 import {
   APPOINTMENTS_SELECT_CLIENT,
   CLIENT_LIST_PAGE_SIZE,
@@ -85,16 +88,18 @@ export default function ClientArea() {
   });
 
   const { shops, catalogRefreshing } = useClientCatalogShops({ client: supabase, enabled: catalogEnabled });
+  const deepLinkShareCode = searchParams.get('s')?.trim().toUpperCase() ?? '';
   const deepLinkShopId = searchParams.get('shop')?.trim() ?? '';
 
   const clearDeepLinkShopParam = useCallback(() => {
-    if (!deepLinkShopId) return;
+    if (!deepLinkShareCode && !deepLinkShopId) return;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
+      next.delete('s');
       next.delete('shop');
       return next;
     }, { replace: true });
-  }, [deepLinkShopId, setSearchParams]);
+  }, [deepLinkShareCode, deepLinkShopId, setSearchParams]);
 
   useEffect(() => {
     setSelectedShop((prev) => {
@@ -291,18 +296,25 @@ export default function ClientArea() {
   );
 
   useEffect(() => {
-    if (!deepLinkShopId) return;
+    if (!deepLinkShareCode && !deepLinkShopId) return;
     if (user?.role !== 'CLIENT') return;
     if (profileHydrating) return;
 
-    setShopDetailsLoadingId(deepLinkShopId);
+    const deepLinkLoadingRef = deepLinkShareCode || deepLinkShopId;
+    setShopDetailsLoadingId(deepLinkLoadingRef);
     void (async () => {
       try {
-        const detailed = await queryClient.fetchQuery({
-          queryKey: ['client-area', 'shop-detail', deepLinkShopId],
-          queryFn: () => fetchClientCatalogShopDetailById(supabase, deepLinkShopId),
-          staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
-        });
+        const detailed = deepLinkShareCode
+          ? await queryClient.fetchQuery({
+              queryKey: ['client-area', 'shop-detail', 'share-code', deepLinkShareCode],
+              queryFn: () => fetchClientCatalogShopDetailByShareCode(supabase, deepLinkShareCode),
+              staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
+            })
+          : await queryClient.fetchQuery({
+              queryKey: ['client-area', 'shop-detail', deepLinkShopId],
+              queryFn: () => fetchClientCatalogShopDetailById(supabase, deepLinkShopId),
+              staleTime: CLIENT_AREA_FIRST_PAGE_STALE_MS,
+            });
 
         if (detailed) {
           setSelectedShop(detailed);
@@ -315,11 +327,11 @@ export default function ClientArea() {
         setCurrentView('client-home');
         setSelectedShop(null);
       } finally {
-        setShopDetailsLoadingId((prev) => (prev === deepLinkShopId ? null : prev));
+        setShopDetailsLoadingId((prev) => (prev === deepLinkLoadingRef ? null : prev));
         clearDeepLinkShopParam();
       }
     })();
-  }, [clearDeepLinkShopParam, deepLinkShopId, profileHydrating, queryClient, user?.role]);
+  }, [clearDeepLinkShopParam, deepLinkShareCode, deepLinkShopId, profileHydrating, queryClient, user?.role]);
 
   useEffect(() => {
     if (!profileHydrating) return;
@@ -452,7 +464,7 @@ export default function ClientArea() {
   const waitingDeepLinkShopOpen =
     user?.role === 'CLIENT' &&
     !profileHydrating &&
-    Boolean(deepLinkShopId) &&
+    (Boolean(deepLinkShareCode) || Boolean(deepLinkShopId)) &&
     currentView === 'client-home' &&
     !selectedShop;
   const navigateClientView = (view: ClientNavView) => {

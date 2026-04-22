@@ -11,7 +11,7 @@ import { mapClientCatalogRow } from './mapClientCatalogShop';
 import { mapAdminShopRow } from './mapAdminShopRow';
 
 export const SHOPS_SELECT_PARTNER_SINGLE =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, updated_at, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+  'id, share_code, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, cnpj_cpf, email, phone, pix_key, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, updated_at, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 export const PROFESSIONALS_SELECT_PARTNER =
   'id, shop_id, name, specialty, avatar, email, phone, cpf_cnpj, birth_date, asaas_account_id, asaas_wallet_id, asaas_environment, split_percent, split_percent_sandbox, user_id, junior_price_percent';
@@ -28,7 +28,7 @@ export const PRODUCTS_SELECT_PARTNER_BUNDLE =
  * `.in('shop_id', ids)` em `fetchClientCatalog*` (menos egress que embed PostgREST por loja).
  */
 export const SHOPS_SELECT_CLIENT_CATALOG_LIST_SCALARS =
-  'id, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes';
+  'id, share_code, updated_at, created_at, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes';
 
 export const PROFESSIONALS_SELECT_CLIENT_CATALOG_LIST =
   'id, shop_id, name, specialty, avatar, junior_price_percent';
@@ -127,7 +127,7 @@ function buildClientCatalogEntries(
  * ainda não foi aplicada no projeto (PostgREST 400 ao pedir coluna inexistente).
  */
 export const SHOPS_SELECT_ADMIN_CORE =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+  'id, share_code, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 export const SHOPS_SELECT_ADMIN = `${SHOPS_SELECT_ADMIN_CORE},asaas_runtime_mode`;
 
@@ -364,6 +364,19 @@ export async function fetchClientCatalogShopDetailById(
     products: sortClientCatalogChildrenByName((productsRes.data ?? []) as Record<string, unknown>[]),
   };
   return mapClientCatalogRow(merged);
+}
+
+/** Carrega uma loja completa para detalhe do cliente usando `shops.share_code` (3 chars base36). */
+export async function fetchClientCatalogShopDetailByShareCode(
+  client: SupabaseClient,
+  shareCode: string
+): Promise<Shop | null> {
+  const code = shareCode.trim().toUpperCase();
+  if (!/^[0-9A-Z]{3}$/.test(code)) return null;
+
+  const { data, error } = await client.from('shops').select('id').eq('share_code', code).maybeSingle();
+  if (error || !data?.id) return null;
+  return fetchClientCatalogShopDetailById(client, String(data.id));
 }
 
 export async function fetchPartnerShopRowOnly(

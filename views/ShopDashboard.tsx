@@ -108,7 +108,9 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
 
   const handleCopyShareLink = async () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    const shareUrl = `${baseUrl}/?shop=${encodeURIComponent(shop.id)}`;
+    const shareToken = shop.shareCode?.trim() || shop.id;
+    const shareParam = shop.shareCode?.trim() ? 's' : 'shop';
+    const shareUrl = `${baseUrl}/?${shareParam}=${encodeURIComponent(shareToken)}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopyLinkState('copied');

@@ -589,28 +589,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <h2 className="text-3xl font-display font-bold text-gray-900">Portal do Administrador</h2>
           <p className="text-gray-500">Gerenciamento global da plataforma {APP_NAME}.</p>
         </div>
-        <div className="flex flex-wrap items-stretch gap-2">
-          <div
-            className={`inline-flex h-11 items-center rounded-xl px-3 text-xs font-black uppercase tracking-wide ${
-              runtimeMode === 'sandbox' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-            }`}
-            title="Modo global da plataforma. Lojas com 'Padrão da plataforma' seguem este valor; outras podem fixar produção ou sandbox só para si."
-          >
-            {runtimeModeLoading ? 'Carregando...' : runtimeMode === 'sandbox' ? 'Sandbox ativo' : 'Produção ativa'}
+        <div className="grid w-full max-w-md grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:max-w-none sm:flex-wrap sm:items-stretch">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div
+              className={`inline-flex h-11 w-full items-center justify-center rounded-xl border px-3 text-center text-xs font-black uppercase tracking-wide ${
+                runtimeMode === 'sandbox'
+                  ? 'border-amber-300 bg-amber-200 text-amber-900 dark:border-amber-500/60 dark:bg-amber-500/20 dark:text-amber-100'
+                  : 'border-emerald-300 bg-emerald-200 text-emerald-900 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-100'
+              }`}
+              title="Modo global da plataforma. Lojas com 'Padrão da plataforma' seguem este valor; outras podem fixar produção ou sandbox só para si."
+            >
+              {runtimeModeLoading ? 'Carregando...' : runtimeMode === 'sandbox' ? 'Sandbox ativo' : 'Produção ativa'}
+            </div>
+            <button
+              type="button"
+              onClick={requestToggleRuntimeMode}
+              disabled={runtimeModeLoading}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-black disabled:opacity-60"
+            >
+              Alternar ambiente
+            </button>
           </div>
           <button
-            type="button"
-            onClick={requestToggleRuntimeMode}
-            disabled={runtimeModeLoading}
-            className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-black disabled:opacity-60"
-          >
-            Alternar ambiente
-          </button>
-          <button
             onClick={() => setShowAddModal(true)}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-lg transition-all hover:bg-indigo-700"
+            className="inline-flex min-h-[96px] min-w-[130px] items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-lg transition-all hover:bg-indigo-700 sm:min-h-11 sm:min-w-0 sm:rounded-xl"
           >
-            <i className="fas fa-plus"></i> Adicionar Parceiro
+            <i className="fas fa-plus"></i>
+            <span className="text-center leading-tight">Adicionar Parceiro</span>
           </button>
         </div>
       </header>

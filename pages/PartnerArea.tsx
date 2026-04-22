@@ -275,7 +275,7 @@ export default function PartnerArea() {
       <div className="flex min-h-screen flex-col overflow-hidden bg-gray-50 transition-colors dark:bg-zinc-950">
         <header className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 p-4 backdrop-blur-md dark:border-white/6 dark:bg-zinc-950/90">
           <a href="/" className="text-sm text-gray-500 transition-colors hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400">
-            ← Voltar (sou cliente)
+            ← Voltar
           </a>
           <div className="flex items-center gap-2">
             <ThemeLogoButton size="md" />

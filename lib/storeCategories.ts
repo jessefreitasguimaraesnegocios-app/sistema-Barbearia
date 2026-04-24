@@ -56,11 +56,20 @@ export function resolveStoreCategoryKeyForProduct(
   const norm = normalizeText(product.category || '');
   if (!norm) return storeCategories[0]?.key ?? DEFAULT_STORE_CATEGORIES[0].key;
 
+  const byKey = storeCategories.find((cat) => normalizeText(cat.key) === norm);
+  if (byKey) return byKey.key;
+
   const exact = storeCategories.find((cat) => normalizeText(cat.name) === norm);
   if (exact) return exact.key;
 
   const fallbackByKeyword = storeCategories.find((cat) => {
     const catName = normalizeText(cat.name);
+    if (cat.key === 'products') {
+      return (
+        /produto|geral|barba|cabelo|acessorio|cosmetico|creme|oleo/.test(norm) ||
+        /produto|geral/.test(catName)
+      );
+    }
     if (cat.key === 'fashion') return /moda|roupa|camisa|tenis|vestuario/.test(norm) || /moda/.test(catName);
     if (cat.key === 'food') return /food|comida|bebida|lanche|suco|refeicao/.test(norm) || /food|comida/.test(catName);
     if (cat.key === 'electronics')
@@ -69,4 +78,13 @@ export function resolveStoreCategoryKeyForProduct(
   });
 
   return fallbackByKeyword?.key ?? storeCategories[0]?.key ?? DEFAULT_STORE_CATEGORIES[0].key;
+}
+
+export function resolveStoreCategoryNameForProduct(
+  product: Product,
+  storeCategories: StoreCategory[]
+): string {
+  const key = resolveStoreCategoryKeyForProduct(product, storeCategories);
+  const hit = storeCategories.find((cat) => cat.key === key);
+  return hit?.name ?? DEFAULT_STORE_CATEGORIES[0].name;
 }

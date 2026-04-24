@@ -12,6 +12,7 @@ import { PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL } from '../services/supabase/shop
 import { effectiveServicePriceForProfessional } from '../lib/juniorServicePrice';
 import {
   normalizeStoreCategories,
+  resolveStoreCategoryNameForProduct,
   resolveStoreCategoryKeyForProduct,
 } from '../lib/storeCategories';
 
@@ -1359,7 +1360,9 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         )}
                       </div>
                       <div className="p-3 md:p-4">
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{product.category}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                          {resolveStoreCategoryNameForProduct(product, storeCategories)}
+                        </p>
                         <h4 className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{product.name}</h4>
                         <div className="flex items-center gap-2 mt-1">
                           {product.promoPrice ? (
@@ -1441,7 +1444,7 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                         </button>
                       </div>
                       <p className="text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-400">
-                        {item.product.category}
+                        {resolveStoreCategoryNameForProduct(item.product, storeCategories)}
                       </p>
                       <div className="flex items-center justify-between pt-2">
                         <div className="flex items-center gap-3 rounded-lg bg-gray-100 px-2 py-1 dark:bg-zinc-900 dark:ring-1 dark:ring-white/10">

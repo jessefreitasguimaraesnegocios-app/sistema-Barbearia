@@ -18,6 +18,7 @@ import {
 import { clampJuniorPricePercent } from '../lib/juniorServicePrice';
 import {
   normalizeStoreCategories,
+  resolveStoreCategoryKeyForProduct,
   STORE_CATEGORY_ICON_OPTIONS,
 } from '../lib/storeCategories';
 
@@ -26,13 +27,6 @@ function isUuid(id: string): boolean {
 }
 
 const ASAAS_FEE = 1.99;
-
-/** Categorias de produto no catálogo (alinhadas à migration `product_catalog_categories`). */
-const PRODUCT_CATEGORY_PRESETS: Record<ShopType, readonly string[]> = {
-  BARBER: ['Produtos para cabelo', 'Produtos para barba', 'Máquinas & ferramentas', 'Acessórios'],
-  SALON: ['Produtos capilares', 'Química & coloração', 'Tratamentos', 'Equipamentos profissionais'],
-  MANICURE: ['Esmaltes & finalização', 'Alongamento de unhas', 'Cuidados & preparação', 'Equipamentos & acessórios'],
-};
 
 function productCatalogOptgroupLabel(shopType: ShopType, categoryName: string): string {
   if (shopType === 'BARBER') return `💈 ${categoryName}`;
@@ -448,7 +442,8 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
     setFormData({ ...formData, products: formData.products.filter(p => p.id !== id) });
   };
 
-  const defaultProductCategory = PRODUCT_CATEGORY_PRESETS[formData.type][0] ?? 'Geral';
+  const storefrontCategories = normalizeStoreCategories(formData.storeCategories);
+  const defaultProductCategory = storefrontCategories[0]?.key ?? 'products';
 
   const addProduct = () => {
     const newProduct: Product = {
@@ -480,12 +475,16 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
       return;
     }
     const { item, categoryName } = found;
+    const mappedStoreCategoryKey = resolveStoreCategoryKeyForProduct(
+      { id: item.id, name: item.name, description: item.description || '', price: 0, category: categoryName, image: '', stock: 0 },
+      storefrontCategories
+    );
     const newProduct: Product = {
       id: Math.random().toString(36).substr(2, 9),
       name: item.name,
       description: item.description || '',
       price: 0,
-      category: categoryName,
+      category: mappedStoreCategoryKey,
       image: item.defaultImage || 'https://images.unsplash.com/photo-1590159763121-7c9fd312190d?q=80&w=1974',
       stock: 0,
       catalogItemId: item.id,
@@ -1273,7 +1272,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
           {(() => {
             const platformFeePct = 100 - (shop.splitPercent ?? 95);
             const passFees = formData.passFeesToCustomer ?? false;
-            const presets = PRODUCT_CATEGORY_PRESETS[formData.type];
+            const storefrontCategories = normalizeStoreCategories(formData.storeCategories);
             return (
               <>
                 <label className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 mb-6 cursor-pointer">
@@ -1422,53 +1421,21 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                         <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 tracking-widest">
                           Categoria
                         </label>
-                        {product.catalogItemId ? (
-                          <>
-                            <p className="text-[11px] text-gray-500 mb-1">Catálogo compartilhado</p>
-                            <select
-                              value={presets.includes(product.category) ? product.category : presets[0]}
-                              onChange={(e) => updateProduct(product.id, { category: e.target.value })}
-                              className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
-                            >
-                              {presets.map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                            </select>
-                          </>
-                        ) : (
-                          <>
-                            <select
-                              value={presets.includes(product.category) ? product.category : '__other__'}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                if (v === '__other__') {
-                                  updateProduct(product.id, { category: 'Personalizada' });
-                                  return;
-                                }
-                                updateProduct(product.id, { category: v });
-                              }}
-                              className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
-                            >
-                              {presets.map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                              <option value="__other__">Outra (personalizada)</option>
-                            </select>
-                            {!presets.includes(product.category) ? (
-                              <input
-                                type="text"
-                                value={product.category}
-                                onChange={(e) => updateProduct(product.id, { category: e.target.value })}
-                                placeholder="Nome da sua categoria"
-                                className="w-full mt-2 bg-white p-2 rounded-lg text-sm border border-gray-200"
-                              />
-                            ) : null}
-                          </>
-                        )}
+                        {product.catalogItemId ? <p className="text-[11px] text-gray-500 mb-1">Catálogo compartilhado</p> : null}
+                        <select
+                          value={resolveStoreCategoryKeyForProduct(product, storefrontCategories)}
+                          onChange={(e) => updateProduct(product.id, { category: e.target.value })}
+                          className="w-full bg-white p-2 rounded-lg text-sm border border-gray-200"
+                        >
+                          {storefrontCategories.map((c, idx) => (
+                            <option key={c.key} value={c.key}>
+                              {`Categoria ${idx + 1}: ${c.name}`}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-[10px] text-gray-400">
+                          O produto aparece para o cliente na categoria escolhida acima.
+                        </p>
                       </div>
                       <div className="flex justify-end gap-2 pt-2">
                         <button 

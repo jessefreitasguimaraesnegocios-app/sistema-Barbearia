@@ -204,7 +204,7 @@ async function insertFinancialAudit(
 
 /** Mesmas colunas que `SHOPS_SELECT_ADMIN` (sem `asaas_api_key` — evita payload/serialização e vazamento). */
 const SHOP_ROW_SELECT_AFTER_PATCH =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, asaas_runtime_mode, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, billing_status, trial_days, trial_started_at, trial_ends_at, billing_blocked_at, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, asaas_runtime_mode, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 function normalizeJsonBody(raw: unknown): Record<string, unknown> {
   if (raw == null) return {};
@@ -296,6 +296,17 @@ function mapShopResponse(shop: Record<string, unknown>) {
     theme: shop.theme || 'MODERN',
     subscriptionActive: shop.subscription_active,
     subscriptionAmount: shop.subscription_amount != null ? Number(shop.subscription_amount) : 99,
+    billingStatus:
+      shop.billing_status != null
+        ? String(shop.billing_status).toLowerCase()
+        : undefined,
+    trialDays:
+      shop.trial_days === 15 || shop.trial_days === 30
+        ? Number(shop.trial_days)
+        : undefined,
+    trialStartedAt: shop.trial_started_at != null ? String(shop.trial_started_at) : null,
+    trialEndsAt: shop.trial_ends_at != null ? String(shop.trial_ends_at) : null,
+    billingBlockedAt: shop.billing_blocked_at != null ? String(shop.billing_blocked_at) : null,
     asaasPlatformSubscriptionId:
       shop.asaas_platform_subscription_id != null && String(shop.asaas_platform_subscription_id).trim() !== ''
         ? String(shop.asaas_platform_subscription_id).trim()
@@ -405,7 +416,11 @@ export default async function handler(
     };
 
     const updates: Record<string, unknown> = {};
-    if (typeof body.subscriptionActive === 'boolean') updates.subscription_active = body.subscriptionActive;
+    if (typeof body.subscriptionActive === 'boolean') {
+      updates.subscription_active = body.subscriptionActive;
+      updates.billing_status = body.subscriptionActive ? 'active' : 'blocked';
+      updates.billing_blocked_at = body.subscriptionActive ? null : new Date().toISOString();
+    }
 
     if (body.subscriptionAmount !== undefined) {
       const a = readNonNegativeNumber(body.subscriptionAmount);

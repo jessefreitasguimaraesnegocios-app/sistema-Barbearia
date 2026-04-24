@@ -22,6 +22,17 @@ export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
     products: [],
     subscriptionActive: Boolean(s.subscription_active),
     subscriptionAmount: s.subscription_amount != null ? Number(s.subscription_amount) : 99,
+    billingStatus:
+      s.billing_status != null
+        ? (String(s.billing_status).toLowerCase() as Shop['billingStatus'])
+        : undefined,
+    trialDays:
+      s.trial_days === 15 || s.trial_days === 30
+        ? (s.trial_days as 15 | 30)
+        : undefined,
+    trialStartedAt: s.trial_started_at != null ? String(s.trial_started_at) : null,
+    trialEndsAt: s.trial_ends_at != null ? String(s.trial_ends_at) : null,
+    billingBlockedAt: s.billing_blocked_at != null ? String(s.billing_blocked_at) : null,
     asaasPlatformSubscriptionId:
       s.asaas_platform_subscription_id != null && String(s.asaas_platform_subscription_id).trim() !== ''
         ? String(s.asaas_platform_subscription_id).trim()

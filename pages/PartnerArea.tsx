@@ -16,6 +16,7 @@ import { ThemeLogoButton } from '../components/ThemeLogoButton';
 import { isClientOnlyRole } from '../lib/profileRole';
 import { useShop } from '../hooks/useShop';
 import { usePartnerData } from '../hooks/usePartnerData';
+import { isShopAllowedToOperate, resolveShopBillingStatus, trialDaysRemaining } from '../lib/shopBilling';
 
 export default function PartnerArea() {
   const { user, loading, signOut, refreshProfile } = useAuth();
@@ -509,6 +510,57 @@ export default function PartnerArea() {
           <div className="text-center text-gray-500">
             <i className="fas fa-spinner fa-spin text-4xl mb-4"></i>
             <p className="font-medium">Carregando dados da sua loja...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const billingStatus = resolveShopBillingStatus(myShop);
+  const partnerAccessAllowed = isShopAllowedToOperate(myShop);
+  const remainingTrialDays = trialDaysRemaining(myShop);
+
+  if (!partnerAccessAllowed) {
+    return (
+      <Layout
+        user={user}
+        onLogout={handleLogout}
+        onNavigate={setCurrentView}
+        currentView={currentView}
+        notifications={notifications}
+        onMarkRead={markAllAsRead}
+        partnerBrandPrimary={myShop.primaryColor}
+      >
+        <div className="flex min-h-[60vh] items-center justify-center p-6">
+          <div className="w-full max-w-xl rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900 shadow-xl">
+            <h2 className="text-2xl font-bold">Assinatura pendente</h2>
+            <p className="mt-2 text-sm">
+              Este estabelecimento precisa regularizar a assinatura para voltar a operar no app parceiro.
+            </p>
+            <div className="mt-4 rounded-2xl border border-amber-300 bg-white p-4 text-sm">
+              <p>
+                <strong>Status:</strong> {billingStatus}
+              </p>
+              {remainingTrialDays > 0 ? (
+                <p className="mt-1">
+                  <strong>Trial restante:</strong> {remainingTrialDays} dia(s)
+                </p>
+              ) : (
+                <p className="mt-1">
+                  <strong>Trial:</strong> encerrado
+                </p>
+              )}
+            </div>
+            <p className="mt-4 text-sm">
+              Entre em contato com o suporte para reativar o pagamento mensal e liberar o acesso completo.
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="mt-5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+            >
+              Sair
+            </button>
           </div>
         </div>
       </Layout>

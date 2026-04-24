@@ -103,6 +103,26 @@ export function mergePartnerShopScalarRow(prev: Shop, d: Record<string, unknown>
     theme: (d.theme as Shop['theme']) || prev.theme,
     subscriptionActive: d.subscription_active != null ? Boolean(d.subscription_active) : prev.subscriptionActive,
     subscriptionAmount: d.subscription_amount != null ? Number(d.subscription_amount) : prev.subscriptionAmount,
+    billingStatus:
+      d.billing_status != null
+        ? (String(d.billing_status).toLowerCase() as Shop['billingStatus'])
+        : prev.billingStatus,
+    trialDays:
+      d.trial_days === 15 || d.trial_days === 30
+        ? (d.trial_days as 15 | 30)
+        : prev.trialDays,
+    trialStartedAt:
+      d.trial_started_at != null
+        ? String(d.trial_started_at)
+        : prev.trialStartedAt ?? null,
+    trialEndsAt:
+      d.trial_ends_at != null
+        ? String(d.trial_ends_at)
+        : prev.trialEndsAt ?? null,
+    billingBlockedAt:
+      d.billing_blocked_at != null
+        ? String(d.billing_blocked_at)
+        : prev.billingBlockedAt ?? null,
     splitPercent: shopSplit,
     splitPercentSandbox: shopSplitSandbox,
     passFeesToCustomer: d.pass_fees_to_customer != null ? d.pass_fees_to_customer === true : prev.passFeesToCustomer,
@@ -160,6 +180,17 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
     products,
     subscriptionActive: Boolean(d.subscription_active),
     subscriptionAmount: d.subscription_amount != null ? Number(d.subscription_amount) : 99,
+    billingStatus:
+      d.billing_status != null
+        ? (String(d.billing_status).toLowerCase() as Shop['billingStatus'])
+        : undefined,
+    trialDays:
+      d.trial_days === 15 || d.trial_days === 30
+        ? (d.trial_days as 15 | 30)
+        : undefined,
+    trialStartedAt: d.trial_started_at != null ? String(d.trial_started_at) : null,
+    trialEndsAt: d.trial_ends_at != null ? String(d.trial_ends_at) : null,
+    billingBlockedAt: d.billing_blocked_at != null ? String(d.billing_blocked_at) : null,
     splitPercent: shopSplit,
     splitPercentSandbox: shopSplitSandbox,
     passFeesToCustomer: d.pass_fees_to_customer === true,

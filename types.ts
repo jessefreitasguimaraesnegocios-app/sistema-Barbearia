@@ -88,6 +88,15 @@ export interface Shop {
   storeCategories?: StoreCategory[];
   subscriptionActive: boolean;
   subscriptionAmount?: number;
+  /** Status de cobrança do estabelecimento (trialing, active, past_due, blocked, canceled). */
+  billingStatus?: 'trialing' | 'active' | 'past_due' | 'blocked' | 'canceled';
+  /** Duração do trial em dias (15 ou 30). */
+  trialDays?: 15 | 30;
+  /** Início/fim do período de teste grátis (ISO). */
+  trialStartedAt?: string | null;
+  trialEndsAt?: string | null;
+  /** Quando o acesso foi bloqueado por cobrança (ISO). */
+  billingBlockedAt?: string | null;
   /** ID da assinatura na conta Asaas mãe (mensalidade); webhook liga a `subscription_active` */
   asaasPlatformSubscriptionId?: string | null;
   /** % split Asaas com runtime em produção */

@@ -57,6 +57,8 @@ export default async function handler(
     }
 
     const body = req.body || {};
+    const requestedTrialDaysRaw = Number((body as { trialDays?: unknown }).trialDays);
+    const trialDays: 15 | 30 = requestedTrialDaysRaw === 30 ? 30 : 15;
     const functionUrl = `${SUPABASE_URL}/functions/v1/create-shop`;
     const functionRes = await fetch(functionUrl, {
       method: 'POST',
@@ -82,6 +84,28 @@ export default async function handler(
         error: err?.error || 'Erro ao criar parceiro.',
         details: err?.details,
       });
+    }
+
+    const createdShopId = (data as { shopId?: unknown })?.shopId;
+    if (createdShopId != null && String(createdShopId).trim() !== '') {
+      const shopId = String(createdShopId).trim();
+      const startedAt = new Date();
+      const endsAt = new Date(startedAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { error: trialErr } = await supabaseAdmin
+        .from('shops')
+        .update({
+          subscription_active: false,
+          billing_status: 'trialing',
+          billing_blocked_at: null,
+          trial_days: trialDays,
+          trial_started_at: startedAt.toISOString(),
+          trial_ends_at: endsAt.toISOString(),
+        })
+        .eq('id', shopId);
+      if (trialErr) {
+        console.error('[api/admin/create-shop] trial setup error', trialErr);
+      }
     }
 
     return res.status(200).json(data);

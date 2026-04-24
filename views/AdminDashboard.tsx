@@ -144,6 +144,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     postalCode: '',
     address: '',
     subscriptionAmount: 99,
+    trialDays: 15 as 15 | 30,
     splitPercent: 95,
     splitPercentSandbox: 95,
   });
@@ -302,6 +303,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         address: formData.address.trim() || undefined,
         postalCode: cepDigits.length === 8 ? cepDigits : undefined,
         subscriptionAmount: Number.isFinite(subAmt) && subAmt >= 0 ? subAmt : 99,
+        trialDays: formData.trialDays,
         splitPercent: Number.isFinite(sp) ? sp : 95,
         splitPercentSandbox: Number.isFinite(sps) ? sps : 95,
       };
@@ -382,6 +384,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           postalCode: '',
           address: '',
           subscriptionAmount: 99,
+          trialDays: 15 as 15 | 30,
           splitPercent: 95,
           splitPercentSandbox: 95,
         });
@@ -1350,6 +1353,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onChange={e => setFormData({...formData, subscriptionAmount: Math.max(0, Number(e.target.value) || 99)})}
                     />
                     <p className="text-xs text-gray-400 mt-1">Valor de referência na plataforma (podes ajustar depois na tabela).</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Teste grátis</label>
+                    <select
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                      value={formData.trialDays}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          trialDays: Number(e.target.value) === 30 ? 30 : 15,
+                        })
+                      }
+                    >
+                      <option value={15}>15 dias</option>
+                      <option value={30}>30 dias</option>
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Após o trial, a loja precisa pagar para seguir operando.</p>
                   </div>
                 </div>
 

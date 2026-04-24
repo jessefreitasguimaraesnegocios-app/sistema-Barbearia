@@ -113,6 +113,10 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({
   }, [orders, now]);
 
   const handleDelivered = async (orderId: string) => {
+    const confirmed = window.confirm(
+      'Confirmar retirada?\n\nAo confirmar, o pedido será marcado como retirado pelo cliente.'
+    );
+    if (!confirmed) return;
     setDeliveringId(orderId);
     try {
       await onMarkDelivered(orderId);

@@ -102,6 +102,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   const [filterPro, setFilterPro] = useState<string>('ALL');
   const [period, setPeriod] = useState<Period>('TODAY');
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [attendingAppointmentId, setAttendingAppointmentId] = useState<string | null>(null);
   const [copyLinkState, setCopyLinkState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [gridClock, setGridClock] = useState(0);
   const showAsaasSetupBanner = !staffMode && shouldShowPartnerAsaasSetupBanner(shop);
@@ -205,11 +206,20 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
     .sort((a, b) => a.time.localeCompare(b.time));
 
   /** Card + Iniciar: só hoje real — nunca agendamento de amanhã antes de ser esse o dia. */
-  const nextClientCardApt = todayAgendaApts.find((a) => a.status === 'PAID');
+  const attendingApt = todayAgendaApts.find((a) => a.id === attendingAppointmentId && a.status === 'PAID');
+  const nextPaidTodayApt = todayAgendaApts.find((a) => a.status === 'PAID');
+  const nextClientCardApt = attendingApt ?? nextPaidTodayApt;
+  const isNextClientAttending = Boolean(nextClientCardApt && nextClientCardApt.id === attendingAppointmentId);
 
   /** Destaque “Próximo” na timeline só quando a grade é do mesmo dia civil (evita play em prévia de amanhã). */
   const nextTimelineApt =
-    agendaDayKey === realTodayKey ? agendaDayApts.find((a) => a.status === 'PAID') : undefined;
+    agendaDayKey === realTodayKey ? (attendingApt ?? agendaDayApts.find((a) => a.status === 'PAID')) : undefined;
+
+  useEffect(() => {
+    if (!attendingAppointmentId) return;
+    const stillVisibleAndOpen = todayAgendaApts.some((a) => a.id === attendingAppointmentId && a.status === 'PAID');
+    if (!stillVisibleAndOpen) setAttendingAppointmentId(null);
+  }, [attendingAppointmentId, todayAgendaApts]);
 
   const clientLabel = (a: PartnerAgendaAppointment) =>
     a.clientDisplayName?.trim() || `Cliente #${a.clientId.slice(0, 4)}`;
@@ -360,7 +370,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
           {nextClientCardApt && (
             <div className="bg-white p-6 rounded-4xl border-2 border-indigo-600 shadow-lg relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-indigo-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest">
-                Próximo Cliente
+                {isNextClientAttending ? 'Atendendo' : 'Próximo Cliente'}
               </div>
               <div className="flex items-center gap-4 mb-6 pt-2">
                 <ClientAppointmentAvatar apt={nextClientCardApt} />
@@ -383,10 +393,19 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
               </div>
               <button
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed"
-                onClick={() => {
+                onClick={async () => {
                   if (!nextClientCardApt?.id || completingId) return;
-                  setCompletingId(nextClientCardApt.id);
-                  onMarkAppointmentCompleted?.(nextClientCardApt.id)?.finally(() => setCompletingId(null));
+                  if (isNextClientAttending) {
+                    setCompletingId(nextClientCardApt.id);
+                    try {
+                      await onMarkAppointmentCompleted?.(nextClientCardApt.id);
+                      setAttendingAppointmentId(null);
+                    } finally {
+                      setCompletingId(null);
+                    }
+                    return;
+                  }
+                  setAttendingAppointmentId(nextClientCardApt.id);
                 }}
                 disabled={!onMarkAppointmentCompleted || !!completingId}
               >
@@ -394,8 +413,14 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                   <>
                     <i className="fas fa-spinner fa-spin mr-2"></i> Aguarde...
                   </>
+                ) : isNextClientAttending ? (
+                  <>
+                    <i className="fas fa-check mr-2"></i> Concluir
+                  </>
                 ) : (
-                  'Iniciar Atendimento'
+                  <>
+                    <i className="fas fa-play mr-2"></i> Iniciar Atendimento
+                  </>
                 )}
               </button>
             </div>
@@ -442,6 +467,7 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" /> Finalizado</span>
                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" /> Atraso</span>
                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" /> Próximo</span>
+                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" /> Atendendo</span>
               </div>
             </div>
 
@@ -452,27 +478,32 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
               {filteredApts.length > 0 ? filteredApts.map((apt) => {
                 const pro = shop.professionals.find(p => p.id === apt.professionalId);
                 const service = shop.services.find(s => s.id === apt.serviceId);
+                const isAttending = apt.id === attendingAppointmentId && apt.status === 'PAID';
                 const isNext = nextTimelineApt?.id === apt.id;
                 const isCompleted = apt.status === 'COMPLETED';
                 const isLate = isLatePaidAppointment(apt, agendaDayKey, nowTick);
 
                 const markerClass = isCompleted
                   ? 'bg-green-500 text-white'
-                  : isLate
-                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-200/60 animate-pulse ring-2 ring-amber-300 ring-offset-2 ring-offset-white dark:shadow-amber-900/40 dark:ring-amber-400/80 dark:ring-offset-zinc-900'
-                    : isNext
-                      ? 'bg-indigo-600 scale-110 ring-4 ring-indigo-50 text-white'
-                      : 'bg-gray-200 group-hover:bg-indigo-400 text-gray-600';
+                  : isAttending
+                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-200/60 ring-2 ring-blue-300 ring-offset-2 ring-offset-white dark:shadow-blue-900/40 dark:ring-blue-400/80 dark:ring-offset-zinc-900'
+                    : isLate
+                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-200/60 animate-pulse ring-2 ring-amber-300 ring-offset-2 ring-offset-white dark:shadow-amber-900/40 dark:ring-amber-400/80 dark:ring-offset-zinc-900'
+                      : isNext
+                        ? 'bg-indigo-600 scale-110 ring-4 ring-indigo-50 text-white'
+                        : 'bg-gray-200 group-hover:bg-indigo-400 text-gray-600';
 
                 const markerIcon = isCompleted
                   ? 'fa-check'
-                  : isLate
+                  : isAttending
                     ? 'fa-user-clock'
-                    : isNext
-                      ? 'fa-play'
-                      : 'fa-clock';
+                    : isLate
+                      ? 'fa-user-clock'
+                      : isNext
+                        ? 'fa-play'
+                        : 'fa-clock';
 
-                const rowScale = isNext && !isLate && !isCompleted ? 'scale-[1.02]' : isLate ? 'scale-[1.01]' : '';
+                const rowScale = (isNext || isAttending) && !isLate && !isCompleted ? 'scale-[1.02]' : isLate ? 'scale-[1.01]' : '';
 
                 return (
                   <div key={apt.id} className={`relative pl-12 pb-8 group ${rowScale}`}>
@@ -487,9 +518,11 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
                       className={`flex flex-col items-start justify-between gap-4 rounded-3xl border p-5 transition-all sm:flex-row sm:items-center ${
                         isLate
                           ? 'border-amber-200 bg-amber-50/90 shadow-sm ring-1 ring-amber-100 dark:border-amber-600/40 dark:bg-amber-950/70 dark:ring-amber-500/20'
-                          : isNext && !isCompleted
-                            ? 'border-indigo-200 bg-indigo-50 shadow-sm'
-                            : 'border-gray-100 bg-white hover:border-indigo-100 hover:shadow-md'
+                          : isAttending
+                            ? 'border-blue-200 bg-blue-50 shadow-sm'
+                            : isNext && !isCompleted
+                              ? 'border-indigo-200 bg-indigo-50 shadow-sm'
+                              : 'border-gray-100 bg-white hover:border-indigo-100 hover:shadow-md'
                       }`}
                     >
                       <div className="flex items-center gap-4">

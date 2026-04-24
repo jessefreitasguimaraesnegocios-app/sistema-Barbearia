@@ -54,12 +54,11 @@ export default function PwaInstallModal() {
     if (!deferredPrompt || isPrompting) return;
 
     setIsPrompting(true);
+    setOpen(false);
     try {
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        setOpen(false);
-      }
+      if (choice.outcome !== 'accepted' && !isRunningAsInstalledApp()) setOpen(true);
       setDeferredPrompt(null);
     } finally {
       setIsPrompting(false);
@@ -105,7 +104,7 @@ export default function PwaInstallModal() {
             disabled={isPrompting}
             className="w-full rounded-2xl bg-indigo-500 px-5 py-4 text-lg font-semibold transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isPrompting ? 'Abrindo instalacao...' : 'Instalar agora'}
+            {isPrompting ? 'Abrindo confirmacao...' : 'Instalar agora'}
           </button>
         ) : (
           <div className="rounded-2xl border border-amber-300/30 bg-amber-200/10 px-4 py-3 text-sm text-amber-100">

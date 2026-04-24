@@ -65,6 +65,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
     .filter((a) => a.clientId === user.id)
     .filter((a) => isClientListVisibleAppointment(a));
   const [serviceNameById, setServiceNameById] = useState<Record<string, string>>({});
+  const [cancelConfirmAptId, setCancelConfirmAptId] = useState<string | null>(null);
 
   useEffect(() => {
     const serviceIds: string[] = Array.from(
@@ -112,11 +113,12 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
   }, [shops, userApts]);
 
   const handleCancel = (apt: Appointment) => {
-    const shop = shops.find(s => s.id === apt.shopId);
-    if (window.confirm(`Tem certeza que deseja cancelar seu agendamento na ${shop?.name}?\n\nImportante: Conforme nossa política, apenas 50% do valor (R$ ${(apt.amount / 2).toFixed(2)}) será reembolsado.`)) {
-      onCancel(apt.id);
-    }
+    onCancel(apt.id);
+    setCancelConfirmAptId(null);
   };
+
+  const cancelConfirmApt = cancelConfirmAptId ? userApts.find((a) => a.id === cancelConfirmAptId) ?? null : null;
+  const cancelConfirmShop = cancelConfirmApt ? shops.find((s) => s.id === cancelConfirmApt.shopId) : undefined;
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
@@ -186,7 +188,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
 
                   {apt.status !== 'CANCELLED' && apt.status !== 'COMPLETED' && (
                     <button 
-                      onClick={() => handleCancel(apt)}
+                      onClick={() => setCancelConfirmAptId(apt.id)}
                       className="text-red-500 text-[10px] font-bold uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"
                     >
                       <i className="fas fa-times-circle"></i> Cancelar Agendamento
@@ -229,6 +231,40 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
           <h3 className="text-xl font-bold text-gray-900">Nenhum agendamento ativo</h3>
           <p className="text-gray-500 mt-2 max-w-xs mx-auto">Você ainda não agendou nenhum serviço. Procure por uma barbearia ou salão e marque seu horário!</p>
           <button className="mt-8 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-indigo-100">Explorar Estabelecimentos</button>
+        </div>
+      ) : null}
+
+      {cancelConfirmApt ? (
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-md rounded-4xl border border-gray-100 bg-white shadow-2xl overflow-hidden animate-modal-bounce-in">
+            <div className="p-6 border-b border-gray-100">
+              <h3 className="text-xl font-black text-red-600">ATENÇÃO</h3>
+              <p className="mt-3 text-sm text-gray-700">
+                Tem certeza que deseja cancelar seu agendamento na <strong>{cancelConfirmShop?.name ?? 'loja'}</strong>?
+              </p>
+              <p className="mt-3 text-sm text-gray-700">
+                Importante: Conforme nossa política, apenas 50% do valor (
+                <strong>R$ {(cancelConfirmApt.amount / 2).toFixed(2)}</strong>) será reembolsado.
+              </p>
+            </div>
+            <div className="p-6 pt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCancelConfirmAptId(null)}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCancel(cancelConfirmApt)}
+                className="px-5 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 inline-flex items-center gap-2"
+              >
+                <i className="fas fa-times-circle" />
+                Confirmar cancelamento
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

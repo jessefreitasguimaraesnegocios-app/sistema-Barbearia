@@ -1,5 +1,6 @@
 import type { Product, Shop } from '../../types';
 import { juniorPricePercentFromDb } from '../../lib/juniorServicePrice';
+import { normalizeStoreCategories } from '../../lib/storeCategories';
 import { formatDbTime } from './_format';
 
 /** Uma linha de `products` (mesmo shape do embed no catálogo cliente). */
@@ -56,6 +57,7 @@ export function mapClientCatalogRow(s: Record<string, unknown>): Shop {
       s.agenda_slot_minutes != null && Number(s.agenda_slot_minutes) > 0
         ? Number(s.agenda_slot_minutes)
         : 30,
+    storeCategories: normalizeStoreCategories(s.store_categories),
     rowUpdatedAt: s.updated_at != null ? String(s.updated_at) : undefined,
     services: ((s.services as Record<string, unknown>[]) || []).map((sv) => ({
       id: String(sv.id),

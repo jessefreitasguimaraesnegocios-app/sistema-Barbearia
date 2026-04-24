@@ -1,5 +1,6 @@
 import type { Professional, Product, Service, Shop } from '../../types';
 import { juniorPricePercentFromDb } from '../../lib/juniorServicePrice';
+import { normalizeStoreCategories } from '../../lib/storeCategories';
 import { formatDbTime, normalizeSplitPercent } from './_format';
 
 /** Achata embed PostgREST `shop_finance_provision(...)` para o shape esperado pelos mappers. */
@@ -125,6 +126,7 @@ export function mergePartnerShopScalarRow(prev: Shop, d: Record<string, unknown>
       d.agenda_slot_minutes != null && Number(d.agenda_slot_minutes) > 0
         ? Number(d.agenda_slot_minutes)
         : prev.agendaSlotMinutes ?? 30,
+    storeCategories: d.store_categories != null ? normalizeStoreCategories(d.store_categories) : prev.storeCategories,
     rowUpdatedAt: d.updated_at != null ? String(d.updated_at) : prev.rowUpdatedAt,
   };
 }
@@ -180,6 +182,7 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
       d.agenda_slot_minutes != null && Number(d.agenda_slot_minutes) > 0
         ? Number(d.agenda_slot_minutes)
         : 30,
+    storeCategories: normalizeStoreCategories(d.store_categories),
     rowUpdatedAt: d.updated_at != null ? String(d.updated_at) : undefined,
   };
 }

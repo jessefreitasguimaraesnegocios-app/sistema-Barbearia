@@ -1,5 +1,6 @@
 import type { Shop } from '../../types';
 import { parseShopAsaasRuntimeOverride } from '../../lib/payments/resolve-shop-split';
+import { normalizeStoreCategories } from '../../lib/storeCategories';
 import { flattenShopFinanceProvisionInShopRow } from './mapPartnerShop';
 
 export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
@@ -52,6 +53,7 @@ export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
       s.agenda_slot_minutes != null && Number(s.agenda_slot_minutes) > 0
         ? Number(s.agenda_slot_minutes)
         : 30,
+    storeCategories: normalizeStoreCategories(s.store_categories),
     financeProvisionStatus: s.finance_provision_status as Shop['financeProvisionStatus'],
     financeProvisionLastError:
       s.finance_provision_last_error != null ? String(s.finance_provision_last_error) : undefined,

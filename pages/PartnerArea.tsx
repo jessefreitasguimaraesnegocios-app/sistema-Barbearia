@@ -316,6 +316,7 @@ export default function PartnerArea() {
         primary_color: updated.primaryColor ?? null,
         theme: updated.theme ?? 'MODERN',
         pass_fees_to_customer: updated.passFeesToCustomer === true,
+        store_categories: updated.storeCategories ?? null,
       })
       .eq('id', shopId);
 

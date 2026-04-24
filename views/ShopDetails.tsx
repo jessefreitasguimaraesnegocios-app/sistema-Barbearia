@@ -10,6 +10,10 @@ import {
 import { mapClientCatalogProductRow } from '../services/supabase/mapClientCatalogShop';
 import { PRODUCTS_SELECT_CLIENT_CATALOG_DETAIL } from '../services/supabase/shops';
 import { effectiveServicePriceForProfessional } from '../lib/juniorServicePrice';
+import {
+  normalizeStoreCategories,
+  resolveStoreCategoryKeyForProduct,
+} from '../lib/storeCategories';
 
 /** Estoque na página da loja: `shops` pulsa `updated_at` quando `products` muda (trigger). */
 const SHOP_DETAILS_PRODUCTS_RT_DEBOUNCE_MS = 280;
@@ -204,6 +208,8 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
+  const storeCategories = useMemo(() => normalizeStoreCategories(shop.storeCategories), [shop.storeCategories]);
+  const [selectedStoreCategory, setSelectedStoreCategory] = useState<string>(storeCategories[0]?.key ?? 'products');
 
   /** Catálogo da loja com estoque atualizado via Realtime (`products`). */
   const productsStockSig = useMemo(
@@ -217,6 +223,10 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
     // productsStockSig reflete mudanças em shop.products sem depender da referência do array
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional: shop.id + assinatura de estoque
   }, [shop.id, productsStockSig]);
+
+  useEffect(() => {
+    setSelectedStoreCategory(storeCategories[0]?.key ?? 'products');
+  }, [shop.id, storeCategories]);
 
   useEffect(() => {
     const shopId = shop.id;
@@ -632,6 +642,13 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.product.promoPrice || item.product.price) * item.quantity, 0);
+  const filteredStoreProducts = useMemo(
+    () =>
+      liveProducts.filter(
+        (product) => resolveStoreCategoryKeyForProduct(product, storeCategories) === selectedStoreCategory
+      ),
+    [liveProducts, selectedStoreCategory, storeCategories]
+  );
 
   useEffect(() => {
     if (!inlinePayPix?.recordId) return;
@@ -1291,15 +1308,42 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
             </div>
           ) : (
             <div className="animate-fade-in space-y-8">
+               <div className="flex justify-between px-2 md:px-4 relative">
+                 <div className="absolute top-5 left-0 w-full h-1 bg-gray-100 z-0"></div>
+                 {storeCategories.map((category) => {
+                   const isActive = selectedStoreCategory === category.key;
+                   return (
+                     <button
+                       key={category.key}
+                       type="button"
+                       onClick={() => setSelectedStoreCategory(category.key)}
+                       className="relative z-10 flex flex-col items-center gap-2"
+                     >
+                       <div
+                         className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm md:text-base transition-all ${
+                           isActive
+                             ? 'bg-indigo-600 text-white shadow-md'
+                             : 'bg-white text-gray-400 border-2 border-gray-100'
+                         }`}
+                       >
+                         <i className={category.icon} aria-hidden />
+                       </div>
+                       <span className={`text-[11px] md:text-xs font-semibold ${isActive ? 'text-indigo-600' : 'text-gray-500'}`}>
+                         {category.name}
+                       </span>
+                     </button>
+                   );
+                 })}
+              </div>
                <div className="flex justify-between items-center">
                   <h3 className="text-xl md:text-2xl font-bold text-gray-900">Produtos Exclusivos</h3>
                   <div className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-bold">
-                    {liveProducts.length} itens disponíveis
+                    {filteredStoreProducts.length} itens disponíveis
                   </div>
                </div>
                
                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:gap-6">
-                 {liveProducts.map((product) => {
+                 {filteredStoreProducts.map((product) => {
                    const stock = Math.max(0, Math.floor(Number(product.stock) || 0));
                    const inCartQty = cart.find((c) => c.product.id === product.id)?.quantity ?? 0;
                    const canAddMore = stock > 0 && inCartQty < stock;
@@ -1346,6 +1390,11 @@ const ShopDetails: React.FC<ShopDetailsProps> = ({ shop, user, onRefetchAppointm
                    </div>
                  );})}
                </div>
+               {filteredStoreProducts.length === 0 ? (
+                 <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
+                   Ainda não há itens nessa categoria.
+                 </div>
+               ) : null}
             </div>
           )}
         </div>

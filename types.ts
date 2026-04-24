@@ -62,6 +62,12 @@ export interface Product {
   catalogItemId?: string | null;
 }
 
+export interface StoreCategory {
+  key: string;
+  name: string;
+  icon: string;
+}
+
 export interface Shop {
   id: string;
   /** Código público curto (3 chars base36) para links compartilháveis. */
@@ -78,6 +84,8 @@ export interface Shop {
   services: Service[];
   professionals: Professional[];
   products: Product[];
+  /** Categorias da vitrine da loja (aba Loja no app cliente). */
+  storeCategories?: StoreCategory[];
   subscriptionActive: boolean;
   subscriptionAmount?: number;
   /** ID da assinatura na conta Asaas mãe (mensalidade); webhook liga a `subscription_active` */

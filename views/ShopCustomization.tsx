@@ -16,6 +16,10 @@ import {
   type ProductCatalogItemRow,
 } from '../services/supabase/productCatalog';
 import { clampJuniorPricePercent } from '../lib/juniorServicePrice';
+import {
+  normalizeStoreCategories,
+  STORE_CATEGORY_ICON_OPTIONS,
+} from '../lib/storeCategories';
 
 function isUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -321,6 +325,7 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
     professionals: dedupeProfessionals(shop.professionals || []),
     products: dedupeProducts(shop.products || []),
     passFeesToCustomer: shop.passFeesToCustomer ?? false,
+    storeCategories: normalizeStoreCategories(shop.storeCategories),
   }));
   const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<'GENERAL' | 'INVENTORY' | 'SERVICES' | 'PROFESSIONALS'>('GENERAL');
@@ -335,6 +340,12 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
   const [productCatalog, setProductCatalog] = useState<ProductCatalogCategoryRow[]>([]);
   const [pendingCatalogItemId, setPendingCatalogItemId] = useState<string>('');
   const [imageUploading, setImageUploading] = useState(false);
+
+  const updateStoreCategory = (idx: number, patch: Partial<{ name: string; icon: string }>) => {
+    const current = normalizeStoreCategories(formData.storeCategories);
+    const next = current.map((cat, i) => (i === idx ? { ...cat, ...patch } : cat));
+    setFormData({ ...formData, storeCategories: next });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1279,6 +1290,45 @@ const ShopCustomization: React.FC<ShopCustomizationProps> = ({ shop, onSave, onS
                     </p>
                   </div>
                 </label>
+
+          <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-4">
+            <div className="mb-3">
+              <h4 className="text-sm font-bold text-gray-900">Categorias da vitrine da loja</h4>
+              <p className="text-xs text-gray-500">Essas 4 categorias aparecem para os clientes como ícone + nome.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {normalizeStoreCategories(formData.storeCategories).map((cat, idx) => (
+                <div key={cat.key} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="h-8 w-8 rounded-full bg-white text-(--shop-primary) flex items-center justify-center border border-gray-100">
+                      <i className={cat.icon} aria-hidden />
+                    </span>
+                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Categoria {idx + 1}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={cat.icon}
+                      onChange={(e) => updateStoreCategory(idx, { icon: e.target.value })}
+                      className="w-full rounded-lg border border-gray-200 bg-white p-2 text-sm"
+                    >
+                      {STORE_CATEGORY_ICON_OPTIONS.map((opt) => (
+                        <option key={opt.icon} value={opt.icon}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={cat.name}
+                      onChange={(e) => updateStoreCategory(idx, { name: e.target.value })}
+                      className="w-full rounded-lg border border-gray-200 bg-white p-2 text-sm"
+                      placeholder="Nome da categoria"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="space-y-4">
             {formData.products.map(product => {

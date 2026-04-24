@@ -69,8 +69,8 @@ export default function PwaInstallModal() {
   if (!open || isInstalled) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-md">
-      <div className="w-full max-w-lg rounded-3xl border border-indigo-200/30 bg-gradient-to-b from-slate-900/95 to-slate-950/95 p-6 text-white shadow-2xl sm:p-8 animate-modal-bounce-in">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/55 p-4 backdrop-blur-md">
+      <div className="w-full max-w-lg rounded-3xl border border-indigo-200/30 bg-linear-to-b from-slate-900/95 to-slate-950/95 p-6 text-white shadow-2xl sm:p-8 animate-modal-bounce-in">
         <div className="mb-6 flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/90 shadow-lg shadow-indigo-600/40">
             <i className="fa-solid fa-mobile-screen-button text-2xl" />

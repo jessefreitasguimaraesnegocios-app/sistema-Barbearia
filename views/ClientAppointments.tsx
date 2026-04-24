@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Appointment, Shop, User } from '../types';
 import { isClientListVisibleAppointment } from '../lib/clientAppointmentVisibility';
+import { supabase } from '../src/lib/supabase';
 
 function ShopAppointmentThumb({
   shop,
@@ -63,6 +64,52 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
   const userApts = appointments
     .filter((a) => a.clientId === user.id)
     .filter((a) => isClientListVisibleAppointment(a));
+  const [serviceNameById, setServiceNameById] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const serviceIds: string[] = Array.from(
+      new Set(
+        userApts
+          .map((a) => String(a.serviceId || '').trim())
+          .filter((id): id is string => id.length > 0)
+      )
+    );
+    if (!serviceIds.length) {
+      setServiceNameById({});
+      return;
+    }
+
+    const fromShops: Record<string, string> = {};
+    for (const shop of shops) {
+      for (const s of shop.services ?? []) {
+        if (s?.id) fromShops[s.id] = s.name || 'Serviço';
+      }
+    }
+
+    const missing = serviceIds.filter((id) => !fromShops[id]);
+    if (!missing.length) {
+      setServiceNameById(fromShops);
+      return;
+    }
+
+    let cancelled = false;
+    const loadMissingServiceNames = async () => {
+      const { data, error } = await supabase.from('services').select('id, name').in('id', missing);
+      if (error || cancelled) return;
+      const merged = { ...fromShops };
+      for (const row of (data ?? []) as Array<{ id?: unknown; name?: unknown }>) {
+        const id = typeof row.id === 'string' ? row.id : '';
+        if (!id) continue;
+        const name = typeof row.name === 'string' ? row.name.trim() : '';
+        merged[id] = name || 'Serviço';
+      }
+      setServiceNameById(merged);
+    };
+    void loadMissingServiceNames();
+    return () => {
+      cancelled = true;
+    };
+  }, [shops, userApts]);
 
   const handleCancel = (apt: Appointment) => {
     const shop = shops.find(s => s.id === apt.shopId);
@@ -86,6 +133,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
           {userApts.map(apt => {
             const shop = shops.find(s => s.id === apt.shopId);
             const service = shop?.services.find(s => s.id === apt.serviceId);
+            const serviceName = service?.name ?? serviceNameById[apt.serviceId] ?? 'Serviço';
             const pro = shop?.professionals.find(p => p.id === apt.professionalId);
 
             return (
@@ -106,7 +154,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                         {apt.status === 'PAID' ? 'Pago' : apt.status === 'PENDING' ? 'Aguardando pagamento' : apt.status}
                       </span>
                     </div>
-                    <p className={`text-sm text-gray-500 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}>{service?.name} com <span className="text-gray-900 font-medium">{pro?.name}</span></p>
+                    <p className={`text-sm text-gray-500 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}>{serviceName} com <span className="text-gray-900 font-medium">{pro?.name}</span></p>
                   </div>
                   
                   <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-4 border-t border-gray-50 transition-all ${apt.status === 'CANCELLED' ? 'opacity-30' : ''}`}>
@@ -125,7 +173,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                     <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Serviço</p>
                       <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700 dark:text-white">
-                        <i className="fas fa-scissors"></i> {service?.name ?? 'Serviço'}
+                        <i className="fas fa-scissors"></i> {serviceName}
                       </p>
                     </div>
                     <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">

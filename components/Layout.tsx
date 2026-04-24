@@ -160,7 +160,7 @@ const Layout: React.FC<LayoutProps> = ({
                     currentView === 'client-appointments' ? navActiveIndigo : navInactive
                   }`}
                 >
-                  <i className="fas fa-calendar-check w-5"></i> Meus Agendamentos
+                  <i className="fas fa-calendar-check w-5"></i> Agendamentos
                 </button>
                 <button
                   onClick={() => onNavigate('client-orders')}

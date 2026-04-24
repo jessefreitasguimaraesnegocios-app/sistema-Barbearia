@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Order, Shop, User } from '../types';
 import { isClientListVisibleOrder } from '../lib/clientOrderVisibility';
+import { supabase } from '../src/lib/supabase';
 
 interface ClientOrdersProps {
   orders: Order[];
@@ -26,6 +27,34 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({
     .filter(o => o.clientId === user.id)
     .filter((o) => isClientListVisibleOrder(o));
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderProducts, setSelectedOrderProducts] = useState<Record<string, { name: string; image: string | null }>>({});
+
+  useEffect(() => {
+    if (!selectedOrder?.shopId) {
+      setSelectedOrderProducts({});
+      return;
+    }
+    let cancelled = false;
+    const loadOrderProducts = async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, image')
+        .eq('shop_id', selectedOrder.shopId);
+      if (error || cancelled) return;
+      const map: Record<string, { name: string; image: string | null }> = {};
+      for (const row of (data ?? []) as Array<{ id: string; name?: string | null; image?: string | null }>) {
+        map[row.id] = {
+          name: row.name?.trim() || 'Produto',
+          image: row.image?.trim() || null,
+        };
+      }
+      setSelectedOrderProducts(map);
+    };
+    void loadOrderProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedOrder?.id, selectedOrder?.shopId]);
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
@@ -146,13 +175,18 @@ const ClientOrders: React.FC<ClientOrdersProps> = ({
             <div className="p-6 space-y-6">
                <div className="space-y-4">
                  {selectedOrder.items.map((item, idx) => {
-                   const shop = shops.find(s => s.id === selectedOrder.shopId);
-                   const product = shop?.products.find(p => p.id === item.productId);
+                   const product = selectedOrderProducts[item.productId];
                    return (
                      <div key={idx} className="flex gap-4">
-                        <img src={product?.image} className="w-14 h-14 rounded-xl object-cover" alt="" />
+                        {product?.image ? (
+                          <img src={product.image} className="w-14 h-14 rounded-xl object-cover" alt={product.name || 'Produto'} />
+                        ) : (
+                          <div className="w-14 h-14 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center">
+                            <i className="fas fa-box" aria-hidden />
+                          </div>
+                        )}
                         <div className="flex-1">
-                          <h4 className="text-sm font-bold text-gray-900">{product?.name}</h4>
+                          <h4 className="text-sm font-bold text-gray-900">{product?.name || `Item ${idx + 1}`}</h4>
                           <p className="text-xs text-gray-500">{item.quantity}x R$ {item.price.toFixed(2)}</p>
                         </div>
                         <p className="text-sm font-bold text-gray-900">R$ {(item.quantity * item.price).toFixed(2)}</p>

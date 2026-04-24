@@ -6,6 +6,7 @@ import { AppQueryProvider } from './contexts/AppQueryProvider';
 import ClientArea from './pages/ClientArea';
 import PartnerArea from './pages/PartnerArea';
 import AdminArea from './pages/AdminArea';
+import PwaInstallModal from './components/PwaInstallModal';
 
 function AppRoutes() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <AppRoutes />
+          <PwaInstallModal />
         </AuthProvider>
       </ThemeProvider>
     </AppQueryProvider>

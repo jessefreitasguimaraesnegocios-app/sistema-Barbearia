@@ -79,6 +79,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({
   onLoadMoreOrders,
 }) => {
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [confirmOrderId, setConfirmOrderId] = useState<string | null>(null);
   const [dayTick, setDayTick] = useState(0);
   const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
 
@@ -113,17 +114,16 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({
   }, [orders, now]);
 
   const handleDelivered = async (orderId: string) => {
-    const confirmed = window.confirm(
-      'Confirmar retirada?\n\nAo confirmar, o pedido será marcado como retirado pelo cliente.'
-    );
-    if (!confirmed) return;
     setDeliveringId(orderId);
     try {
       await onMarkDelivered(orderId);
+      setConfirmOrderId(null);
     } finally {
       setDeliveringId(null);
     }
   };
+
+  const confirmOrder = confirmOrderId ? paidOrders.find((o) => o.id === confirmOrderId) ?? null : null;
 
   const toggleHistory = (id: string) => {
     setOpenHistoryId((prev) => (prev === id ? null : id));
@@ -203,7 +203,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => handleDelivered(order.id)}
+                  onClick={() => setConfirmOrderId(order.id)}
                   className="w-full py-4 rounded-2xl font-bold text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-green-600/20"
                 >
                   {busy ? (
@@ -320,6 +320,49 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({
           </ul>
         )}
       </section>
+
+      {confirmOrder ? (
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-md rounded-[2rem] border border-gray-100 bg-white shadow-2xl overflow-hidden animate-modal-bounce-in">
+            <div className="p-6 border-b border-gray-100">
+              <h3 className="text-xl font-black text-gray-900">Confirmar retirada</h3>
+              <p className="mt-2 text-sm text-gray-500">
+                Você está marcando este pedido como retirado pelo cliente.
+              </p>
+              <p className="mt-3 text-xs font-bold uppercase tracking-wider text-gray-400">Cliente</p>
+              <p className="text-sm font-semibold text-gray-900">{confirmOrder.clientDisplayName}</p>
+            </div>
+            <div className="p-6 pt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={Boolean(deliveringId)}
+                onClick={() => setConfirmOrderId(null)}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(deliveringId)}
+                onClick={() => void handleDelivered(confirmOrder.id)}
+                className="px-5 py-2.5 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 disabled:opacity-60 inline-flex items-center gap-2"
+              >
+                {deliveringId === confirmOrder.id ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin" />
+                    Confirmando…
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-check-circle" />
+                    Confirmar retirada
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

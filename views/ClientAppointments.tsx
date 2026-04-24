@@ -112,13 +112,13 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                   <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-gray-50 transition-all ${apt.status === 'CANCELLED' ? 'opacity-30' : ''}`}>
                     <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Data</p>
-                      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
+                      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700 dark:text-white">
                         <i className="far fa-calendar-alt"></i> {apt.date}
                       </p>
                     </div>
                     <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Horário</p>
-                      <p className="mt-1 flex items-center gap-2 text-sm font-black text-indigo-700">
+                      <p className="mt-1 flex items-center gap-2 text-sm font-black text-indigo-700 dark:text-white">
                         <i className="far fa-clock"></i> {apt.time}
                       </p>
                     </div>

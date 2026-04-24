@@ -323,7 +323,7 @@ const ShopOrders: React.FC<ShopOrdersProps> = ({
 
       {confirmOrder ? (
         <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="w-full max-w-md rounded-[2rem] border border-gray-100 bg-white shadow-2xl overflow-hidden animate-modal-bounce-in">
+          <div className="w-full max-w-md rounded-4xl border border-gray-100 bg-white shadow-2xl overflow-hidden animate-modal-bounce-in">
             <div className="p-6 border-b border-gray-100">
               <h3 className="text-xl font-black text-gray-900">Confirmar retirada</h3>
               <p className="mt-2 text-sm text-gray-500">

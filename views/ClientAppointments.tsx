@@ -89,7 +89,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
             const pro = shop?.professionals.find(p => p.id === apt.professionalId);
 
             return (
-              <div key={apt.id} className={`bg-white p-6 rounded-4xl border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-6 hover:shadow-lg transition-all relative overflow-hidden ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}>
+              <div key={apt.id} className={`bg-white p-6 md:p-7 rounded-4xl border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-6 hover:shadow-lg transition-all relative overflow-hidden min-h-[220px] ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}>
                 {apt.status === 'CANCELLED' && (
                   <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center animate-fade-in">
                     <div className="bg-white text-red-600 px-6 py-3 rounded-full font-black uppercase tracking-widest border-2 border-red-500 rotate-[-5deg] shadow-2xl animate-bounce-in flex items-center gap-2">
@@ -109,15 +109,24 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                     <p className={`text-sm text-gray-500 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}>{service?.name} com <span className="text-gray-900 font-medium">{pro?.name}</span></p>
                   </div>
                   
-                  <div className={`flex flex-wrap gap-4 pt-4 border-t border-gray-50 transition-all ${apt.status === 'CANCELLED' ? 'opacity-30' : ''}`}>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <i className="far fa-calendar-alt"></i> {apt.date}
+                  <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-gray-50 transition-all ${apt.status === 'CANCELLED' ? 'opacity-30' : ''}`}>
+                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Data</p>
+                      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
+                        <i className="far fa-calendar-alt"></i> {apt.date}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <i className="far fa-clock"></i> {apt.time}
+                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Horário</p>
+                      <p className="mt-1 flex items-center gap-2 text-sm font-black text-indigo-700">
+                        <i className="far fa-clock"></i> {apt.time}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <i className="fas fa-money-bill-wave"></i> R$ {apt.amount.toFixed(2)}
+                    <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Valor</p>
+                      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-gray-700">
+                        <i className="fas fa-money-bill-wave"></i> R$ {apt.amount.toFixed(2)}
+                      </p>
                     </div>
                   </div>
 

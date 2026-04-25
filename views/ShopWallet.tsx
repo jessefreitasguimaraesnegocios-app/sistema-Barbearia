@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Shop } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { type BillingStatus, billingStatusLabel } from '../lib/shopBilling';
 
 interface WalletTransaction {
   id: string;
@@ -49,9 +50,12 @@ function formatTransactionType(type: string): string {
 
 interface ShopWalletProps {
   shop: Shop;
+  billingStatus: BillingStatus;
+  monthlyAmount: number;
+  remainingTrialDays: number;
 }
 
-const ShopWallet: React.FC<ShopWalletProps> = () => {
+const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, remainingTrialDays }) => {
   const [data, setData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +71,37 @@ const ShopWallet: React.FC<ShopWalletProps> = () => {
   const [bankAccount, setBankAccount] = useState('');
   const [bankDigit, setBankDigit] = useState('');
   const [bankCode, setBankCode] = useState('001');
+  const statusPillClass =
+    billingStatus === 'active'
+      ? 'bg-emerald-100 text-emerald-700'
+      : billingStatus === 'trialing'
+        ? 'bg-blue-100 text-blue-700'
+        : billingStatus === 'past_due'
+          ? 'bg-amber-100 text-amber-700'
+          : 'bg-red-100 text-red-700';
+  const billingHint =
+    billingStatus === 'active'
+      ? 'Seu estabelecimento está em dia e com acesso completo.'
+      : billingStatus === 'trialing'
+        ? `Teste grátis ativo. Restam ${remainingTrialDays} dia(s) para contratar a mensalidade.`
+        : billingStatus === 'past_due'
+          ? 'A assinatura está atrasada. Regularize para evitar bloqueio.'
+          : 'Assinatura bloqueada. Regularize para voltar a operar normalmente.';
+
+  const BillingSection = (
+    <section className="rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm md:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Assinatura da plataforma</p>
+          <h3 className="mt-1 text-lg font-bold text-gray-900">R$ {monthlyAmount.toFixed(2)}/mês</h3>
+          <p className="mt-1 text-sm text-gray-600">{billingHint}</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusPillClass}`}>
+          {billingStatusLabel(billingStatus)}
+        </span>
+      </div>
+    </section>
+  );
 
   const fetchWallet = useCallback(async () => {
     setLoading(true);
@@ -189,6 +224,7 @@ const ShopWallet: React.FC<ShopWalletProps> = () => {
   if (error) {
     return (
       <div className="space-y-6 pb-20">
+        {BillingSection}
         <h2 className="text-3xl font-display font-bold text-gray-900">Saque e saldo</h2>
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-6 flex items-start gap-3">
           <i className="fas fa-exclamation-circle text-red-500 mt-0.5" />
@@ -209,6 +245,8 @@ const ShopWallet: React.FC<ShopWalletProps> = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-20">
+      {BillingSection}
+
       <header>
         <h2 className="text-3xl font-display font-bold text-gray-900">Saque e saldo</h2>
         <p className="text-gray-500 mt-1">
@@ -344,7 +382,7 @@ const ShopWallet: React.FC<ShopWalletProps> = () => {
 
           {withdrawError && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm flex items-center gap-2">
-              <i className="fas fa-exclamation-circle flex-shrink-0" />
+              <i className="fas fa-exclamation-circle shrink-0" />
               {withdrawError}
             </div>
           )}

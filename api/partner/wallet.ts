@@ -249,7 +249,7 @@ type WalletPartnerOk =
   | { mode: 'professional'; shopId: string; userId: string; professionalId: string };
 
 async function resolveWalletPartner(token: string): Promise<WalletPartnerOk | { error: string; status: number }> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
     return { error: 'Configuração indisponível.', status: 500 };
   }
   const authRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -262,7 +262,7 @@ async function resolveWalletPartner(token: string): Promise<WalletPartnerOk | { 
   const userId = userData?.id;
   if (!userId) return { error: 'Token inválido.', status: 401 };
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY!);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('shop_id, role, professional_id')
@@ -344,6 +344,13 @@ export default async function handler(
     return res.status(405).json({ success: false, error: 'Método não permitido. Use GET ou POST.' });
   }
 
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: 'Configuração do servidor indisponível (SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY).',
+    });
+  }
+
   const authRaw = req.headers?.authorization;
   const authHeader = typeof authRaw === 'string' ? authRaw : Array.isArray(authRaw) ? authRaw[0] : '';
   const token = authHeader?.replace(/^Bearer\s+/i, '').trim();
@@ -357,10 +364,6 @@ export default async function handler(
   }
   const { shopId, userId } = partner;
   const clientMeta = getClientMeta(req);
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: 'Configuração do servidor indisponível.' });
-  }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 

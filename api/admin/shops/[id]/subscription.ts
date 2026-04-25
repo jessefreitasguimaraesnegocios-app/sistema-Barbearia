@@ -2,7 +2,7 @@
 // Atualiza subscription_active, subscription_amount, split_percent (prod) e split_percent_sandbox da loja (service role)
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { assertAdminFromRequest } from '../../../../lib/server/admin-auth.ts';
+import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 type AsaasRuntimeOverride = 'production' | 'sandbox';
 type RuntimeMode = 'production' | 'sandbox';

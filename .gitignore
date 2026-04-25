@@ -8,12 +8,16 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+node_modules/
 dist
+dist/
+dev-dist/
 dist-ssr
 *.local
 
 # Env (não commitar chaves)
 .env
+.env*
 
 # Notas locais / rascunho (não versionar)
 api/txt

@@ -71,6 +71,8 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
   const [bankAccount, setBankAccount] = useState('');
   const [bankDigit, setBankDigit] = useState('');
   const [bankCode, setBankCode] = useState('001');
+  const [subscriptionActionLoading, setSubscriptionActionLoading] = useState(false);
+  const [subscriptionActionError, setSubscriptionActionError] = useState<string | null>(null);
   const statusPillClass =
     billingStatus === 'active'
       ? 'bg-emerald-100 text-emerald-700'
@@ -88,6 +90,55 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
           ? 'A assinatura está atrasada. Regularize para evitar bloqueio.'
           : 'Assinatura bloqueada. Regularize para voltar a operar normalmente.';
 
+  const shouldShowSubscribeCta =
+    billingStatus === 'trialing' || billingStatus === 'past_due' || billingStatus === 'blocked' || billingStatus === 'canceled';
+  const subscribeButtonLabel =
+    billingStatus === 'trialing'
+      ? 'Assinar agora'
+      : billingStatus === 'past_due'
+        ? 'Regularizar assinatura'
+        : billingStatus === 'canceled'
+          ? 'Reativar assinatura'
+          : 'Ativar assinatura';
+
+  const handleOpenSubscriptionCheckout = async () => {
+    setSubscriptionActionError(null);
+    setSubscriptionActionLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        setSubscriptionActionError('Sessão expirada. Faça login novamente.');
+        return;
+      }
+      const res = await fetch(`${window.location.origin}/api/partner/subscription`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        asaas?: { checkoutUrl?: string | null };
+      };
+      if (!res.ok || payload.success !== true) {
+        setSubscriptionActionError(payload.error || 'Não foi possível abrir o checkout da assinatura.');
+        return;
+      }
+      const checkoutUrl = payload?.asaas?.checkoutUrl?.trim();
+      if (!checkoutUrl) {
+        setSubscriptionActionError(
+          'Ainda não há um link de pagamento disponível. Tente novamente em instantes ou fale com o suporte.'
+        );
+        return;
+      }
+      window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setSubscriptionActionError(e instanceof Error ? e.message : 'Erro ao preparar assinatura.');
+    } finally {
+      setSubscriptionActionLoading(false);
+    }
+  };
+
   const BillingSection = (
     <section className="rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm md:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -100,6 +151,30 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
           {billingStatusLabel(billingStatus)}
         </span>
       </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {shouldShowSubscribeCta ? (
+          <button
+            type="button"
+            onClick={() => void handleOpenSubscriptionCheckout()}
+            disabled={subscriptionActionLoading}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {subscriptionActionLoading ? 'Abrindo checkout...' : subscribeButtonLabel}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void handleOpenSubscriptionCheckout()}
+            disabled={subscriptionActionLoading}
+            className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {subscriptionActionLoading ? 'Abrindo...' : 'Gerenciar cobrança'}
+          </button>
+        )}
+      </div>
+      {subscriptionActionError && (
+        <p className="mt-3 text-sm font-medium text-red-600">{subscriptionActionError}</p>
+      )}
     </section>
   );
 

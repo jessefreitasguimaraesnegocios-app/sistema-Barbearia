@@ -41,3 +41,19 @@ export function isShopAllowedToOperate(
   const status = resolveShopBillingStatus(shop);
   return status === 'active' || status === 'trialing';
 }
+
+export function billingStatusLabel(status: BillingStatus): string {
+  switch (status) {
+    case 'active':
+      return 'Ativa';
+    case 'trialing':
+      return 'Em teste';
+    case 'past_due':
+      return 'Em atraso';
+    case 'canceled':
+      return 'Cancelada';
+    case 'blocked':
+    default:
+      return 'Bloqueada';
+  }
+}

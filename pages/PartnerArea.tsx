@@ -16,7 +16,7 @@ import { ThemeLogoButton } from '../components/ThemeLogoButton';
 import { isClientOnlyRole } from '../lib/profileRole';
 import { useShop } from '../hooks/useShop';
 import { usePartnerData } from '../hooks/usePartnerData';
-import { isShopAllowedToOperate, resolveShopBillingStatus, trialDaysRemaining } from '../lib/shopBilling';
+import { billingStatusLabel, isShopAllowedToOperate, resolveShopBillingStatus, trialDaysRemaining } from '../lib/shopBilling';
 
 export default function PartnerArea() {
   const { user, loading, signOut, refreshProfile } = useAuth();
@@ -519,6 +519,58 @@ export default function PartnerArea() {
   const billingStatus = resolveShopBillingStatus(myShop);
   const partnerAccessAllowed = isShopAllowedToOperate(myShop);
   const remainingTrialDays = trialDaysRemaining(myShop);
+  const monthlyAmount = Number(myShop.subscriptionAmount ?? 99);
+  const statusPillClass =
+    billingStatus === 'active'
+      ? 'bg-emerald-100 text-emerald-700'
+      : billingStatus === 'trialing'
+        ? 'bg-blue-100 text-blue-700'
+        : billingStatus === 'past_due'
+          ? 'bg-amber-100 text-amber-700'
+          : 'bg-red-100 text-red-700';
+  const billingHint =
+    billingStatus === 'active'
+      ? 'Seu estabelecimento está em dia e com acesso completo.'
+      : billingStatus === 'trialing'
+        ? `Teste grátis ativo. Restam ${remainingTrialDays} dia(s) para contratar a mensalidade.`
+        : billingStatus === 'past_due'
+          ? 'A assinatura está atrasada. Regularize para evitar bloqueio.'
+          : 'Assinatura bloqueada. Regularize para voltar a operar normalmente.';
+
+  const BillingCard = (
+    <section className="rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm md:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Assinatura da plataforma</p>
+          <h3 className="mt-1 text-lg font-bold text-gray-900">R$ {monthlyAmount.toFixed(2)}/mês</h3>
+          <p className="mt-1 text-sm text-gray-600">{billingHint}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusPillClass}`}>
+            {billingStatusLabel(billingStatus)}
+          </span>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setCurrentView('shop-wallet')}
+          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+        >
+          Ver financeiro
+        </button>
+        {(billingStatus === 'trialing' || billingStatus === 'past_due' || billingStatus === 'blocked') && (
+          <button
+            type="button"
+            onClick={() => alert('Entre em contato com o suporte/admin para ativar ou regularizar a assinatura.')}
+            className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100"
+          >
+            Regularizar assinatura
+          </button>
+        )}
+      </div>
+    </section>
+  );
 
   if (!partnerAccessAllowed) {
     return (
@@ -531,36 +583,51 @@ export default function PartnerArea() {
         onMarkRead={markAllAsRead}
         partnerBrandPrimary={myShop.primaryColor}
       >
-        <div className="flex min-h-[60vh] items-center justify-center p-6">
-          <div className="w-full max-w-xl rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900 shadow-xl">
-            <h2 className="text-2xl font-bold">Assinatura pendente</h2>
-            <p className="mt-2 text-sm">
-              Este estabelecimento precisa regularizar a assinatura para voltar a operar no app parceiro.
-            </p>
-            <div className="mt-4 rounded-2xl border border-amber-300 bg-white p-4 text-sm">
-              <p>
-                <strong>Status:</strong> {billingStatus}
+        <div className="space-y-5 p-4 md:p-6">
+          {BillingCard}
+          <div className="flex min-h-[42vh] items-center justify-center">
+            <div className="w-full max-w-xl rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900 shadow-xl">
+              <h2 className="text-2xl font-bold">Assinatura pendente</h2>
+              <p className="mt-2 text-sm">
+                Este estabelecimento precisa regularizar a assinatura para voltar a operar no app parceiro.
               </p>
-              {remainingTrialDays > 0 ? (
-                <p className="mt-1">
-                  <strong>Trial restante:</strong> {remainingTrialDays} dia(s)
+              <div className="mt-4 rounded-2xl border border-amber-300 bg-white p-4 text-sm">
+                <p>
+                  <strong>Status:</strong> {billingStatusLabel(billingStatus)}
                 </p>
-              ) : (
                 <p className="mt-1">
-                  <strong>Trial:</strong> encerrado
+                  <strong>Mensalidade:</strong> R$ {monthlyAmount.toFixed(2)}/mês
                 </p>
-              )}
+                {remainingTrialDays > 0 ? (
+                  <p className="mt-1">
+                    <strong>Trial restante:</strong> {remainingTrialDays} dia(s)
+                  </p>
+                ) : (
+                  <p className="mt-1">
+                    <strong>Trial:</strong> encerrado
+                  </p>
+                )}
+              </div>
+              <p className="mt-4 text-sm">
+                Entre em contato com o suporte para reativar o pagamento mensal e liberar o acesso completo.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('shop-wallet')}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+                >
+                  Ver financeiro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Sair
+                </button>
+              </div>
             </div>
-            <p className="mt-4 text-sm">
-              Entre em contato com o suporte para reativar o pagamento mensal e liberar o acesso completo.
-            </p>
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              className="mt-5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
-            >
-              Sair
-            </button>
           </div>
         </div>
       </Layout>
@@ -577,6 +644,7 @@ export default function PartnerArea() {
       onMarkRead={markAllAsRead}
       partnerBrandPrimary={myShop.primaryColor}
     >
+      {BillingCard}
       {currentView === 'shop-dashboard' && (
         <ShopDashboard
           shop={myShop}

@@ -111,7 +111,7 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
         setSubscriptionActionError('Sessão expirada. Faça login novamente.');
         return;
       }
-      const res = await fetch(`${window.location.origin}/api/partner/subscription`, {
+      const res = await fetch(`${window.location.origin}/api/partner/wallet?intent=subscription`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       });

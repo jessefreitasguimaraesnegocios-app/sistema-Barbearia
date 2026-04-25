@@ -210,6 +210,9 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
   const nextPaidTodayApt = todayAgendaApts.find((a) => a.status === 'PAID');
   const nextClientCardApt = attendingApt ?? nextPaidTodayApt;
   const isNextClientAttending = Boolean(nextClientCardApt && nextClientCardApt.id === attendingAppointmentId);
+  const isNextClientLate = Boolean(
+    nextClientCardApt && isLatePaidAppointment(nextClientCardApt, realTodayKey, nowTick)
+  );
 
   /** Destaque “Próximo” na timeline só quando a grade é do mesmo dia civil (evita play em prévia de amanhã). */
   const nextTimelineApt =
@@ -368,16 +371,31 @@ const ShopDashboard: React.FC<ShopDashboardProps> = ({
         <div className="space-y-6">
           {/* Next Client Card */}
           {nextClientCardApt && (
-            <div className="bg-white p-6 rounded-4xl border-2 border-indigo-600 shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-indigo-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest">
-                {isNextClientAttending ? 'Atendendo' : 'Próximo Cliente'}
+            <div
+              className={`bg-white p-6 rounded-4xl border-2 shadow-lg relative overflow-hidden ${
+                isNextClientLate
+                  ? 'border-amber-500 ring-2 ring-amber-300/60'
+                  : 'border-indigo-600'
+              }`}
+            >
+              <div
+                className={`absolute top-0 right-0 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest ${
+                  isNextClientLate ? 'bg-amber-500' : 'bg-indigo-600'
+                }`}
+              >
+                {isNextClientAttending ? 'Atendendo' : isNextClientLate ? 'Atrasado' : 'Próximo Cliente'}
               </div>
               <div className="flex items-center gap-4 mb-6 pt-2">
                 <ClientAppointmentAvatar apt={nextClientCardApt} />
                 <div>
                   <h4 className="font-black text-gray-900 text-xl">{clientLabel(nextClientCardApt)}</h4>
-                  <p className="text-indigo-600 font-bold flex items-center gap-2">
-                    <i className="fas fa-clock"></i> {nextClientCardApt.time} (em 15 min)
+                  <p
+                    className={`font-bold flex items-center gap-2 ${
+                      isNextClientLate ? 'text-amber-600' : 'text-indigo-600'
+                    }`}
+                  >
+                    <i className={`fas ${isNextClientLate ? 'fa-triangle-exclamation' : 'fa-clock'}`}></i>{' '}
+                    {nextClientCardApt.time} {isNextClientLate ? '(atrasado)' : '(em 15 min)'}
                   </p>
                 </div>
               </div>

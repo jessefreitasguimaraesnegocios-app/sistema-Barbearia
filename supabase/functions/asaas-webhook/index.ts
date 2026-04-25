@@ -16,7 +16,6 @@ const SUBSCRIPTION_OFF_EVENTS = ["SUBSCRIPTION_INACTIVATED", "SUBSCRIPTION_DELET
 const IGNORE_EVENTS = new Set<string>([
   "PAYMENT_CREATED",
   "PAYMENT_UPDATED",
-  "PAYMENT_OVERDUE",
   "PAYMENT_REFUNDED",
 ]);
 /** Variantes / eventos de cobrança apagada (Asaas pode enviar só PAYMENT_DELETED). */
@@ -317,7 +316,11 @@ async function handleWebhook(req: Request): Promise<Response> {
       if (rec && rec.length > 0) {
         const { data: shops, error: upErr } = await supabase
           .from("shops")
-          .update({ subscription_active: false })
+          .update({
+            subscription_active: false,
+            billing_status: "blocked",
+            billing_blocked_at: new Date().toISOString(),
+          })
           .eq("asaas_platform_subscription_id", subId)
           .select("id");
         if (upErr) console.error("[asaas-webhook] shop deactivate:", upErr.message);
@@ -328,6 +331,22 @@ async function handleWebhook(req: Request): Promise<Response> {
   }
 
   const paymentId = payload?.payment?.id;
+  if (eventKey === "PAYMENT_OVERDUE") {
+    const subId = extractSubscriptionId(payload?.payment?.subscription);
+    if (subId) {
+      const { data: subShops, error: subErr } = await supabase
+        .from("shops")
+        .update({ billing_status: "past_due" })
+        .eq("asaas_platform_subscription_id", subId)
+        .select("id");
+      if (subErr) console.error("[asaas-webhook] PAYMENT_OVERDUE sync:", subErr.message);
+      else if (subShops?.length) {
+        console.log("[asaas-webhook] billing_status=past_due:", subId, subShops.map((s: { id: string }) => s.id));
+      }
+    }
+    return jsonResponse({ received: true });
+  }
+
   if (!PAYMENT_CONFIRMED_EVENTS.includes(eventKey) || !paymentId) {
     return jsonResponse({ received: true });
   }
@@ -424,7 +443,11 @@ async function handleWebhook(req: Request): Promise<Response> {
     if (subId) {
       const { data: subShops, error: subErr } = await supabase
         .from("shops")
-        .update({ subscription_active: true })
+        .update({
+          subscription_active: true,
+          billing_status: "active",
+          billing_blocked_at: null,
+        })
         .eq("asaas_platform_subscription_id", subId)
         .select("id");
       if (subErr) console.error("[asaas-webhook] platform subscription sync:", subErr.message);

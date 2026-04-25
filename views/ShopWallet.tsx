@@ -19,6 +19,16 @@ interface WalletData {
   error?: string;
 }
 
+interface SubscriptionInvoice {
+  id: string;
+  status: string;
+  dueDate: string | null;
+  value: number;
+  netValue: number | null;
+  billingType: string | null;
+  checkoutUrl: string | null;
+}
+
 const PIX_KEY_TYPES = [
   { value: 'CPF', label: 'CPF' },
   { value: 'CNPJ', label: 'CNPJ' },
@@ -48,6 +58,31 @@ function formatTransactionType(type: string): string {
   return known[type] || type.replace(/_/g, ' ').toLowerCase();
 }
 
+function formatInvoiceStatus(statusRaw: string): string {
+  const status = statusRaw.toUpperCase();
+  const map: Record<string, string> = {
+    PENDING: 'Pendente',
+    RECEIVED: 'Recebida',
+    CONFIRMED: 'Confirmada',
+    OVERDUE: 'Atrasada',
+    REFUNDED: 'Estornada',
+    RECEIVED_IN_CASH: 'Recebida em dinheiro',
+    REFUND_REQUESTED: 'Estorno solicitado',
+    CHARGEBACK_REQUESTED: 'Chargeback solicitado',
+    CHARGEBACK_DISPUTE: 'Chargeback em disputa',
+    AWAITING_CHARGEBACK_REVERSAL: 'Aguardando reversão',
+    DUNNING_REQUESTED: 'Cobrança em negociação',
+    DUNNING_RECEIVED: 'Negociação recebida',
+    DUNNING_CREDITED: 'Negociação creditada',
+  };
+  return map[status] || status.replace(/_/g, ' ').toLowerCase();
+}
+
+function isInvoicePayable(statusRaw: string): boolean {
+  const status = statusRaw.toUpperCase();
+  return status === 'PENDING' || status === 'OVERDUE';
+}
+
 interface ShopWalletProps {
   shop: Shop;
   billingStatus: BillingStatus;
@@ -73,6 +108,12 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
   const [bankCode, setBankCode] = useState('001');
   const [subscriptionActionLoading, setSubscriptionActionLoading] = useState(false);
   const [subscriptionActionError, setSubscriptionActionError] = useState<string | null>(null);
+  const [subscriptionDueDate, setSubscriptionDueDate] = useState<string | null>(null);
+  const [subscriptionPaymentStatus, setSubscriptionPaymentStatus] = useState<string | null>(null);
+  const [subscriptionActionType, setSubscriptionActionType] = useState<'pay_now' | 'manage' | null>(null);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoicesError, setInvoicesError] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<SubscriptionInvoice[]>([]);
   const statusPillClass =
     billingStatus === 'active'
       ? 'bg-emerald-100 text-emerald-700'
@@ -118,12 +159,20 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
       const payload = (await res.json()) as {
         success?: boolean;
         error?: string;
-        asaas?: { checkoutUrl?: string | null };
+        asaas?: {
+          checkoutUrl?: string | null;
+          paymentDueDate?: string | null;
+          paymentStatus?: string | null;
+          action?: 'pay_now' | 'manage';
+        };
       };
       if (!res.ok || payload.success !== true) {
         setSubscriptionActionError(payload.error || 'Não foi possível abrir o checkout da assinatura.');
         return;
       }
+      setSubscriptionDueDate(payload?.asaas?.paymentDueDate?.trim() || null);
+      setSubscriptionPaymentStatus(payload?.asaas?.paymentStatus?.trim() || null);
+      setSubscriptionActionType(payload?.asaas?.action ?? null);
       const checkoutUrl = payload?.asaas?.checkoutUrl?.trim();
       if (!checkoutUrl) {
         setSubscriptionActionError(
@@ -139,6 +188,37 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
     }
   };
 
+  const fetchSubscriptionInvoices = useCallback(async () => {
+    setInvoicesLoading(true);
+    setInvoicesError(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        setInvoicesError('Sessão expirada. Faça login novamente.');
+        return;
+      }
+      const res = await fetch(`${window.location.origin}/api/partner/wallet?intent=invoices`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        invoices?: SubscriptionInvoice[];
+      };
+      if (!res.ok || payload.success !== true) {
+        setInvoicesError(payload.error || 'Não foi possível carregar as faturas.');
+        return;
+      }
+      setInvoices(Array.isArray(payload.invoices) ? payload.invoices : []);
+    } catch (e) {
+      setInvoicesError(e instanceof Error ? e.message : 'Erro ao carregar faturas.');
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }, []);
+
   const BillingSection = (
     <section className="rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm md:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -146,6 +226,16 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
           <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Assinatura da plataforma</p>
           <h3 className="mt-1 text-lg font-bold text-gray-900">R$ {monthlyAmount.toFixed(2)}/mês</h3>
           <p className="mt-1 text-sm text-gray-600">{billingHint}</p>
+          {subscriptionDueDate && (
+            <p className="mt-1 text-xs font-medium text-gray-500">
+              Próxima cobrança: {new Date(`${subscriptionDueDate}T12:00:00`).toLocaleDateString('pt-BR')}
+            </p>
+          )}
+          {subscriptionPaymentStatus && (
+            <p className="mt-1 text-xs font-medium text-gray-500">
+              Status da fatura: {subscriptionPaymentStatus.replace(/_/g, ' ').toLowerCase()}
+            </p>
+          )}
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusPillClass}`}>
           {billingStatusLabel(billingStatus)}
@@ -159,7 +249,11 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
             disabled={subscriptionActionLoading}
             className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {subscriptionActionLoading ? 'Abrindo checkout...' : subscribeButtonLabel}
+            {subscriptionActionLoading
+              ? 'Abrindo checkout...'
+              : subscriptionActionType === 'pay_now'
+                ? 'Pagar fatura pendente'
+                : subscribeButtonLabel}
           </button>
         ) : (
           <button
@@ -215,6 +309,10 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
   useEffect(() => {
     fetchWallet();
   }, [fetchWallet]);
+
+  useEffect(() => {
+    void fetchSubscriptionInvoices();
+  }, [fetchSubscriptionInvoices]);
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,6 +426,61 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ billingStatus, monthlyAmount, r
           Consulte seu saldo, solicite um saque para sua chave PIX ou conta bancária e acompanhe o histórico.
         </p>
       </header>
+
+      <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-bold text-gray-900">Faturas da assinatura</h3>
+          <button
+            type="button"
+            onClick={() => void fetchSubscriptionInvoices()}
+            disabled={invoicesLoading}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {invoicesLoading ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
+        {invoicesError ? (
+          <p className="mt-3 text-sm font-medium text-red-600">{invoicesError}</p>
+        ) : invoicesLoading && invoices.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">Carregando faturas...</p>
+        ) : invoices.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">Nenhuma fatura encontrada no momento.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {invoices.map((invoice) => (
+              <article key={invoice.id} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{formatCurrency(invoice.value)}</p>
+                    <p className="text-xs text-gray-500">
+                      Vencimento:{' '}
+                      {invoice.dueDate
+                        ? new Date(`${invoice.dueDate}T12:00:00`).toLocaleDateString('pt-BR')
+                        : '—'}
+                    </p>
+                    <p className="text-xs text-gray-500">Status: {formatInvoiceStatus(invoice.status)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isInvoicePayable(invoice.status) && invoice.checkoutUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => window.open(invoice.checkoutUrl ?? '', '_blank', 'noopener,noreferrer')}
+                        className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-700"
+                      >
+                        Pagar fatura
+                      </button>
+                    ) : (
+                      <span className="rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-500">
+                        Sem ação
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Saldo */}
       <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">

@@ -231,8 +231,22 @@ async function createPlatformMonthlySubscription(params: {
 type AsaasPaymentRow = {
   id?: string;
   status?: string;
+  dueDate?: string;
+  value?: number;
+  netValue?: number;
+  billingType?: string;
   invoiceUrl?: string;
   bankSlipUrl?: string;
+};
+
+type PartnerInvoiceRow = {
+  id: string;
+  status: string;
+  dueDate: string | null;
+  value: number;
+  netValue: number | null;
+  billingType: string | null;
+  checkoutUrl: string | null;
 };
 
 function pickCheckoutUrl(payment: AsaasPaymentRow | null): string | null {
@@ -436,6 +450,7 @@ export default async function handler(
       );
       let checkoutUrl: string | null = null;
       let pendingPayment: AsaasPaymentRow | null = null;
+      let latestPayment: AsaasPaymentRow | null = null;
       if (pendingPaymentsRes.ok) {
         const pendingPayload = (await pendingPaymentsRes.json()) as { data?: AsaasPaymentRow[] };
         pendingPayment = pendingPayload?.data?.[0] ?? null;
@@ -448,10 +463,11 @@ export default async function handler(
         );
         if (allPaymentsRes.ok) {
           const allPayload = (await allPaymentsRes.json()) as { data?: AsaasPaymentRow[] };
-          const latest = allPayload?.data?.[0] ?? null;
-          checkoutUrl = pickCheckoutUrl(latest);
+          latestPayment = allPayload?.data?.[0] ?? null;
+          checkoutUrl = pickCheckoutUrl(latestPayment);
         }
       }
+      const effectivePayment = pendingPayment ?? latestPayment;
 
       return res.status(200).json({
         success: true,
@@ -465,6 +481,10 @@ export default async function handler(
           customerId,
           subscriptionId,
           pendingPaymentId: pendingPayment?.id ?? null,
+          paymentStatus: effectivePayment?.status ?? null,
+          paymentDueDate: effectivePayment?.dueDate ?? null,
+          paymentValue: effectivePayment?.value ?? null,
+          action: pendingPayment != null ? 'pay_now' : 'manage',
           checkoutUrl,
         },
       });
@@ -473,6 +493,68 @@ export default async function handler(
       return res.status(500).json({
         success: false,
         error: e instanceof Error ? e.message : 'Falha ao preparar assinatura.',
+      });
+    }
+  }
+
+  if (req.method === 'GET' && req.query?.intent === 'invoices') {
+    if (partner.mode !== 'shop') {
+      return res.status(403).json({ success: false, error: 'Apenas dono da loja pode ver faturas da assinatura.' });
+    }
+    try {
+      const [{ data: platformRuntime }, { data: shopRow, error: shopError }] = await Promise.all([
+        supabase.from('platform_runtime_settings').select('asaas_mode').eq('singleton_id', true).maybeSingle(),
+        supabase
+          .from('shops')
+          .select('id, asaas_platform_subscription_id')
+          .eq('id', shopId)
+          .single(),
+      ]);
+      if (shopError || !shopRow) {
+        return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
+      }
+      const subscriptionId =
+        shopRow.asaas_platform_subscription_id != null && String(shopRow.asaas_platform_subscription_id).trim() !== ''
+          ? String(shopRow.asaas_platform_subscription_id).trim()
+          : null;
+      if (!subscriptionId) {
+        return res.status(200).json({ success: true, invoices: [] });
+      }
+
+      const runtimeMode = asaasRuntimeModeFromPlatformRow(platformRuntime);
+      const config = platformAsaasConfigForMode(runtimeMode);
+      if (!config.apiKey) {
+        return res.status(500).json({ success: false, error: 'Chave de cobrança indisponível no servidor.' });
+      }
+
+      const invoicesRes = await fetch(
+        `${config.apiUrl}/payments?subscription=${encodeURIComponent(subscriptionId)}&limit=20&offset=0`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json', access_token: config.apiKey } }
+      );
+      if (!invoicesRes.ok) {
+        const raw = await invoicesRes.text();
+        return res.status(invoicesRes.status).json({
+          success: false,
+          error: asaasErrorMessageFromText(raw, 'Não foi possível carregar as faturas da assinatura.'),
+        });
+      }
+      const invoicesPayload = (await invoicesRes.json()) as { data?: AsaasPaymentRow[] };
+      const invoices: PartnerInvoiceRow[] = (invoicesPayload?.data ?? []).map((row) => ({
+        id: String(row.id ?? ''),
+        status: String(row.status ?? '').toUpperCase(),
+        dueDate: row.dueDate != null ? String(row.dueDate) : null,
+        value: Number(row.value ?? 0),
+        netValue: row.netValue != null ? Number(row.netValue) : null,
+        billingType: row.billingType != null ? String(row.billingType) : null,
+        checkoutUrl: pickCheckoutUrl(row),
+      }));
+
+      return res.status(200).json({ success: true, invoices });
+    } catch (e) {
+      console.error('[api/partner/wallet][invoices]', e);
+      return res.status(500).json({
+        success: false,
+        error: e instanceof Error ? e.message : 'Falha ao carregar faturas.',
       });
     }
   }

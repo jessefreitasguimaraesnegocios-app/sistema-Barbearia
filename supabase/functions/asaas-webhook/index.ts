@@ -1,6 +1,5 @@
 // Supabase Edge Function: asaas-webhook
-// 1) Pagamentos (PIX cliente): PAYMENT_RECEIVED / PAYMENT_CONFIRMED → appointments/orders PAID (estoque da loja: trigger em orders ao PAID)
-// 2) Mensalidade plataforma: pagamento ligado a subscription OU eventos SUBSCRIPTION_* → subscription_active na shops
+// Pagamentos (PIX cliente): PAYMENT_RECEIVED / PAYMENT_CONFIRMED → appointments/orders PAID (estoque da loja: trigger em orders ao PAID)
 // Requer verify_jwt = false e header asaas-access-token = ASAAS_WEBHOOK_TOKEN
 //
 // Importante: qualquer erro não tratado vira 500 genérico no Asaas. O handler principal devolve 200 sempre
@@ -11,7 +10,6 @@ import { readAsaasApiKey, readAsaasBaseUrl } from "../_shared/asaasEnv.ts";
 type RuntimeMode = "production" | "sandbox";
 
 const PAYMENT_CONFIRMED_EVENTS = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
-const SUBSCRIPTION_OFF_EVENTS = ["SUBSCRIPTION_INACTIVATED", "SUBSCRIPTION_DELETED"];
 /** Sem lógica de negócio: só 200 para o Asaas não travar a fila. */
 const IGNORE_EVENTS = new Set<string>([
   "PAYMENT_CREATED",
@@ -141,8 +139,7 @@ function normalizeEventName(raw: unknown): string {
 
 type AsaasPayload = {
   event?: string;
-  payment?: { id?: string; deleted?: boolean; subscription?: string | { id?: string } };
-  subscription?: { id?: string; status?: string };
+  payment?: { id?: string; deleted?: boolean };
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -195,16 +192,6 @@ function readIncomingWebhookToken(req: Request): string {
     if (rawAuth && !rawAuth.startsWith("eyJ")) return rawAuth;
   }
   return "";
-}
-
-function extractSubscriptionId(raw: unknown): string | null {
-  if (raw == null) return null;
-  if (typeof raw === "string" && raw.trim()) return raw.trim();
-  if (typeof raw === "object" && raw !== null && "id" in raw) {
-    const id = (raw as { id?: unknown }).id;
-    if (typeof id === "string" && id.trim()) return id.trim();
-  }
-  return null;
 }
 
 function extractPaymentId(payload: AsaasPayload): string {
@@ -301,51 +288,7 @@ async function handleWebhook(req: Request): Promise<Response> {
     return jsonResponse({ received: true, ignored: true, event: eventKey });
   }
 
-  /** Assinatura cancelada / inativa no Asaas → desliga acesso na plataforma */
-  if (SUBSCRIPTION_OFF_EVENTS.includes(eventKey)) {
-    const subId = extractSubscriptionId(payload?.subscription);
-    if (subId) {
-      const { data: rec, error: recErr } = await supabase
-        .from("asaas_subscription_webhook_receipts")
-        .upsert({ event: eventKey, subscription_id: subId }, { onConflict: "event,subscription_id", ignoreDuplicates: true })
-        .select("event, subscription_id");
-      if (recErr) {
-        console.error("[asaas-webhook] subscription receipt error:", recErr.message);
-        return jsonResponse({ received: true, note: "subscription_receipt_failed", detail: recErr.message });
-      }
-      if (rec && rec.length > 0) {
-        const { data: shops, error: upErr } = await supabase
-          .from("shops")
-          .update({
-            subscription_active: false,
-            billing_status: "blocked",
-            billing_blocked_at: new Date().toISOString(),
-          })
-          .eq("asaas_platform_subscription_id", subId)
-          .select("id");
-        if (upErr) console.error("[asaas-webhook] shop deactivate:", upErr.message);
-        else if (shops?.length) console.log("[asaas-webhook] subscription_active=false for shop(s):", shops.map((s: { id: string }) => s.id));
-      }
-    }
-    return jsonResponse({ received: true });
-  }
-
   const paymentId = payload?.payment?.id;
-  if (eventKey === "PAYMENT_OVERDUE") {
-    const subId = extractSubscriptionId(payload?.payment?.subscription);
-    if (subId) {
-      const { data: subShops, error: subErr } = await supabase
-        .from("shops")
-        .update({ billing_status: "past_due" })
-        .eq("asaas_platform_subscription_id", subId)
-        .select("id");
-      if (subErr) console.error("[asaas-webhook] PAYMENT_OVERDUE sync:", subErr.message);
-      else if (subShops?.length) {
-        console.log("[asaas-webhook] billing_status=past_due:", subId, subShops.map((s: { id: string }) => s.id));
-      }
-    }
-    return jsonResponse({ received: true });
-  }
 
   if (!PAYMENT_CONFIRMED_EVENTS.includes(eventKey) || !paymentId) {
     return jsonResponse({ received: true });
@@ -384,7 +327,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       console.log("[asaas-webhook] Order(s) marked PAID:", ordRes.data?.map((r: { id: string }) => r.id));
     }
 
-    let paymentDetail: { externalReference?: string | null; subscription?: string | { id?: string }; deleted?: boolean } | null = null;
+    let paymentDetail: { externalReference?: string | null; deleted?: boolean } | null = null;
     if (runtime.apiKey) {
       try {
         const paymentRes = await fetch(`${runtime.apiUrl}/payments/${paymentId}`, {
@@ -398,7 +341,6 @@ async function handleWebhook(req: Request): Promise<Response> {
         if (paymentRes.ok) {
           paymentDetail = (await paymentRes.json()) as {
             externalReference?: string | null;
-            subscription?: string | { id?: string };
             deleted?: boolean;
           };
         }
@@ -434,25 +376,6 @@ async function handleWebhook(req: Request): Promise<Response> {
             }
           }
         }
-      }
-    }
-
-    const subId =
-      extractSubscriptionId(payload?.payment?.subscription) ??
-      extractSubscriptionId(paymentDetail?.subscription);
-    if (subId) {
-      const { data: subShops, error: subErr } = await supabase
-        .from("shops")
-        .update({
-          subscription_active: true,
-          billing_status: "active",
-          billing_blocked_at: null,
-        })
-        .eq("asaas_platform_subscription_id", subId)
-        .select("id");
-      if (subErr) console.error("[asaas-webhook] platform subscription sync:", subErr.message);
-      else if (subShops?.length) {
-        console.log("[asaas-webhook] subscription_active=true for platform subscription:", subId, subShops.map((s: { id: string }) => s.id));
       }
     }
 

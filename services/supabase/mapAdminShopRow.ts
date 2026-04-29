@@ -37,6 +37,10 @@ export function mapAdminShopRow(raw: Record<string, unknown>): Shop {
       s.asaas_platform_subscription_id != null && String(s.asaas_platform_subscription_id).trim() !== ''
         ? String(s.asaas_platform_subscription_id).trim()
         : null,
+    mpPreapprovalPlanId:
+      s.mp_preapproval_plan_id != null && String(s.mp_preapproval_plan_id).trim() !== ''
+        ? String(s.mp_preapproval_plan_id).trim()
+        : null,
     splitPercent: s.split_percent != null ? Number(s.split_percent) : 95,
     splitPercentSandbox:
       s.split_percent_sandbox != null ? Number(s.split_percent_sandbox) : null,

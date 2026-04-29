@@ -123,6 +123,10 @@ export function mergePartnerShopScalarRow(prev: Shop, d: Record<string, unknown>
       d.billing_blocked_at != null
         ? String(d.billing_blocked_at)
         : prev.billingBlockedAt ?? null,
+    mpPreapprovalPlanId:
+      d.mp_preapproval_plan_id != null && String(d.mp_preapproval_plan_id).trim() !== ''
+        ? String(d.mp_preapproval_plan_id).trim()
+        : prev.mpPreapprovalPlanId ?? null,
     splitPercent: shopSplit,
     splitPercentSandbox: shopSplitSandbox,
     passFeesToCustomer: d.pass_fees_to_customer != null ? d.pass_fees_to_customer === true : prev.passFeesToCustomer,
@@ -191,6 +195,10 @@ export function mapPartnerShopFromBundle(d: Record<string, unknown> & { services
     trialStartedAt: d.trial_started_at != null ? String(d.trial_started_at) : null,
     trialEndsAt: d.trial_ends_at != null ? String(d.trial_ends_at) : null,
     billingBlockedAt: d.billing_blocked_at != null ? String(d.billing_blocked_at) : null,
+    mpPreapprovalPlanId:
+      d.mp_preapproval_plan_id != null && String(d.mp_preapproval_plan_id).trim() !== ''
+        ? String(d.mp_preapproval_plan_id).trim()
+        : null,
     splitPercent: shopSplit,
     splitPercentSandbox: shopSplitSandbox,
     passFeesToCustomer: d.pass_fees_to_customer === true,

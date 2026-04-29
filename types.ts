@@ -99,6 +99,8 @@ export interface Shop {
   billingBlockedAt?: string | null;
   /** ID da assinatura na conta Asaas mãe (mensalidade); webhook liga a `subscription_active` */
   asaasPlatformSubscriptionId?: string | null;
+  /** Plano Mercado Pago (preapproval_plan_id) para checkout da mensalidade da plataforma — definido pelo admin. */
+  mpPreapprovalPlanId?: string | null;
   /** % split Asaas com runtime em produção */
   splitPercent?: number;
   /** % split quando runtime Asaas está em sandbox; null no banco → em pagamentos usa splitPercent */

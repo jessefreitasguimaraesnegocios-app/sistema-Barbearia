@@ -8,6 +8,7 @@ import {
 } from '../services/supabase/shops';
 import { APP_NAME } from '../lib/branding';
 import { shopTypeAdminPillClass, shopTypeShortLabel } from '../lib/shopTypeDisplay';
+import { MP_PREAPPROVAL_PLAN_OPTIONS } from '../lib/platformMercadoPagoPlans';
 
 type RuntimeMode = 'production' | 'sandbox';
 
@@ -87,6 +88,7 @@ type ShopFinancialDraft = {
   splitPercent: number;
   splitPercentSandbox: number;
   asaasPlatformSubscriptionId: string;
+  mercadoPagoPreapprovalPlanId: string;
 };
 
 function shopToFinancialDraft(shop: Shop): ShopFinancialDraft {
@@ -95,6 +97,7 @@ function shopToFinancialDraft(shop: Shop): ShopFinancialDraft {
     splitPercent: shop.splitPercent ?? 95,
     splitPercentSandbox: shop.splitPercentSandbox ?? shop.splitPercent ?? 95,
     asaasPlatformSubscriptionId: shop.asaasPlatformSubscriptionId ?? '',
+    mercadoPagoPreapprovalPlanId: shop.mpPreapprovalPlanId ?? MP_PREAPPROVAL_PLAN_OPTIONS[0].id,
   };
 }
 
@@ -104,7 +107,8 @@ function financialDraftDirty(shop: Shop, draft: ShopFinancialDraft): boolean {
     draft.subscriptionAmount !== o.subscriptionAmount ||
     draft.splitPercent !== o.splitPercent ||
     draft.splitPercentSandbox !== o.splitPercentSandbox ||
-    draft.asaasPlatformSubscriptionId.trim() !== o.asaasPlatformSubscriptionId.trim()
+    draft.asaasPlatformSubscriptionId.trim() !== o.asaasPlatformSubscriptionId.trim() ||
+    draft.mercadoPagoPreapprovalPlanId !== o.mercadoPagoPreapprovalPlanId
   );
 }
 
@@ -143,10 +147,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     password: '',
     postalCode: '',
     address: '',
-    subscriptionAmount: 99,
+    subscriptionAmount: MP_PREAPPROVAL_PLAN_OPTIONS[0].amountHint,
     trialDays: 15 as 15 | 30,
     splitPercent: 95,
     splitPercentSandbox: 95,
+    mercadoPagoPreapprovalPlanId: MP_PREAPPROVAL_PLAN_OPTIONS[0].id,
   });
 
   const [financialDrafts, setFinancialDrafts] = useState<Record<string, ShopFinancialDraft>>({});
@@ -249,6 +254,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (dTrim !== oTrim) {
       body.asaasPlatformSubscriptionId = dTrim === '' ? null : dTrim.slice(0, 200);
     }
+    if (draft.mercadoPagoPreapprovalPlanId !== orig.mercadoPagoPreapprovalPlanId) {
+      body.mercadoPagoPreapprovalPlanId = draft.mercadoPagoPreapprovalPlanId;
+    }
 
     if (Object.keys(body).length === 0) return;
 
@@ -306,6 +314,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         trialDays: formData.trialDays,
         splitPercent: Number.isFinite(sp) ? sp : 95,
         splitPercentSandbox: Number.isFinite(sps) ? sps : 95,
+        mercadoPagoPreapprovalPlanId: formData.mercadoPagoPreapprovalPlanId,
       };
 
       let responseOk: boolean;
@@ -383,10 +392,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           password: '',
           postalCode: '',
           address: '',
-          subscriptionAmount: 99,
+          subscriptionAmount: MP_PREAPPROVAL_PLAN_OPTIONS[0].amountHint,
           trialDays: 15 as 15 | 30,
           splitPercent: 95,
           splitPercentSandbox: 95,
+          mercadoPagoPreapprovalPlanId: MP_PREAPPROVAL_PLAN_OPTIONS[0].id,
         });
         alert(
           'Estabelecimento cadastrado. O dono já pode entrar com o e-mail e a senha informados. Dados bancários e contas de recebimento cadastre no teu sistema externo.'
@@ -775,6 +785,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-8 py-4 w-52">Ambiente Asaas</th>
                 <th className="px-8 py-4">Status Assinatura</th>
                 <th className="px-8 py-4">Mensalidade</th>
+                <th className="px-8 py-4">Plano Mercado Pago</th>
                 <th className="px-8 py-4">Assin. plataforma (Asaas)</th>
                 <th className="px-8 py-4">% Split (produção)</th>
                 <th className="px-8 py-4">% Split (sandbox)</th>
@@ -857,6 +868,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         }}
                       />
                     </div>
+                  </td>
+                  <td className="px-8 py-6 align-top min-w-[200px]">
+                    <select
+                      value={fd.mercadoPagoPreapprovalPlanId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        const opt = MP_PREAPPROVAL_PLAN_OPTIONS.find((o) => o.id === id);
+                        patchFinancialDraft(shop, {
+                          mercadoPagoPreapprovalPlanId: id,
+                          ...(opt ? { subscriptionAmount: opt.amountHint } : {}),
+                        });
+                      }}
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-3 pr-8 text-xs font-semibold text-gray-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      title="Checkout da mensalidade da plataforma (link Mercado Pago)"
+                    >
+                      {MP_PREAPPROVAL_PLAN_OPTIONS.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-8 py-6 max-w-56">
                     <input
@@ -1033,6 +1065,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }}
                     className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-3.5 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Plano Mercado Pago (link de assinatura)
+                  </label>
+                  <select
+                    value={getFinancialDraft(selectedShop).mercadoPagoPreapprovalPlanId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const opt = MP_PREAPPROVAL_PLAN_OPTIONS.find((o) => o.id === id);
+                      patchFinancialDraft(selectedShop, {
+                        mercadoPagoPreapprovalPlanId: id,
+                        ...(opt ? { subscriptionAmount: opt.amountHint } : {}),
+                      });
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-3.5 text-sm font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    {MP_PREAPPROVAL_PLAN_OPTIONS.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Assinatura plataforma (Asaas)</label>
@@ -1327,6 +1382,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Plano Mercado Pago (mensalidade)</label>
+                  <select
+                    className="w-full p-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 text-sm font-semibold text-gray-800"
+                    value={formData.mercadoPagoPreapprovalPlanId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const opt = MP_PREAPPROVAL_PLAN_OPTIONS.find((o) => o.id === id);
+                      setFormData({
+                        ...formData,
+                        mercadoPagoPreapprovalPlanId: id,
+                        subscriptionAmount: opt ? opt.amountHint : formData.subscriptionAmount,
+                      });
+                    }}
+                  >
+                    {MP_PREAPPROVAL_PLAN_OPTIONS.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    O dono da loja usa o botão «Assinar» na aba Saque para abrir o checkout deste plano no Mercado Pago.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

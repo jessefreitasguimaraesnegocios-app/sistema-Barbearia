@@ -2,10 +2,10 @@
 // Atualiza subscription_active, subscription_amount, split_percent (prod) e split_percent_sandbox da loja (service role)
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isAllowedMpPreapprovalPlanId } from '../../../../lib/platformMercadoPagoPlans';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 type AsaasRuntimeOverride = 'production' | 'sandbox';
-type RuntimeMode = 'production' | 'sandbox';
 
 function parseShopAsaasRuntimeOverride(raw: unknown): AsaasRuntimeOverride | null {
   if (raw == null || raw === '') return null;
@@ -13,147 +13,6 @@ function parseShopAsaasRuntimeOverride(raw: unknown): AsaasRuntimeOverride | nul
   if (s === 'sandbox') return 'sandbox';
   if (s === 'production') return 'production';
   return null;
-}
-
-function asaasRuntimeModeFromPlatformRow(data: { asaas_mode?: unknown } | null | undefined): RuntimeMode {
-  return data?.asaas_mode === 'sandbox' ? 'sandbox' : 'production';
-}
-
-function platformAsaasConfigForMode(mode: RuntimeMode): { mode: RuntimeMode; apiKey: string; apiUrl: string } {
-  const defaultProd = 'https://api.asaas.com/v3';
-  const defaultSandbox = 'https://api-sandbox.asaas.com/v3';
-  if (mode === 'sandbox') {
-    return {
-      mode,
-      apiKey: (process.env.ASAAS_API_KEY_SANDBOX || process.env.ASAAS_API_KEY || '').trim(),
-      apiUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultSandbox).replace(/\/$/, ''),
-    };
-  }
-  return {
-    mode,
-    apiKey: (process.env.ASAAS_API_KEY || '').trim(),
-    apiUrl: (process.env.ASAAS_API_URL || defaultProd).replace(/\/$/, ''),
-  };
-}
-
-function normalizeAsaasMobilePhone(rawPhone: unknown): string {
-  const fallback = '11999999999';
-  if (rawPhone == null) return fallback;
-  let digits = String(rawPhone).replace(/\D/g, '');
-  if (!digits) return fallback;
-  if (digits.startsWith('55') && digits.length > 11) digits = digits.slice(2);
-  if (digits.length === 10) digits = `${digits.slice(0, 2)}9${digits.slice(2)}`;
-  if (!/^\d{2}9\d{8}$/.test(digits)) return fallback;
-  return digits;
-}
-
-function nextMonthlyDueDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
-function asaasErrorMessageFromText(raw: string, fallback: string): string {
-  try {
-    const j = JSON.parse(raw) as { errors?: Array<{ description?: string }>; error?: string };
-    return j?.errors?.[0]?.description || j?.error || raw || fallback;
-  } catch {
-    return raw || fallback;
-  }
-}
-
-async function ensurePlatformCustomerInAsaas(params: {
-  apiUrl: string;
-  apiKey: string;
-  shopName: string;
-  shopEmail: string;
-  shopPhone: string;
-  cnpjCpfDigits: string;
-  existingAsaasCustomerId: string | null;
-}): Promise<{ customerId: string; created: boolean }> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', access_token: params.apiKey };
-  const base = params.apiUrl;
-  if (params.existingAsaasCustomerId) {
-    return { customerId: params.existingAsaasCustomerId, created: false };
-  }
-
-  const cpfOrCnpj = params.cnpjCpfDigits.length === 11 || params.cnpjCpfDigits.length === 14
-    ? params.cnpjCpfDigits
-    : '';
-
-  if (cpfOrCnpj) {
-    const lookupByCpf = await fetch(`${base}/customers?cpfCnpj=${encodeURIComponent(cpfOrCnpj)}&limit=1&offset=0`, {
-      method: 'GET',
-      headers,
-    });
-    if (lookupByCpf.ok) {
-      const data = (await lookupByCpf.json()) as { data?: Array<{ id?: string }> };
-      const existing = data?.data?.[0]?.id?.trim();
-      if (existing) return { customerId: existing, created: false };
-    }
-  }
-
-  if (params.shopEmail) {
-    const lookupByEmail = await fetch(`${base}/customers?email=${encodeURIComponent(params.shopEmail)}&limit=1&offset=0`, {
-      method: 'GET',
-      headers,
-    });
-    if (lookupByEmail.ok) {
-      const data = (await lookupByEmail.json()) as { data?: Array<{ id?: string }> };
-      const existing = data?.data?.[0]?.id?.trim();
-      if (existing) return { customerId: existing, created: false };
-    }
-  }
-
-  const createRes = await fetch(`${base}/customers`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      name: params.shopName,
-      email: params.shopEmail || undefined,
-      mobilePhone: normalizeAsaasMobilePhone(params.shopPhone),
-      cpfCnpj: cpfOrCnpj || undefined,
-    }),
-  });
-  const createTxt = await createRes.text();
-  if (!createRes.ok) {
-    throw new Error(asaasErrorMessageFromText(createTxt, 'Não foi possível criar cliente da mensalidade no Asaas.'));
-  }
-  const created = JSON.parse(createTxt) as { id?: string };
-  const customerId = created?.id?.trim();
-  if (!customerId) throw new Error('Asaas não retornou customer id ao criar cliente da mensalidade.');
-  return { customerId, created: true };
-}
-
-async function createPlatformMonthlySubscription(params: {
-  apiUrl: string;
-  apiKey: string;
-  customerId: string;
-  amount: number;
-  shopName: string;
-  shopId: string;
-}): Promise<string> {
-  const res = await fetch(`${params.apiUrl}/subscriptions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', access_token: params.apiKey },
-    body: JSON.stringify({
-      customer: params.customerId,
-      billingType: 'UNDEFINED',
-      cycle: 'MONTHLY',
-      value: params.amount,
-      nextDueDate: nextMonthlyDueDate(),
-      description: `Mensalidade plataforma - ${params.shopName}`.slice(0, 120),
-      externalReference: `shop:${params.shopId}:platform-subscription`,
-    }),
-  });
-  const txt = await res.text();
-  if (!res.ok) {
-    throw new Error(asaasErrorMessageFromText(txt, 'Não foi possível criar assinatura mensal no Asaas.'));
-  }
-  const data = JSON.parse(txt) as { id?: string };
-  const id = data?.id?.trim();
-  if (!id) throw new Error('Asaas não retornou id da assinatura mensal criada.');
-  return id;
 }
 
 /** Cópia local do helper em `mapPartnerShop` — evita import de `services/` na função Vercel (`includeFiles` só cobre `lib/**`). */
@@ -204,7 +63,7 @@ async function insertFinancialAudit(
 
 /** Mesmas colunas que `SHOPS_SELECT_ADMIN` (sem `asaas_api_key` — evita payload/serialização e vazamento). */
 const SHOP_ROW_SELECT_AFTER_PATCH =
-  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, billing_status, trial_days, trial_started_at, trial_ends_at, billing_blocked_at, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, asaas_runtime_mode, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
+  'id, owner_id, name, type, description, address, profile_image, banner_image, primary_color, theme, subscription_active, subscription_amount, billing_status, trial_days, trial_started_at, trial_ends_at, billing_blocked_at, rating, asaas_account_id, asaas_wallet_id, asaas_customer_id, asaas_platform_subscription_id, mp_preapproval_plan_id, cnpj_cpf, email, phone, pix_key, created_at, split_percent, split_percent_sandbox, asaas_runtime_mode, pass_fees_to_customer, workday_start, workday_end, lunch_start, lunch_end, agenda_slot_minutes, asaas_api_key_configured, shop_finance_provision(finance_provision_status, finance_provision_last_error)';
 
 function normalizeJsonBody(raw: unknown): Record<string, unknown> {
   if (raw == null) return {};
@@ -311,6 +170,10 @@ function mapShopResponse(shop: Record<string, unknown>) {
       shop.asaas_platform_subscription_id != null && String(shop.asaas_platform_subscription_id).trim() !== ''
         ? String(shop.asaas_platform_subscription_id).trim()
         : null,
+    mpPreapprovalPlanId:
+      shop.mp_preapproval_plan_id != null && String(shop.mp_preapproval_plan_id).trim() !== ''
+        ? String(shop.mp_preapproval_plan_id).trim()
+        : null,
     rating: shop.rating != null ? Number(shop.rating) : 5,
     splitPercent: shop.split_percent != null ? Number(shop.split_percent) : 95,
     splitPercentSandbox:
@@ -390,30 +253,19 @@ export default async function handler(
       asaasApiKeyProd?: string | null;
       asaasApiKeySandbox?: string | null;
       asaasPlatformSubscriptionId?: string | null;
+      mercadoPagoPreapprovalPlanId?: string | null;
       /** null | default | '' = voltar ao modo global da plataforma */
       asaasRuntimeMode?: 'production' | 'sandbox' | 'default' | null | '';
     };
 
-    const { data: currentShopRow, error: currentShopError } = await auth.supabase
+    const { data: existingShop, error: existingShopError } = await auth.supabase
       .from('shops')
-      .select('id, name, email, phone, cnpj_cpf, asaas_customer_id, asaas_platform_subscription_id, subscription_active, subscription_amount')
+      .select('id')
       .eq('id', shopId)
-      .single();
-    if (currentShopError || !currentShopRow) {
+      .maybeSingle();
+    if (existingShopError || !existingShop) {
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });
     }
-
-    const currentShop = currentShopRow as {
-      id: string;
-      name?: string | null;
-      email?: string | null;
-      phone?: string | null;
-      cnpj_cpf?: string | null;
-      asaas_customer_id?: string | null;
-      asaas_platform_subscription_id?: string | null;
-      subscription_active?: boolean | null;
-      subscription_amount?: number | null;
-    };
 
     const updates: Record<string, unknown> = {};
     if (typeof body.subscriptionActive === 'boolean') {
@@ -466,6 +318,20 @@ export default async function handler(
         v === '' || v === null ? null : String(v).trim().slice(0, 200);
     }
 
+    if (body.mercadoPagoPreapprovalPlanId !== undefined) {
+      const v = body.mercadoPagoPreapprovalPlanId;
+      if (v === '' || v === null) {
+        updates.mp_preapproval_plan_id = null;
+      } else if (isAllowedMpPreapprovalPlanId(v)) {
+        updates.mp_preapproval_plan_id = String(v).trim();
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'mercadoPagoPreapprovalPlanId inválido. Use um dos IDs de plano cadastrados.',
+        });
+      }
+    }
+
     if (body.asaasRuntimeMode !== undefined) {
       const v = body.asaasRuntimeMode;
       if (v === null || v === '' || v === 'default') {
@@ -475,74 +341,11 @@ export default async function handler(
       }
     }
 
-    const parsedAmountFromBody = body.subscriptionAmount !== undefined ? readNonNegativeNumber(body.subscriptionAmount) : null;
-    const nextSubscriptionAmount =
-      parsedAmountFromBody != null
-        ? parsedAmountFromBody
-        : currentShop.subscription_amount != null
-          ? Number(currentShop.subscription_amount)
-          : 99;
-    const nextSubscriptionActive =
-      typeof body.subscriptionActive === 'boolean'
-        ? body.subscriptionActive
-        : currentShop.subscription_active === true;
-    const manualSubIdTouched = body.asaasPlatformSubscriptionId !== undefined;
-    const currentSubId =
-      currentShop.asaas_platform_subscription_id != null && String(currentShop.asaas_platform_subscription_id).trim() !== ''
-        ? String(currentShop.asaas_platform_subscription_id).trim()
-        : null;
-    const subscriptionFieldsTouched =
-      body.subscriptionAmount !== undefined ||
-      body.subscriptionActive !== undefined ||
-      body.asaasPlatformSubscriptionId !== undefined;
-
-    if (subscriptionFieldsTouched && !manualSubIdTouched && nextSubscriptionActive && !currentSubId) {
-      const { data: platformRuntime } = await auth.supabase
-        .from('platform_runtime_settings')
-        .select('asaas_mode')
-        .eq('singleton_id', true)
-        .maybeSingle();
-      const runtimeMode = asaasRuntimeModeFromPlatformRow(platformRuntime as { asaas_mode?: unknown } | null | undefined);
-      const config = platformAsaasConfigForMode(runtimeMode);
-      if (!config.apiKey) {
-        return res.status(500).json({
-          success: false,
-          error: `ASAAS_API_KEY não configurada para criar assinatura mensal no ambiente ${runtimeMode}.`,
-        });
-      }
-
-      const customer = await ensurePlatformCustomerInAsaas({
-        apiUrl: config.apiUrl,
-        apiKey: config.apiKey,
-        shopName: String(currentShop.name || 'Estabelecimento').trim(),
-        shopEmail: String(currentShop.email || '').trim(),
-        shopPhone: String(currentShop.phone || '').trim(),
-        cnpjCpfDigits: String(currentShop.cnpj_cpf || '').replace(/\D/g, ''),
-        existingAsaasCustomerId:
-          currentShop.asaas_customer_id != null && String(currentShop.asaas_customer_id).trim() !== ''
-            ? String(currentShop.asaas_customer_id).trim()
-            : null,
-      });
-
-      const createdSubId = await createPlatformMonthlySubscription({
-        apiUrl: config.apiUrl,
-        apiKey: config.apiKey,
-        customerId: customer.customerId,
-        amount: nextSubscriptionAmount,
-        shopName: String(currentShop.name || 'Estabelecimento').trim() || 'Estabelecimento',
-        shopId,
-      });
-      updates.asaas_platform_subscription_id = createdSubId;
-      if (customer.created || !currentShop.asaas_customer_id) {
-        updates.asaas_customer_id = customer.customerId;
-      }
-    }
-
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({
         success: false,
         error:
-          'Envie subscriptionActive, subscriptionAmount, splitPercent, splitPercentSandbox, asaasPlatformSubscriptionId, asaasRuntimeMode, asaasApiKeyProd, asaasApiKeySandbox e/ou asaasApiKey.',
+          'Envie subscriptionActive, subscriptionAmount, splitPercent, splitPercentSandbox, asaasPlatformSubscriptionId, mercadoPagoPreapprovalPlanId, asaasRuntimeMode, asaasApiKeyProd, asaasApiKeySandbox e/ou asaasApiKey.',
       });
     }
 

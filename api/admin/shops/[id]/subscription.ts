@@ -228,7 +228,7 @@ export default async function handler(
   },
   res: {
     setHeader: (k: string, v: string) => void;
-    status: (n: number) => { json: (o: object) => void; end: () => void; send: (b?: string) => void };
+    status: (n: number) => { json: (o: object) => void; end: () => void };
     end?: (code?: number) => void;
   }
 ) {
@@ -237,7 +237,7 @@ export default async function handler(
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
-      return res.status(200).send('');
+      return res.status(200).json({ ok: true });
     }
 
     if (req.method !== 'PATCH') {

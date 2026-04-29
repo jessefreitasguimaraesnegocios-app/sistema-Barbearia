@@ -21,6 +21,26 @@ async function adminAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+/** Evita SyntaxError quando a função retorna HTML (500) em vez de JSON. */
+async function parseAdminDeleteResponse(res: Response): Promise<{ success: boolean; error?: string }> {
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text) as { success?: boolean; error?: string };
+    return {
+      success: data.success === true,
+      error: typeof data.error === 'string' ? data.error : undefined,
+    };
+  } catch {
+    return {
+      success: false,
+      error:
+        res.status >= 500
+          ? 'Erro no servidor. Confira os logs na Vercel e as variáveis SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.'
+          : 'Resposta inválida do servidor.',
+    };
+  }
+}
+
 /** Evita SyntaxError quando o edge retorna HTML (500) em vez de JSON. */
 async function parseSubscriptionPatchResponse(
   res: Response
@@ -520,7 +540,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!window.confirm(`Excluir o estabelecimento "${shop.name}"? Esta ação não pode ser desfeita.`)) return;
     try {
       const response = await fetch(`/api/admin/shops/${shop.id}`, { method: 'DELETE', headers: await adminAuthHeaders() });
-      const data = await response.json();
+      const data = await parseAdminDeleteResponse(response);
       if (data.success) {
         clearFinancialDraft(shop.id);
         setShops(shops.filter(s => s.id !== shop.id));

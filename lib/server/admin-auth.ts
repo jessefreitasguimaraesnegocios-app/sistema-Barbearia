@@ -54,8 +54,31 @@ export async function assertAdminFromRequest(req: {
   }
 
   const supabase = createClient(supabaseUrl, serviceKey);
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
-  if ((profile as { role?: string } | null)?.role !== 'admin') {
+  let profile: { role?: string } | null = null;
+  try {
+    const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).single();
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false as const, status: 403, error: 'Apenas administradores.' };
+      }
+      console.error('[admin-auth] profile select', error);
+      return {
+        success: false as const,
+        status: 502,
+        error: 'Não foi possível verificar o perfil no banco. Tente de novo.',
+      };
+    }
+    profile = data as { role?: string } | null;
+  } catch (e) {
+    console.error('[admin-auth] profile select throw', e);
+    return {
+      success: false as const,
+      status: 502,
+      error: 'Não foi possível verificar o perfil no banco. Tente de novo.',
+    };
+  }
+
+  if (profile?.role !== 'admin') {
     return { success: false as const, status: 403, error: 'Apenas administradores.' };
   }
 

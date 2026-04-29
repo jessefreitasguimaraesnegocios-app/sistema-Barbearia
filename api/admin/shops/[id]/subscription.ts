@@ -82,6 +82,14 @@ function normalizeJsonBody(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+/** Aceita boolean ou strings comuns (proxies / clientes legados). */
+function readSubscriptionActiveFlag(raw: unknown): boolean | undefined {
+  if (typeof raw === 'boolean') return raw;
+  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return false;
+  return undefined;
+}
+
 function requestPathname(req: { url?: string }): string {
   const raw = req.url || '';
   if (raw.startsWith('http')) {
@@ -218,14 +226,18 @@ export default async function handler(
     body?: Record<string, unknown> | string;
     headers?: Record<string, string | string[] | undefined>;
   },
-  res: { setHeader: (k: string, v: string) => void; status: (n: number) => { json: (o: object) => void; end: () => void }; end?: (code?: number) => void }
+  res: {
+    setHeader: (k: string, v: string) => void;
+    status: (n: number) => { json: (o: object) => void; end: () => void; send: (b?: string) => void };
+    end?: (code?: number) => void;
+  }
 ) {
   try {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
-      return res.status(200).end();
+      return res.status(200).send('');
     }
 
     if (req.method !== 'PATCH') {
@@ -243,7 +255,19 @@ export default async function handler(
       return res.status(400).json({ success: false, error: 'ID da loja não encontrado na URL.' });
     }
 
-    const body = normalizeJsonBody(req.body) as {
+    let rawBody: unknown;
+    try {
+      rawBody = req.body;
+    } catch (e) {
+      console.error('[api/admin/shops/[id]/subscription] req.body parse', e);
+      return res.status(400).json({
+        success: false,
+        error: 'Corpo da requisição inválido (JSON malformado ou truncado).',
+        details: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    const body = normalizeJsonBody(rawBody) as {
       subscriptionActive?: boolean;
       subscriptionAmount?: unknown;
       splitPercent?: unknown;
@@ -268,10 +292,11 @@ export default async function handler(
     }
 
     const updates: Record<string, unknown> = {};
-    if (typeof body.subscriptionActive === 'boolean') {
-      updates.subscription_active = body.subscriptionActive;
-      updates.billing_status = body.subscriptionActive ? 'active' : 'blocked';
-      updates.billing_blocked_at = body.subscriptionActive ? null : new Date().toISOString();
+    const subscriptionActiveFlag = readSubscriptionActiveFlag(body.subscriptionActive);
+    if (subscriptionActiveFlag !== undefined) {
+      updates.subscription_active = subscriptionActiveFlag;
+      updates.billing_status = subscriptionActiveFlag ? 'active' : 'blocked';
+      updates.billing_blocked_at = subscriptionActiveFlag ? null : new Date().toISOString();
     }
 
     if (body.subscriptionAmount !== undefined) {
@@ -383,7 +408,14 @@ export default async function handler(
         /asaas_api_key_(prod|sandbox)/i.test(msg) && /schema cache|does not exist|PGRST204/i.test(msg)
           ? ' Confirme se a migration `shop_asaas_api_key_per_environment` foi aplicada (shops.asaas_api_key_prod/sandbox).'
           : '';
-      return res.status(400).json({ success: false, error: msg + hintSandbox + hintRuntime + hintApiKeys });
+      const hintMpPlan =
+        /mp_preapproval_plan_id/i.test(msg) && /schema cache|does not exist|PGRST204/i.test(msg)
+          ? ' Confirme se a coluna shops.mp_preapproval_plan_id existe (migration 20260429180000_shop_mp_preapproval_plan_id).'
+          : '';
+      return res.status(400).json({
+        success: false,
+        error: msg + hintSandbox + hintRuntime + hintApiKeys + hintMpPlan,
+      });
     }
     if (!shop) {
       return res.status(404).json({ success: false, error: 'Loja não encontrada.' });

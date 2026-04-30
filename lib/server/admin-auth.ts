@@ -10,12 +10,31 @@ export type AdminAuthResult =
 export async function assertAdminFromRequest(req: {
   headers?: Record<string, string | string[] | undefined>;
 }): Promise<AdminAuthResult> {
-  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = (
+    process.env.SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    ''
+  ).replace(/\/$/, '');
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
+  const anonKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !anonKey || !serviceKey) {
-    return { success: false as const, status: 500, error: 'Configuração do Supabase indisponível.' };
+    const missing = [
+      !supabaseUrl ? 'SUPABASE_URL' : null,
+      !anonKey ? 'SUPABASE_ANON_KEY' : null,
+      !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    return {
+      success: false as const,
+      status: 500,
+      error: `Configuração do Supabase indisponível. Variável(is) ausente(s): ${missing}.`,
+    };
   }
 
   const authRaw = req.headers?.authorization;

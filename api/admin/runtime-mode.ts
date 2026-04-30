@@ -1,13 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  describeMissingSupabaseServerEnv,
+  resolveSupabaseAnonKey,
+  resolveSupabaseProjectUrl,
+  resolveSupabaseServiceRoleKey,
+} from '../../lib/server/supabaseServerEnv';
 
 type RuntimeMode = 'production' | 'sandbox';
 
 function supabaseEnv() {
-  const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const SUPABASE_URL = rawUrl.replace(/\/$/, '');
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-  return { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY };
+  return {
+    SUPABASE_URL: resolveSupabaseProjectUrl(),
+    SUPABASE_SERVICE_ROLE_KEY: resolveSupabaseServiceRoleKey(),
+    SUPABASE_ANON_KEY: resolveSupabaseAnonKey(),
+  };
 }
 
 async function getAdminUserIdFromRequest(
@@ -16,7 +22,7 @@ async function getAdminUserIdFromRequest(
 ): Promise<{ userId: string } | { error: string; status: number }> {
   const { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } = env;
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
-    return { error: 'Configuração do Supabase indisponível.', status: 500 };
+    return { error: describeMissingSupabaseServerEnv(), status: 500 };
   }
   const authRaw = req.headers?.authorization;
   const authHeader = typeof authRaw === 'string' ? authRaw : Array.isArray(authRaw) ? authRaw[0] : '';
@@ -75,8 +81,7 @@ export default async function handler(
     if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
       return res.status(500).json({
         success: false,
-        error:
-          'Configuração do Supabase indisponível no servidor. Defina SUPABASE_URL (ou VITE_SUPABASE_URL) e SUPABASE_SERVICE_ROLE_KEY no .env / .env.local ou nas variáveis do Vercel.',
+        error: describeMissingSupabaseServerEnv(),
       });
     }
 

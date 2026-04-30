@@ -10,9 +10,11 @@ import {
   resolveSplitPercentForRuntime,
 } from '../../lib/payments/resolve-shop-split';
 import { validateOrderLineItemsStock } from '../../lib/validateOrderStock';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import {
+  describeMissingSupabaseServerEnv,
+  resolveSupabaseProjectUrl,
+  resolveSupabaseServiceRoleKey,
+} from '../../lib/server/supabaseServerEnv';
 type RuntimeMode = 'production' | 'sandbox';
 function resolveWalletByMode(mode: RuntimeMode, row: Record<string, unknown>): string {
   const modeWallet =
@@ -136,10 +138,12 @@ export default async function handler(
     return res.status(405).json({ success: false, error: 'Método não permitido. Use POST.' });
   }
 
+  const SUPABASE_URL = resolveSupabaseProjectUrl();
+  const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseServiceRoleKey();
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return res.status(500).json({
       success: false,
-      error: 'Configuração do Supabase indisponível (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY).',
+      error: describeMissingSupabaseServerEnv(),
     });
   }
 

@@ -7,10 +7,12 @@ import {
   parseShopAsaasRuntimeOverride,
   resolveEffectiveAsaasRuntimeMode,
 } from '../../lib/payments/resolve-shop-split';
-
-const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+import {
+  describeMissingSupabaseServerEnv,
+  resolveSupabaseAnonKey,
+  resolveSupabaseProjectUrl,
+  resolveSupabaseServiceRoleKey,
+} from '../../lib/server/supabaseServerEnv';
 type RuntimeMode = 'production' | 'sandbox';
 
 function platformAsaasRuntimeConfig(mode: RuntimeMode): { apiKey: string; apiUrl: string } {
@@ -44,8 +46,11 @@ function shopApiKeyByRuntime(
 }
 
 async function getPartnerShopId(token: string): Promise<{ shopId: string } | { error: string; status: number }> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return { error: 'Configuração indisponível.', status: 500 };
+  const SUPABASE_URL = resolveSupabaseProjectUrl();
+  const SUPABASE_ANON_KEY = resolveSupabaseAnonKey();
+  const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseServiceRoleKey();
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    return { error: describeMissingSupabaseServerEnv(), status: 500 };
   }
   const authRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY },
@@ -57,7 +62,7 @@ async function getPartnerShopId(token: string): Promise<{ shopId: string } | { e
   const userId = userData?.id;
   if (!userId) return { error: 'Token inválido.', status: 401 };
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY!);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('shop_id, role')
@@ -105,8 +110,10 @@ export default async function handler(
     return res.status(partner.status).json({ success: false, error: partner.error });
   }
 
+  const SUPABASE_URL = resolveSupabaseProjectUrl();
+  const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseServiceRoleKey();
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: 'Configuração do servidor indisponível.' });
+    return res.status(500).json({ success: false, error: describeMissingSupabaseServerEnv() });
   }
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: shop, error: shopError } = await supabase

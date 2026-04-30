@@ -2,10 +2,15 @@
 // Atualiza subscription_active, subscription_amount, split_percent (prod) e split_percent_sandbox da loja (service role)
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isAllowedMpPreapprovalPlanId } from '../../../../lib/platformMercadoPagoPlans';
 import { assertAdminFromRequest } from '../../../../lib/server/admin-auth';
 
 type AsaasRuntimeOverride = 'production' | 'sandbox';
+const MP_PREAPPROVAL_PLAN_IDS = ['6711928bd21d4f3fb587c38925eef5ab', '4e35683f6b69425c93785bf3db667517'] as const;
+
+function isAllowedMpPreapprovalPlanId(raw: unknown): raw is string {
+  if (typeof raw !== 'string') return false;
+  return (MP_PREAPPROVAL_PLAN_IDS as readonly string[]).includes(raw.trim());
+}
 
 function parseShopAsaasRuntimeOverride(raw: unknown): AsaasRuntimeOverride | null {
   if (raw == null || raw === '') return null;

@@ -2,11 +2,9 @@
 // Dono da loja (barbearia) cria usuário Auth para um profissional e vincula perfil + professionals.user_id.
 
 import { createClient } from '@supabase/supabase-js';
-import {
-  describeMissingSupabaseServerEnv,
-  resolveSupabaseProjectUrl,
-  resolveSupabaseServiceRoleKey,
-} from '../../../lib/server/supabaseServerEnv';
+
+const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -41,10 +39,8 @@ export default async function handler(
     return res.status(405).json({ success: false, error: 'Método não permitido. Use POST.' });
   }
 
-  const SUPABASE_URL = resolveSupabaseProjectUrl();
-  const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseServiceRoleKey();
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: describeMissingSupabaseServerEnv() });
+    return res.status(500).json({ success: false, error: 'Configuração do Supabase indisponível.' });
   }
 
   const authRaw = req.headers?.authorization;

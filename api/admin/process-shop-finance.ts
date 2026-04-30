@@ -2,12 +2,10 @@
 // Admin autenticado dispara a Edge Function process-shop-finance (provisionamento Asaas assíncrono).
 
 import { createClient } from '@supabase/supabase-js';
-import {
-  describeMissingSupabaseServerEnv,
-  resolveSupabaseAnonKey,
-  resolveSupabaseProjectUrl,
-  resolveSupabaseServiceRoleKey,
-} from '../../lib/server/supabaseServerEnv';
+
+const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 export default async function handler(
   req: {
@@ -32,11 +30,8 @@ export default async function handler(
     return res.status(405).json({ success: false, error: 'Método não permitido. Use POST.' });
   }
 
-  const SUPABASE_URL = resolveSupabaseProjectUrl();
-  const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseServiceRoleKey();
-  const SUPABASE_ANON_KEY = resolveSupabaseAnonKey();
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: describeMissingSupabaseServerEnv() });
+    return res.status(500).json({ success: false, error: 'Configuração do Supabase indisponível.' });
   }
 
   const authHeader = req.headers?.authorization;

@@ -1,11 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { resolveSplitPercentForRuntime, resolveShopSplitPercent } from '../../../lib/payments/resolve-shop-split';
-import {
-  describeMissingSupabaseServerEnv,
-  resolveSupabaseProjectUrl,
-  resolveSupabaseServiceRoleKey,
-} from '../../../lib/server/supabaseServerEnv';
 
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ASAAS_PROVISIONER_URL = process.env.ASAAS_PROVISIONER_URL;
 const ASAAS_PROVISIONER_TOKEN = process.env.ASAAS_PROVISIONER_TOKEN;
 const ASAAS_PROVISIONER_APP_ID = process.env.ASAAS_PROVISIONER_APP_ID;
@@ -50,10 +47,8 @@ export default async function handler(
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Método não permitido. Use POST.' });
 
-  const SUPABASE_URL = resolveSupabaseProjectUrl();
-  const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseServiceRoleKey();
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ success: false, error: describeMissingSupabaseServerEnv() });
+    return res.status(500).json({ success: false, error: 'Configuração do Supabase indisponível.' });
   }
   if (!ASAAS_PROVISIONER_URL || !ASAAS_PROVISIONER_APP_ID) {
     return res.status(500).json({

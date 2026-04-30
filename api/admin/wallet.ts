@@ -2,22 +2,16 @@
 // Usa ASAAS_API_KEY (conta principal) para saldo e transferências da sua parte (split, mensalidades).
 
 import { createClient } from '@supabase/supabase-js';
-import {
-  describeMissingSupabaseServerEnv,
-  resolveSupabaseAnonKey,
-  resolveSupabaseProjectUrl,
-  resolveSupabaseServiceRoleKey,
-} from '../../lib/server/supabaseServerEnv';
 
+const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 
 async function ensureAdmin(token: string): Promise<{ error: string; status: number } | null> {
-  const SUPABASE_URL = resolveSupabaseProjectUrl();
-  const SUPABASE_ANON_KEY = resolveSupabaseAnonKey();
-  const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseServiceRoleKey();
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
-    return { error: describeMissingSupabaseServerEnv(), status: 500 };
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return { error: 'Configuração indisponível.', status: 500 };
   }
   const authRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY },
@@ -29,7 +23,7 @@ async function ensureAdmin(token: string): Promise<{ error: string; status: numb
   const userId = userData?.id;
   if (!userId) return { error: 'Token inválido.', status: 401 };
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY!);
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')

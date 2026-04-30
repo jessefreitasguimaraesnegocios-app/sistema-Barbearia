@@ -58,7 +58,7 @@ async function parseAdminDeleteResponse(res: Response): Promise<{ success: boole
       success: false,
       error:
         res.status >= 500
-          ? 'Erro no servidor. Confira os logs na Vercel e as variáveis SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.'
+          ? 'Erro no servidor. Confira os logs na Vercel e as variáveis SUPABASE_URL e chave server-side do Supabase (SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SECRET_KEYS).'
           : 'Resposta inválida do servidor.',
     };
   }

@@ -4,29 +4,66 @@ export type AdminAuthResult =
   | { success: true; supabase: SupabaseClient; userId: string }
   | { success: false; status: number; error: string };
 
-/**
- * Valida JWT do usuário e perfil admin (mesmo padrão de subscription / process-shop-finance).
- */
-export async function assertAdminFromRequest(req: {
-  headers?: Record<string, string | string[] | undefined>;
-}): Promise<AdminAuthResult> {
+function parseFirstStringFromJsonMap(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const map = parsed as Record<string, unknown>;
+    const preferredKeys = ['service_role', 'serviceRole', 'anon', 'publishable', 'default'];
+    for (const key of preferredKeys) {
+      const value = map[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    for (const value of Object.values(map)) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function resolveSupabaseEnv() {
   const supabaseUrl = (
     process.env.SUPABASE_URL ||
     process.env.VITE_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     ''
   ).replace(/\/$/, '');
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
+
+  const secretKeyFromJson = parseFirstStringFromJsonMap(process.env.SUPABASE_SECRET_KEYS);
+  const publishableKeyFromJson = parseFirstStringFromJsonMap(process.env.SUPABASE_PUBLISHABLE_KEYS);
+
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    process.env.SUPABASE_SECRET_KEY ||
+    secretKeyFromJson;
+
   const anonKey =
     process.env.SUPABASE_ANON_KEY ||
     process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    publishableKeyFromJson;
+
+  return { supabaseUrl, serviceKey, anonKey };
+}
+
+/**
+ * Valida JWT do usuário e perfil admin (mesmo padrão de subscription / process-shop-finance).
+ */
+export async function assertAdminFromRequest(req: {
+  headers?: Record<string, string | string[] | undefined>;
+}): Promise<AdminAuthResult> {
+  const { supabaseUrl, serviceKey, anonKey } = resolveSupabaseEnv();
 
   if (!supabaseUrl || !anonKey || !serviceKey) {
     const missing = [
       !supabaseUrl ? 'SUPABASE_URL' : null,
-      !anonKey ? 'SUPABASE_ANON_KEY' : null,
-      !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
+      !anonKey ? 'SUPABASE_ANON_KEY/SUPABASE_PUBLISHABLE_KEYS' : null,
+      !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SECRET_KEYS' : null,
     ]
       .filter(Boolean)
       .join(', ');

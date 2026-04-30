@@ -12,6 +12,29 @@ import { MP_PREAPPROVAL_PLAN_OPTIONS } from '../lib/platformMercadoPagoPlans';
 
 type RuntimeMode = 'production' | 'sandbox';
 
+type AdminAlertType = 'success' | 'info' | 'warning' | 'error';
+
+function showAdminAlert(type: AdminAlertType, message: string, details?: string) {
+  const titleByType: Record<AdminAlertType, string> = {
+    success: 'Sucesso',
+    info: 'Informação',
+    warning: 'Atenção',
+    error: 'Erro',
+  };
+  const base = `Portal Admin - ${titleByType[type]}\n\n${message}`;
+  if (!details) {
+    alert(base);
+    return;
+  }
+  const trimmed = details.trim();
+  if (!trimmed) {
+    alert(base);
+    return;
+  }
+  const safeDetails = trimmed.slice(0, 500);
+  alert(`${base}\n\nDetalhes: ${safeDetails}${trimmed.length > 500 ? '...' : ''}`);
+}
+
 async function adminAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const {
@@ -294,11 +317,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         clearFinancialDraft(shop.id);
         void onRefreshAdminStats();
       } else {
-        alert(data.error || 'Erro ao salvar alterações financeiras.');
+        showAdminAlert('error', data.error || 'Não foi possível salvar as alterações financeiras deste parceiro.');
       }
     } catch (e) {
       console.error(e);
-      alert('Erro de conexão ao salvar alterações.');
+      showAdminAlert('error', 'Falha de conexão ao salvar alterações financeiras. Tente novamente.');
     } finally {
       setSavingFinancialShopId(null);
     }
@@ -311,7 +334,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        alert('Sessão expirada. Faça login novamente para cadastrar parceiros.');
+        showAdminAlert('warning', 'Sua sessão expirou. Faça login novamente para cadastrar parceiros.');
         setIsSubmitting(false);
         return;
       }
@@ -397,7 +420,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (!responseOk) {
         const msg = (data?.error as string) || (responseStatus === 401 ? 'Sessão expirada. Faça login novamente.' : 'Erro ao cadastrar barbearia.');
         const details = data?.details ? (typeof data.details === 'string' ? data.details : JSON.stringify(data.details)) : '';
-        alert(details ? `${msg}\n\nDetalhe: ${details.slice(0, 500)}${details.length > 500 ? '...' : ''}` : msg);
+        showAdminAlert('error', msg, details);
         return;
       }
       if (data?.success) {
@@ -418,21 +441,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           splitPercentSandbox: 95,
           mercadoPagoPreapprovalPlanId: MP_PREAPPROVAL_PLAN_OPTIONS[0].id,
         });
-        alert(
-          'Estabelecimento cadastrado. O dono já pode entrar com o e-mail e a senha informados. Dados bancários e contas de recebimento cadastre no teu sistema externo.'
+        showAdminAlert(
+          'success',
+          'Estabelecimento cadastrado com sucesso.',
+          'O responsável já pode entrar com o e-mail e a senha informados. Os dados bancários e contas de recebimento devem ser cadastrados no seu sistema externo.'
         );
       } else {
         const msg = data?.details || data?.error || 'Erro ao cadastrar barbearia.';
-        alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        showAdminAlert('error', typeof msg === 'string' ? msg : JSON.stringify(msg));
       }
     } catch (error) {
       console.error('Error creating shop:', error);
       if ((error instanceof DOMException || error instanceof Error) && error.name === 'AbortError') {
-        alert(
-          'O cadastro passou do tempo limite (servidor ou rede lentos). Tenta outra vez; se repetir, confirma no Supabase se a função create-shop está deployada e vê os logs.'
+        showAdminAlert(
+          'warning',
+          'O cadastro excedeu o tempo limite. Tente novamente.',
+          'Se o problema continuar, confirme no Supabase se a função create-shop está deployada e valide os logs da Vercel/Supabase.'
         );
       } else {
-        alert('Erro de conexão ao cadastrar barbearia.');
+        showAdminAlert('error', 'Falha de conexão ao cadastrar estabelecimento. Tente novamente.');
       }
     } finally {
       setIsSubmitting(false);
@@ -454,11 +481,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         clearFinancialDraft(shop.id);
         void onRefreshAdminStats();
       } else {
-        alert(data.error || 'Erro ao atualizar assinatura.');
+        showAdminAlert('error', data.error || 'Não foi possível atualizar a assinatura do parceiro.');
       }
     } catch (e) {
       console.error(e);
-      alert('Erro de conexão ao atualizar assinatura.');
+      showAdminAlert('error', 'Falha de conexão ao atualizar a assinatura. Tente novamente.');
     }
   };
 
@@ -486,7 +513,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         uf?: string;
       };
       if (data?.erro) {
-        alert('CEP não encontrado.');
+        showAdminAlert('info', 'CEP não encontrado. Confira o número informado.');
         return;
       }
       const streetPart = [data.logradouro, data.bairro].filter(Boolean).join(', ');
@@ -502,7 +529,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setFormData((prev) => ({ ...prev, address: withCep }));
       }
     } catch {
-      alert('Erro ao buscar CEP. Tente novamente.');
+      showAdminAlert('error', 'Não foi possível consultar o CEP agora. Tente novamente.');
     } finally {
       setLoadingCep(false);
     }
@@ -526,11 +553,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setShops((prev) => prev.map((s) => (s.id === shop.id ? (data.shop as Shop) : s)));
         setSelectedShopDetail((prev) => (prev?.id === shop.id ? (data.shop as Shop) : prev));
       } else {
-        alert(data.error || 'Não foi possível atualizar o ambiente Asaas deste parceiro.');
+        showAdminAlert('error', data.error || 'Não foi possível atualizar o ambiente de pagamento deste parceiro.');
       }
     } catch (e) {
       console.error(e);
-      alert('Erro de conexão ao atualizar o ambiente Asaas.');
+      showAdminAlert('error', 'Falha de conexão ao atualizar o ambiente de pagamento.');
     } finally {
       setSavingRuntimeShopId(null);
     }
@@ -547,11 +574,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setSelectedShopDetail((prev) => (prev?.id === shop.id ? null : prev));
         void onRefreshAdminStats();
       } else {
-        alert(data.error || 'Erro ao excluir estabelecimento.');
+        showAdminAlert('error', data.error || 'Não foi possível excluir o estabelecimento.');
       }
     } catch (e) {
       console.error(e);
-      alert('Erro de conexão ao excluir estabelecimento.');
+      showAdminAlert('error', 'Falha de conexão ao excluir o estabelecimento. Tente novamente.');
     }
   };
 
@@ -565,14 +592,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const data = (await response.json().catch(() => ({}))) as { success?: boolean; mode?: RuntimeMode; error?: string };
       if (!response.ok || !data.success) {
         if (response.status !== 401) {
-          alert(data.error || 'Não foi possível carregar o ambiente de pagamento.');
+          showAdminAlert('error', data.error || 'Não foi possível carregar o ambiente global de pagamento.');
         }
         return;
       }
       setRuntimeMode(data.mode === 'sandbox' ? 'sandbox' : 'production');
     } catch (e) {
       console.error(e);
-      alert('Erro de conexão ao carregar o ambiente de pagamento.');
+      showAdminAlert('error', 'Falha de conexão ao carregar o ambiente global de pagamento.');
     } finally {
       setRuntimeModeLoading(false);
     }
@@ -597,7 +624,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       });
       const data = (await response.json().catch(() => ({}))) as { success?: boolean; mode?: RuntimeMode; error?: string };
       if (!response.ok || !data.success) {
-        alert(data.error || 'Não foi possível trocar o ambiente de pagamento.');
+        showAdminAlert('error', data.error || 'Não foi possível trocar o ambiente global de pagamento.');
         return;
       }
       setRuntimeMode(data.mode === 'sandbox' ? 'sandbox' : 'production');
@@ -605,7 +632,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setRuntimeConfirmInput('');
     } catch (e) {
       console.error(e);
-      alert('Erro de conexão ao trocar o ambiente de pagamento.');
+      showAdminAlert('error', 'Falha de conexão ao trocar o ambiente global de pagamento.');
     } finally {
       setRuntimeModeLoading(false);
     }
@@ -1232,7 +1259,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
               <p className="text-gray-500 text-sm mt-1">
-                Cadastro enxuto: só o necessário para o estabelecimento e o acesso do dono. Dados bancários, PIX e contas de recebimento ficam no teu outro sistema.
+                Cadastro enxuto: só o necessário para o estabelecimento e o acesso do dono. Dados bancários, PIX e contas de recebimento ficam no seu outro sistema.
               </p>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-6 pt-4 sm:px-6 sm:pb-8 md:px-8 md:pb-10">

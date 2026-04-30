@@ -44,6 +44,49 @@ async function adminAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+/** Tenta extrair `"error":"..."` de um corpo que não passou no JSON.parse completo. */
+function extractQuotedJsonStringField(raw: string, field: string): string | null {
+  const re = new RegExp(`"${field}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`);
+  const m = raw.match(re);
+  return m?.[1] ? m[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : null;
+}
+
+function bodySnippetForAdmin(raw: string, max = 160): string {
+  const oneLine = raw.replace(/\s+/g, ' ').trim();
+  if (!oneLine) return '';
+  return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine;
+}
+
+/** Quando a Vercel/HTML devolve texto em vez de JSON, evita diagnóstico enganoso só de “env”. */
+function describeNonJsonAdminApiFailure(res: Response, bodyText: string): string {
+  const st = res.status;
+  const snippet = bodySnippetForAdmin(bodyText);
+  const extracted = extractQuotedJsonStringField(bodyText, 'error');
+  if (extracted) return extracted;
+
+  if (st === 404) {
+    return `Rota da API não encontrada (${st}). Confirme se o deploy da Vercel incluiu as funções em /api e faça um redeploy.`;
+  }
+  if (st === 401 || st === 403) {
+    return `Acesso negado (${st}). Faça login de novo ou confira se o usuário ainda é admin.`;
+  }
+  if (st === 429) {
+    return `Muitas requisições (${st}). Aguarde um instante e tente de novo.`;
+  }
+  if (st >= 500) {
+    const tail = snippet
+      ? ` Retorno não-JSON (trecho): ${snippet}`
+      : ' Retorno não-JSON do servidor.';
+    return `Erro na API (${st}).${tail} Abra os Runtime Logs dessa rota na Vercel. Se o log não mostrar nada, confira também SUPABASE_URL e chave server-side (SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_SECRET_KEYS) no ambiente Production.`;
+  }
+  if (st >= 400) {
+    const tail = snippet ? ` Trecho: ${snippet}` : '';
+    return `A API respondeu ${st} com conteúdo que não é JSON.${tail}`;
+  }
+  const tail = snippet ? ` Trecho: ${snippet}` : '';
+  return `Resposta inesperada da API (${st || 'sem status'}).${tail}`;
+}
+
 /** Evita SyntaxError quando a função retorna HTML (500) em vez de JSON. */
 async function parseAdminDeleteResponse(res: Response): Promise<{ success: boolean; error?: string }> {
   const text = await res.text();
@@ -56,10 +99,7 @@ async function parseAdminDeleteResponse(res: Response): Promise<{ success: boole
   } catch {
     return {
       success: false,
-      error:
-        res.status >= 500
-          ? 'Erro no servidor. Confira os logs na Vercel e as variáveis SUPABASE_URL e chave server-side do Supabase (SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SECRET_KEYS).'
-          : 'Resposta inválida do servidor.',
+      error: describeNonJsonAdminApiFailure(res, text),
     };
   }
 }
@@ -85,13 +125,10 @@ async function parseSubscriptionPatchResponse(
       error: details ? (baseErr ? `${baseErr} (${details})` : details) : baseErr,
     };
   } catch {
-    const error =
-      res.status === 502
-        ? 'Resposta inválida do serviço de autenticação.'
-        : res.status >= 500
-          ? 'Erro no servidor. Tente de novo em instantes.'
-          : 'Resposta inválida do servidor.';
-    return { success: false, error };
+    if (res.status === 502) {
+      return { success: false, error: 'Resposta inválida do serviço de autenticação.' };
+    }
+    return { success: false, error: describeNonJsonAdminApiFailure(res, text) };
   }
 }
 

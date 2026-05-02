@@ -635,6 +635,7 @@ export default function PartnerArea() {
           billingStatus={billingStatus}
           monthlyAmount={monthlyAmount}
           remainingTrialDays={remainingTrialDays}
+          isStaff={isStaff}
         />
       )}
       {currentView === 'shop-orders' && (

@@ -74,9 +74,10 @@ interface ShopWalletProps {
   billingStatus: BillingStatus;
   monthlyAmount: number;
   remainingTrialDays: number;
+  isStaff?: boolean;
 }
 
-const ShopWallet: React.FC<ShopWalletProps> = ({ shop, billingStatus, monthlyAmount, remainingTrialDays }) => {
+const ShopWallet: React.FC<ShopWalletProps> = ({ shop, billingStatus, monthlyAmount, remainingTrialDays, isStaff = false }) => {
   const [data, setData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +117,7 @@ const ShopWallet: React.FC<ShopWalletProps> = ({ shop, billingStatus, monthlyAmo
   const subscribePrimaryClass =
     'rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-700';
 
-  const BillingSection = (
+  const BillingSection = isStaff ? null : (
     <section className="rounded-3xl border border-indigo-100 bg-white p-4 shadow-sm md:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

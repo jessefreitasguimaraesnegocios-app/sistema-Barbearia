@@ -53,7 +53,7 @@ const Layout: React.FC<LayoutProps> = ({
   return (
     <div
       data-app-shell
-      className="flex min-h-screen flex-col bg-transparent text-(--app-text) transition-[color] duration-300 ease-out md:flex-row"
+      className="flex min-h-app flex-col bg-transparent text-(--app-text) transition-[color] duration-300 ease-out md:flex-row"
       style={
         user?.role === 'SHOP' || user?.role === 'STAFF' ? shopPrimaryStyleVars(partnerBrandPrimary) : undefined
       }
@@ -252,7 +252,7 @@ const Layout: React.FC<LayoutProps> = ({
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+      <main className="flex-1 overflow-y-auto pb-mobile-nav md:pb-0">
         <div className="mx-auto max-w-7xl p-4 md:p-8">{children}</div>
       </main>
 
@@ -317,7 +317,7 @@ const Layout: React.FC<LayoutProps> = ({
 
       {/* Mobile Bottom Navigation */}
       {showAppChrome && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-(--app-border) bg-(--app-sidebar-solid)/95 p-2 shadow-(--app-shadow-md) backdrop-blur-xl dark:bg-[color-mix(in_oklab,var(--app-sidebar-solid)_94%,transparent)] md:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-(--app-border) bg-(--app-sidebar-solid)/95 p-2 mobile-nav-safe shadow-(--app-shadow-md) backdrop-blur-xl dark:bg-[color-mix(in_oklab,var(--app-sidebar-solid)_94%,transparent)] md:hidden">
           {showClientNav ? (
             <>
               <button

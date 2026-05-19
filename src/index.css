@@ -59,10 +59,42 @@ html.dark {
   --logo-toggle-glow: rgba(129, 140, 248, 0.38);
 }
 
+/* iOS: notch/home indicator + altura dinâmica da barra do Safari */
+@layer utilities {
+  .min-h-app {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .safe-modal-padding {
+    padding-top: max(1rem, env(safe-area-inset-top, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  }
+
+  .pb-mobile-nav {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-nav-safe {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .bottom-above-mobile-nav {
+    bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .toast-above-mobile-nav {
+    bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @layer base {
   body {
     font-family: 'Inter', system-ui, sans-serif;
     min-height: 100vh;
+    min-height: 100dvh;
     background-color: var(--app-canvas);
     background-image: var(--app-canvas-gradient);
     background-attachment: fixed;

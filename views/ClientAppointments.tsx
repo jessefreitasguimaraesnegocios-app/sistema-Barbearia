@@ -6,13 +6,16 @@ import { supabase } from '../src/lib/supabase';
 function ShopAppointmentThumb({
   shop,
   dimmed,
+  size = 'md',
 }: {
   shop: Shop | undefined;
   dimmed: boolean;
+  size?: 'sm' | 'md';
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const url = shop?.profileImage?.trim();
-  const wrap = `w-20 h-20 rounded-2xl shrink-0 border border-gray-100 bg-gray-50 transition-all overflow-hidden ${
+  const isSmall = size === 'sm';
+  const wrap = `${isSmall ? 'w-12 h-12 rounded-xl' : 'w-20 h-20 rounded-2xl'} shrink-0 border border-gray-100 bg-gray-50 transition-all overflow-hidden ${
     dimmed ? 'scale-90 opacity-50' : ''
   }`;
 
@@ -28,7 +31,7 @@ function ShopAppointmentThumb({
   }
 
   return (
-    <div className={`${wrap} flex items-center justify-center text-indigo-600 text-2xl`}>
+    <div className={`${wrap} flex items-center justify-center text-indigo-600 ${isSmall ? 'text-lg' : 'text-2xl'}`}>
       <i
         className={
           shop?.type === 'BARBER'
@@ -38,51 +41,6 @@ function ShopAppointmentThumb({
               : 'fas fa-heart'
         }
       />
-    </div>
-  );
-}
-
-function AppointmentDetailGrid({
-  date,
-  time,
-  serviceName,
-  amount,
-  dimmed = false,
-}: {
-  date: string;
-  time: string;
-  serviceName: string;
-  amount: number;
-  dimmed?: boolean;
-}) {
-  return (
-    <div
-      className={`grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-50 transition-all ${dimmed ? 'opacity-30' : ''}`}
-    >
-      <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Data</p>
-        <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
-          <i className="far fa-calendar-alt"></i> {date}
-        </p>
-      </div>
-      <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Horário</p>
-        <p className="mt-1 flex items-center gap-2 text-sm font-black text-indigo-700">
-          <i className="far fa-clock"></i> {time}
-        </p>
-      </div>
-      <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Serviço</p>
-        <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
-          <i className="fas fa-scissors"></i> {serviceName}
-        </p>
-      </div>
-      <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Valor</p>
-        <p className="mt-1 flex items-center gap-2 text-sm font-bold text-gray-700">
-          <i className="fas fa-money-bill-wave"></i> R$ {amount.toFixed(2)}
-        </p>
-      </div>
     </div>
   );
 }
@@ -189,7 +147,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <header>
-        <h2 className="text-3xl font-display font-bold text-gray-900 dark:text-zinc-100">Meus Agendamentos</h2>
+        <h2 className="text-3xl font-display font-bold text-gray-900 dark:text-white">Meus Agendamentos</h2>
         <p className="text-gray-500 dark:text-zinc-400">Acompanhe seus horários e serviços marcados.</p>
         <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
           Atendimentos concluídos ficam visíveis só até o fim do dia do serviço (horário de Brasília).
@@ -197,7 +155,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
       </header>
 
       {userApts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {userApts.map(apt => {
             const shop = shops.find(s => s.id === apt.shopId);
             const service = shop?.services.find(s => s.id === apt.serviceId);
@@ -207,7 +165,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
             return (
               <div
                 key={apt.id}
-                className={`bg-white dark:bg-zinc-900 p-6 rounded-4xl border border-gray-100 dark:border-zinc-800 shadow-sm flex flex-col sm:flex-row md:flex-col gap-6 hover:shadow-lg transition-all relative overflow-hidden min-h-[220px] md:min-h-0 min-w-0 ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}
+                className={`bg-white p-6 rounded-4xl border border-gray-100 shadow-sm flex flex-col gap-4 hover:shadow-lg transition-shadow relative overflow-hidden min-w-0 ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}
               >
                 {apt.status === 'CANCELLED' && (
                   <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center animate-fade-in">
@@ -216,74 +174,62 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                     </div>
                   </div>
                 )}
-                <ShopAppointmentThumb shop={shop} dimmed={apt.status === 'CANCELLED'} />
-                <div className="flex-1 min-w-0 space-y-4 md:space-y-0 md:flex md:flex-col md:gap-4">
-                  <div className="min-w-0">
-                    <div className="flex justify-between items-start gap-3">
+
+                <div className="flex justify-between items-start gap-3">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <ShopAppointmentThumb shop={shop} dimmed={apt.status === 'CANCELLED'} size="sm" />
+                    <div className="min-w-0">
                       <h3
-                        className={`min-w-0 text-lg font-bold text-gray-900 dark:text-zinc-100 transition-all ${apt.status === 'CANCELLED' ? 'line-through decoration-red-500 decoration-2' : ''}`}
+                        className={`font-bold text-gray-900 dark:text-white truncate transition-all ${apt.status === 'CANCELLED' ? 'line-through decoration-red-500 decoration-2' : ''}`}
                       >
                         {shop?.name}
                       </h3>
-                      <span
-                        className={`shrink-0 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${statusBadgeClass(apt.status)}`}
+                      <p
+                        className={`text-xs transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}
                       >
-                        {statusLabel(apt.status)}
-                      </span>
-                    </div>
-                    <p
-                      className={`text-sm text-gray-500 dark:text-zinc-400 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}
-                    >
-                      {serviceName} com <span className="text-gray-900 dark:text-zinc-100 font-medium">{pro?.name}</span>
-                    </p>
-                  </div>
-
-                  {/* Mobile: detalhes sempre visíveis */}
-                  <div className="max-md:block md:hidden">
-                    <AppointmentDetailGrid
-                      date={apt.date}
-                      time={apt.time}
-                      serviceName={serviceName}
-                      amount={apt.amount}
-                      dimmed={apt.status === 'CANCELLED'}
-                    />
-                  </div>
-
-                  {/* Web/tablet: resumo compacto */}
-                  <div className="hidden md:flex justify-between items-center gap-4 pt-4 border-t border-gray-50 dark:border-zinc-800 min-w-0">
-                    <div className="min-w-0 space-y-1">
-                      <p className="text-xs text-gray-400 dark:text-zinc-500 font-bold uppercase">Data</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{apt.date}</p>
-                    </div>
-                    <div className="shrink-0 text-right space-y-1">
-                      <p className="text-xs text-gray-400 dark:text-zinc-500 font-bold uppercase">Valor</p>
-                      <p className="text-lg font-black text-indigo-600 dark:text-indigo-300">R$ {apt.amount.toFixed(2)}</p>
+                        <span className="text-gray-500 dark:text-cyan-400">{apt.time}</span>
+                        <span className="text-gray-400 dark:text-zinc-500"> · </span>
+                        <span className="text-gray-500 dark:text-white">{serviceName}</span>
+                        <span className="text-gray-400 dark:text-zinc-500"> com </span>
+                        <span className="text-gray-900 dark:text-white font-medium">{pro?.name}</span>
+                      </p>
                     </div>
                   </div>
+                  <span
+                    className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${statusBadgeClass(apt.status)}`}
+                  >
+                    {statusLabel(apt.status)}
+                  </span>
+                </div>
 
-                  {apt.status !== 'CANCELLED' && apt.status !== 'COMPLETED' && (
-                    <button
-                      type="button"
-                      onClick={() => setCancelConfirmAptId(apt.id)}
-                      className="md:hidden text-red-500 text-[10px] font-bold uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"
-                    >
-                      <i className="fas fa-times-circle"></i> Cancelar Agendamento
-                    </button>
-                  )}
+                <div className="flex justify-between items-center pt-4 border-t border-gray-50 dark:border-zinc-800">
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-400 dark:text-cyan-400 font-bold uppercase">Data</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{apt.date}</p>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-xs text-gray-400 dark:text-cyan-400 font-bold uppercase">Valor</p>
+                    <p className="text-lg font-black text-indigo-600 dark:text-white">R$ {apt.amount.toFixed(2)}</p>
+                  </div>
+                </div>
 
+                {apt.status !== 'CANCELLED' && apt.status !== 'COMPLETED' && (
                   <button
                     type="button"
-                    onClick={() => setSelectedApt(apt)}
-                    className="hidden md:flex w-full mt-2 bg-gray-50 hover:bg-indigo-50 text-indigo-600 dark:bg-zinc-800 dark:hover:bg-indigo-500/15 dark:text-indigo-300 py-3 rounded-xl text-sm font-bold transition-all items-center justify-center gap-2"
+                    onClick={() => setCancelConfirmAptId(apt.id)}
+                    className="md:hidden text-red-500 text-[10px] font-bold uppercase tracking-widest hover:text-red-700 transition-colors flex items-center justify-center gap-1"
                   >
-                    <i className="fas fa-eye"></i> Detalhes do Agendamento
+                    <i className="fas fa-times-circle"></i> Cancelar Agendamento
                   </button>
-                </div>
-                <div className="sm:flex sm:flex-col sm:justify-center md:hidden">
-                  <button type="button" className="text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition-all">
-                    <i className="fas fa-qrcode text-xl"></i>
-                  </button>
-                </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedApt(apt)}
+                  className="hidden md:flex w-full mt-2 bg-gray-50 hover:bg-indigo-50 text-indigo-600 py-3 rounded-xl text-sm font-bold transition-all items-center justify-center gap-2"
+                >
+                  <i className="fas fa-eye"></i> Detalhes do Agendamento
+                </button>
               </div>
             );
           })}
@@ -321,8 +267,8 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
       {selectedApt ? (
         <div className="fixed inset-0 z-110 hidden md:flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
           <div className="bg-white w-full max-w-md mx-auto my-auto rounded-[2.5rem] shadow-2xl overflow-hidden animate-modal-bounce-in shrink-0">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-900">Detalhes do Agendamento</h3>
+            <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Detalhes do Agendamento</h3>
               <button
                 type="button"
                 onClick={() => setSelectedApt(null)}
@@ -336,10 +282,10 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
               <div className="flex items-center gap-4">
                 <ShopAppointmentThumb shop={selectedAptShop} dimmed={selectedApt.status === 'CANCELLED'} />
                 <div className="min-w-0 flex-1">
-                  <h4 className="font-bold text-gray-900 truncate">{selectedAptShop?.name}</h4>
-                  <p className="text-sm text-gray-500">
+                  <h4 className="font-bold text-gray-900 dark:text-white truncate">{selectedAptShop?.name}</h4>
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">
                     {selectedAptServiceName} com{' '}
-                    <span className="text-gray-900 font-medium">{selectedAptPro?.name}</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{selectedAptPro?.name}</span>
                   </p>
                   <span
                     className={`inline-block mt-2 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${statusBadgeClass(selectedApt.status)}`}
@@ -349,32 +295,32 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-gray-100 space-y-3">
+              <div className="pt-6 border-t border-gray-100 dark:border-zinc-800 space-y-3">
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500">Data</span>
-                  <span className="font-medium text-gray-900 text-right">{selectedApt.date}</span>
+                  <span className="text-gray-500 dark:text-cyan-400">Data</span>
+                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedApt.date}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500">Horário</span>
-                  <span className="font-medium text-gray-900 text-right">{selectedApt.time}</span>
+                  <span className="text-gray-500 dark:text-cyan-400">Horário</span>
+                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedApt.time}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500">Serviço</span>
-                  <span className="font-medium text-gray-900 text-right">{selectedAptServiceName}</span>
+                  <span className="text-gray-500 dark:text-cyan-400">Serviço</span>
+                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedAptServiceName}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500">Profissional</span>
-                  <span className="font-medium text-gray-900 text-right">{selectedAptPro?.name ?? '—'}</span>
+                  <span className="text-gray-500 dark:text-cyan-400">Profissional</span>
+                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedAptPro?.name ?? '—'}</span>
                 </div>
-                <div className="flex justify-between text-xl pt-4 border-t border-gray-200">
-                  <span className="font-bold text-gray-900">Valor</span>
-                  <span className="font-black text-indigo-600">R$ {selectedApt.amount.toFixed(2)}</span>
+                <div className="flex justify-between text-xl pt-4 border-t border-gray-200 dark:border-zinc-700">
+                  <span className="font-bold text-gray-900 dark:text-cyan-400">Valor</span>
+                  <span className="font-black text-indigo-600 dark:text-white">R$ {selectedApt.amount.toFixed(2)}</span>
                 </div>
               </div>
 
-              <div className="bg-indigo-50 p-4 rounded-2xl flex items-center gap-3">
-                <i className="fas fa-info-circle text-indigo-600" aria-hidden />
-                <p className="text-[10px] text-indigo-600 font-bold uppercase leading-tight">
+              <div className="bg-indigo-50 dark:bg-cyan-500/10 p-4 rounded-2xl flex items-center gap-3">
+                <i className="fas fa-info-circle text-indigo-600 dark:text-cyan-400" aria-hidden />
+                <p className="text-[10px] text-indigo-600 dark:text-cyan-300 font-bold uppercase leading-tight">
                   Chegue com alguns minutos de antecedência. Em caso de cancelamento, 50% do valor será reembolsado.
                 </p>
               </div>

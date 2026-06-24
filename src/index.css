@@ -208,6 +208,13 @@ html.dark #root .border-indigo-200 {
 html.dark #root .text-indigo-600 {
   color: #a5b4fc;
 }
+html.dark #root .text-indigo-700,
+html.dark #root .text-indigo-900 {
+  color: #ffffff;
+}
+html.dark #root .text-indigo-400 {
+  color: #22d3ee;
+}
 html.dark #root .shadow-indigo-100 {
   --tw-shadow-color: rgba(99, 102, 241, 0.18);
 }

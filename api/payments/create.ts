@@ -9,6 +9,7 @@ import {
   resolveShopSplitPercent,
   resolveSplitPercentForRuntime,
 } from '../../lib/payments/resolve-shop-split';
+import { buildAsaasPlatformCredentials } from '../../lib/payments/asaas-platform-env';
 import { validateOrderLineItemsStock } from '../../lib/validateOrderStock';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -41,22 +42,6 @@ async function fetchPlatformAsaasMode(
     .eq('singleton_id', true)
     .maybeSingle();
   return asaasRuntimeModeFromPlatformRow(data);
-}
-
-function buildAsaasRuntimeConfig(mode: RuntimeMode): { mode: RuntimeMode; apiKey: string; apiUrl: string } {
-  const defaultApiUrl = 'https://api.asaas.com/v3';
-  if (mode === 'sandbox') {
-    return {
-      mode,
-      apiKey: process.env.ASAAS_API_KEY_SANDBOX || process.env.ASAAS_API_KEY || '',
-      apiUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
-    };
-  }
-  return {
-    mode,
-    apiKey: process.env.ASAAS_API_KEY || '',
-    apiUrl: (process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
-  };
 }
 
 function normalizeAsaasMobilePhone(rawPhone: unknown): string {
@@ -190,7 +175,7 @@ export default async function handler(
     }
     const shopOverride = shopRowEarly ? parseShopAsaasRuntimeOverride(shopRowEarly.asaas_runtime_mode) : null;
     const effectiveRuntimeMode = resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride);
-    const asaasRuntime = buildAsaasRuntimeConfig(effectiveRuntimeMode);
+    const asaasRuntime = buildAsaasPlatformCredentials(effectiveRuntimeMode);
     const runtimeMode = asaasRuntime.mode;
     const ASAAS_API_KEY = asaasRuntime.apiKey;
     const ASAAS_API_URL = asaasRuntime.apiUrl;

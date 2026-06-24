@@ -2,7 +2,23 @@
 
 Guia direto: **de onde tira** cada variável do **sistema-Barbearia** e **onde cola** sem vazar no Git.
 
+> **Mapa visual Asaas (conta mãe vs loja vs cliente, prod/sandbox):** [docs/MAPA_ASAAS_CONTAS.md](./docs/MAPA_ASAAS_CONTAS.md)
+
 > Regra de ouro: **nunca** commitar `.env` com valor real de produção. Se vazou, rotaciona na hora (Asaas + `service_role` são prioridade máxima).
+
+---
+
+## Resumo rápido — Asaas
+
+| Dado | Onde colocar | Nunca em |
+|------|--------------|----------|
+| Chave conta mãe **prod** / **sandbox** | Supabase Edge Secrets + Vercel `ASAAS_API_KEY*` | Postgres, Git, front |
+| Token webhook prod / sandbox | Secrets `ASAAS_WEBHOOK_TOKEN*` | Digest do dashboard |
+| Toggle prod/sandbox ativo | `platform_runtime_settings.asaas_mode` | Secrets |
+| Wallet/chave **subconta** da loja | `shops.asaas_wallet_id_*`, `shops.asaas_api_key_*` | `.env` público |
+| % split loja | `shops.split_percent` / `split_percent_sandbox` | Secrets |
+
+Detalhes: [docs/MAPA_ASAAS_CONTAS.md](./docs/MAPA_ASAAS_CONTAS.md).
 
 ---
 

@@ -3,6 +3,7 @@
 // URL base da API Asaas alinha a `platform_runtime_settings.asaas_mode` (igual a `api/payments/create.ts`).
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { buildAsaasPlatformCredentials } from '../../lib/payments/asaas-platform-env';
 import {
   asaasRuntimeModeFromPlatformRow,
   parseShopAsaasRuntimeOverride,
@@ -66,17 +67,8 @@ async function resolvePartnerWalletAsaasRuntime(
     console.warn('[api/partner/wallet] runtime mode read failed, using production Asaas URL', e);
   }
 
-  const defaultApiUrl = 'https://api.asaas.com/v3';
-  if (mode === 'sandbox') {
-    return {
-      mode,
-      apiBaseUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
-    };
-  }
-  return {
-    mode,
-    apiBaseUrl: (process.env.ASAAS_API_URL || defaultApiUrl).replace(/\/$/, ''),
-  };
+  const { apiUrl } = buildAsaasPlatformCredentials(mode);
+  return { mode, apiBaseUrl: apiUrl };
 }
 
 function shopApiKeyByRuntime(

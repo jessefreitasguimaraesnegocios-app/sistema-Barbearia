@@ -2,6 +2,7 @@
 // Retorna status da conta Asaas e links para envio de documentos (onboarding). Requer JWT do parceiro.
 
 import { createClient } from '@supabase/supabase-js';
+import { buildAsaasPlatformCredentials } from '../../lib/payments/asaas-platform-env';
 import {
   asaasRuntimeModeFromPlatformRow,
   parseShopAsaasRuntimeOverride,
@@ -12,21 +13,6 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 type RuntimeMode = 'production' | 'sandbox';
-
-function platformAsaasRuntimeConfig(mode: RuntimeMode): { apiKey: string; apiUrl: string } {
-  const defaultProd = 'https://api.asaas.com/v3';
-  const defaultSandbox = 'https://api-sandbox.asaas.com/v3';
-  if (mode === 'sandbox') {
-    return {
-      apiKey: (process.env.ASAAS_API_KEY_SANDBOX || process.env.ASAAS_API_KEY || '').trim(),
-      apiUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultSandbox).replace(/\/$/, ''),
-    };
-  }
-  return {
-    apiKey: (process.env.ASAAS_API_KEY || '').trim(),
-    apiUrl: (process.env.ASAAS_API_URL || defaultProd).replace(/\/$/, ''),
-  };
-}
 
 function shopApiKeyByRuntime(
   mode: RuntimeMode,
@@ -127,7 +113,7 @@ export default async function handler(
   const platformMode = asaasRuntimeModeFromPlatformRow(platformRuntime);
   const shopOverride = parseShopAsaasRuntimeOverride((shop as { asaas_runtime_mode?: unknown }).asaas_runtime_mode);
   const runtimeMode = resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride);
-  const platformRuntimeConfig = platformAsaasRuntimeConfig(runtimeMode);
+  const platformRuntimeConfig = buildAsaasPlatformCredentials(runtimeMode);
   if (!platformRuntimeConfig.apiKey) {
     return res.status(500).json({ success: false, error: 'Gateway de pagamento não configurado para o ambiente da loja.' });
   }

@@ -6,6 +6,7 @@ import {
   parseShopAsaasRuntimeOverride,
   resolveEffectiveAsaasRuntimeMode,
 } from '../../../../lib/payments/resolve-shop-split';
+import { buildAsaasPlatformCredentials } from '../../../../lib/payments/asaas-platform-env';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 type RuntimeMode = 'production' | 'sandbox';
@@ -89,21 +90,6 @@ function apiKeyColumnByMode(mode: RuntimeMode): 'asaas_api_key_prod' | 'asaas_ap
   return mode === 'sandbox' ? 'asaas_api_key_sandbox' : 'asaas_api_key_prod';
 }
 
-function asaasCredentialsForMode(mode: RuntimeMode): { apiKey: string; apiUrl: string } {
-  const defaultProd = 'https://api.asaas.com/v3';
-  const defaultSandbox = 'https://api-sandbox.asaas.com/v3';
-  if (mode === 'sandbox') {
-    return {
-      apiKey: (process.env.ASAAS_API_KEY_SANDBOX || process.env.ASAAS_API_KEY || '').trim(),
-      apiUrl: (process.env.ASAAS_API_URL_SANDBOX || process.env.ASAAS_API_URL || defaultSandbox).replace(/\/$/, ''),
-    };
-  }
-  return {
-    apiKey: (process.env.ASAAS_API_KEY || '').trim(),
-    apiUrl: (process.env.ASAAS_API_URL || defaultProd).replace(/\/$/, ''),
-  };
-}
-
 function getShopIdFromRequest(req: { url?: string; query?: { id?: string } }): string | null {
   const fromQuery = req.query?.id;
   if (fromQuery && typeof fromQuery === 'string' && fromQuery.trim()) return fromQuery.trim();
@@ -167,7 +153,7 @@ export default async function handler(
       (shop as { asaas_runtime_mode?: unknown }).asaas_runtime_mode
     );
     const runtimeMode = resolveEffectiveAsaasRuntimeMode(platformMode, shopOverride);
-    const { apiKey: ASAAS_API_KEY, apiUrl: ASAAS_API_URL } = asaasCredentialsForMode(runtimeMode);
+    const { apiKey: ASAAS_API_KEY, apiUrl: ASAAS_API_URL } = buildAsaasPlatformCredentials(runtimeMode);
 
     if (!ASAAS_API_KEY) {
       return res.status(500).json({

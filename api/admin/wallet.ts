@@ -1,13 +1,13 @@
 // Vercel Serverless: GET /api/admin/wallet (saldo conta principal) | POST /api/admin/wallet (saque da parte da plataforma)
-// Usa ASAAS_API_KEY (conta principal) para saldo e transferências da sua parte (split, mensalidades).
+// Usa chave da conta mãe conforme platform_runtime_settings.asaas_mode (prod/sandbox).
 
 import { createClient } from '@supabase/supabase-js';
+import { buildAsaasPlatformCredentials } from '../../lib/payments/asaas-platform-env';
+import { asaasRuntimeModeFromPlatformRow } from '../../lib/payments/resolve-shop-split';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/$/, '');
 
 async function ensureAdmin(token: string): Promise<{ error: string; status: number } | null> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -90,15 +90,28 @@ export default async function handler(
     return res.status(adminError.status).json({ success: false, error: adminError.error });
   }
 
-  if (!ASAAS_API_KEY || !ASAAS_API_KEY.trim()) {
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    return res.status(500).json({ success: false, error: 'SUPABASE_SERVICE_ROLE_KEY não configurada.' });
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { data: platformRow } = await supabase
+    .from('platform_runtime_settings')
+    .select('asaas_mode')
+    .eq('singleton_id', true)
+    .maybeSingle();
+  const runtimeMode = asaasRuntimeModeFromPlatformRow(platformRow);
+  const { apiKey: ASAAS_API_KEY, apiUrl: ASAAS_API_URL, mode: asaasMode } = buildAsaasPlatformCredentials(runtimeMode);
+
+  if (!ASAAS_API_KEY) {
     return res.status(500).json({
       success: false,
-      error: 'ASAAS_API_KEY não configurada. Configure a chave da conta principal no ambiente.',
+      error: `ASAAS_API_KEY não configurada para o ambiente ${asaasMode}. Configure a chave da conta principal.`,
     });
   }
 
   const baseUrl = ASAAS_API_URL.startsWith('http') ? ASAAS_API_URL : `https://${ASAAS_API_URL}`;
-  const apiHeaders: Record<string, string> = { access_token: ASAAS_API_KEY.trim() };
+  const apiHeaders: Record<string, string> = { access_token: ASAAS_API_KEY };
 
   if (req.method === 'GET') {
     try {
@@ -145,6 +158,7 @@ export default async function handler(
 
       return res.status(200).json({
         success: true,
+        asaasMode,
         balance,
         transactions,
       });

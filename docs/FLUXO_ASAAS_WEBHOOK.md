@@ -2,6 +2,8 @@
 
 Visão geral de como o sistema reage aos eventos do Asaas após as mudanças de mensalidade da plataforma e webhook.
 
+**Onde colocar chaves e contas (conta mãe vs loja, prod/sandbox):** [MAPA_ASAAS_CONTAS.md](./MAPA_ASAAS_CONTAS.md).
+
 ## Atores
 
 | Ator | Papel |

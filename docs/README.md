@@ -10,5 +10,6 @@
 | [SUPABASE_EGRESS_E_ALTERACOES.md](./SUPABASE_EGRESS_E_ALTERACOES.md) | Egress, alterações no cliente e rollback guiado |
 | [MELHORIAS_EGRESS_E_PERFORMANCE.md](./MELHORIAS_EGRESS_E_PERFORMANCE.md) | Parceiro, admin e catálogo — menos tráfego PostgREST/Realtime |
 | [EGRESS_24H_BASELINE_CHECK.md](./EGRESS_24H_BASELINE_CHECK.md) | Modelo de medição 24h (antes/depois) no painel Supabase |
+| [MAPA_ASAAS_CONTAS.md](./MAPA_ASAAS_CONTAS.md) | Onde colocar chaves Asaas, conta mãe vs loja, prod/sandbox |
 
-Chaves e variáveis: **[SECRETS_AND_KEYS.md](../SECRETS_AND_KEYS.md)** · provisionador de profissionais: **[ASAAS_PROVISIONER_ENV.md](../ASAAS_PROVISIONER_ENV.md)**.
+Chaves e variáveis: **[SECRETS_AND_KEYS.md](../SECRETS_AND_KEYS.md)** · mapa Asaas: **[MAPA_ASAAS_CONTAS.md](./MAPA_ASAAS_CONTAS.md)** · provisionador de profissionais: **[ASAAS_PROVISIONER_ENV.md](../ASAAS_PROVISIONER_ENV.md)**.

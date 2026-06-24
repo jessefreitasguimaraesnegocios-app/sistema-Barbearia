@@ -14,6 +14,7 @@ interface WalletData {
   success: boolean;
   balance: number;
   transactions: WalletTransaction[];
+  asaasMode?: 'production' | 'sandbox';
   error?: string;
 }
 
@@ -88,6 +89,7 @@ const AdminWallet: React.FC = () => {
         success: json.success,
         balance: json.balance ?? 0,
         transactions: json.transactions ?? [],
+        asaasMode: json.asaasMode,
         error: json.error,
       });
     } catch (e) {
@@ -205,7 +207,20 @@ const AdminWallet: React.FC = () => {
   return (
     <div className="space-y-8 animate-fade-in pb-20">
       <header>
-        <h2 className="text-3xl font-display font-bold text-gray-900">Saque (sua parte)</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-3xl font-display font-bold text-gray-900">Saque (sua parte)</h2>
+          {data?.asaasMode && (
+            <span
+              className={`text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
+                data.asaasMode === 'sandbox'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-emerald-100 text-emerald-800'
+              }`}
+            >
+              Asaas {data.asaasMode === 'sandbox' ? 'sandbox' : 'produção'}
+            </span>
+          )}
+        </div>
         <p className="text-gray-500 mt-1">
           Saldo da conta principal Asaas (sua parte do split e mensalidades). Solicite saque para sua chave PIX ou conta bancária.
         </p>

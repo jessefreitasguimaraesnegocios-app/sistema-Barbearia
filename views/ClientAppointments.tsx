@@ -42,6 +42,51 @@ function ShopAppointmentThumb({
   );
 }
 
+function AppointmentDetailGrid({
+  date,
+  time,
+  serviceName,
+  amount,
+  dimmed = false,
+}: {
+  date: string;
+  time: string;
+  serviceName: string;
+  amount: number;
+  dimmed?: boolean;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-50 transition-all ${dimmed ? 'opacity-30' : ''}`}
+    >
+      <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Data</p>
+        <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
+          <i className="far fa-calendar-alt"></i> {date}
+        </p>
+      </div>
+      <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Horário</p>
+        <p className="mt-1 flex items-center gap-2 text-sm font-black text-indigo-700">
+          <i className="far fa-clock"></i> {time}
+        </p>
+      </div>
+      <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Serviço</p>
+        <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
+          <i className="fas fa-scissors"></i> {serviceName}
+        </p>
+      </div>
+      <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Valor</p>
+        <p className="mt-1 flex items-center gap-2 text-sm font-bold text-gray-700">
+          <i className="fas fa-money-bill-wave"></i> R$ {amount.toFixed(2)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 interface ClientAppointmentsProps {
   appointments: Appointment[];
   shops: Shop[];
@@ -144,15 +189,15 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <header>
-        <h2 className="text-3xl font-display font-bold text-gray-900">Meus Agendamentos</h2>
-        <p className="text-gray-500">Acompanhe seus horários e serviços marcados.</p>
-        <p className="text-xs text-gray-400 mt-1">
+        <h2 className="text-3xl font-display font-bold text-gray-900 dark:text-zinc-100">Meus Agendamentos</h2>
+        <p className="text-gray-500 dark:text-zinc-400">Acompanhe seus horários e serviços marcados.</p>
+        <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
           Atendimentos concluídos ficam visíveis só até o fim do dia do serviço (horário de Brasília).
         </p>
       </header>
 
       {userApts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
           {userApts.map(apt => {
             const shop = shops.find(s => s.id === apt.shopId);
             const service = shop?.services.find(s => s.id === apt.serviceId);
@@ -162,7 +207,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
             return (
               <div
                 key={apt.id}
-                className={`bg-white p-6 md:p-6 rounded-4xl border border-gray-100 shadow-sm flex flex-col sm:flex-row md:flex-col gap-6 hover:shadow-lg transition-all relative overflow-hidden min-h-[220px] md:min-h-0 ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}
+                className={`bg-white dark:bg-zinc-900 p-6 rounded-4xl border border-gray-100 dark:border-zinc-800 shadow-sm flex flex-col sm:flex-row md:flex-col gap-6 hover:shadow-lg transition-all relative overflow-hidden min-h-[220px] md:min-h-0 min-w-0 ${apt.status === 'CANCELLED' ? 'opacity-75 grayscale-[0.5]' : ''}`}
               >
                 {apt.status === 'CANCELLED' && (
                   <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center animate-fade-in">
@@ -172,11 +217,11 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                   </div>
                 )}
                 <ShopAppointmentThumb shop={shop} dimmed={apt.status === 'CANCELLED'} />
-                <div className="flex-1 space-y-4 md:space-y-0 md:flex md:flex-col md:gap-4">
-                  <div>
+                <div className="flex-1 min-w-0 space-y-4 md:space-y-0 md:flex md:flex-col md:gap-4">
+                  <div className="min-w-0">
                     <div className="flex justify-between items-start gap-3">
                       <h3
-                        className={`text-lg font-bold text-gray-900 transition-all ${apt.status === 'CANCELLED' ? 'line-through decoration-red-500 decoration-2' : ''}`}
+                        className={`min-w-0 text-lg font-bold text-gray-900 dark:text-zinc-100 transition-all ${apt.status === 'CANCELLED' ? 'line-through decoration-red-500 decoration-2' : ''}`}
                       >
                         {shop?.name}
                       </h3>
@@ -187,51 +232,32 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                       </span>
                     </div>
                     <p
-                      className={`text-sm text-gray-500 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}
+                      className={`text-sm text-gray-500 dark:text-zinc-400 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}
                     >
-                      {serviceName} com <span className="text-gray-900 font-medium">{pro?.name}</span>
+                      {serviceName} com <span className="text-gray-900 dark:text-zinc-100 font-medium">{pro?.name}</span>
                     </p>
                   </div>
 
                   {/* Mobile: detalhes sempre visíveis */}
-                  <div
-                    className={`md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-50 transition-all ${apt.status === 'CANCELLED' ? 'opacity-30' : ''}`}
-                  >
-                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Data</p>
-                      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
-                        <i className="far fa-calendar-alt"></i> {apt.date}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Horário</p>
-                      <p className="mt-1 flex items-center gap-2 text-sm font-black text-indigo-700">
-                        <i className="far fa-clock"></i> {apt.time}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Serviço</p>
-                      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
-                        <i className="fas fa-scissors"></i> {serviceName}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Valor</p>
-                      <p className="mt-1 flex items-center gap-2 text-sm font-bold text-gray-700">
-                        <i className="fas fa-money-bill-wave"></i> R$ {apt.amount.toFixed(2)}
-                      </p>
-                    </div>
+                  <div className="max-md:block md:hidden">
+                    <AppointmentDetailGrid
+                      date={apt.date}
+                      time={apt.time}
+                      serviceName={serviceName}
+                      amount={apt.amount}
+                      dimmed={apt.status === 'CANCELLED'}
+                    />
                   </div>
 
                   {/* Web/tablet: resumo compacto */}
-                  <div className="hidden md:flex justify-between items-center pt-4 border-t border-gray-50">
-                    <div className="space-y-1">
-                      <p className="text-xs text-gray-400 font-bold uppercase">Data</p>
-                      <p className="text-sm font-medium text-gray-900">{apt.date}</p>
+                  <div className="hidden md:flex justify-between items-center gap-4 pt-4 border-t border-gray-50 dark:border-zinc-800 min-w-0">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs text-gray-400 dark:text-zinc-500 font-bold uppercase">Data</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{apt.date}</p>
                     </div>
-                    <div className="text-right space-y-1">
-                      <p className="text-xs text-gray-400 font-bold uppercase">Valor</p>
-                      <p className="text-lg font-black text-indigo-600">R$ {apt.amount.toFixed(2)}</p>
+                    <div className="shrink-0 text-right space-y-1">
+                      <p className="text-xs text-gray-400 dark:text-zinc-500 font-bold uppercase">Valor</p>
+                      <p className="text-lg font-black text-indigo-600 dark:text-indigo-300">R$ {apt.amount.toFixed(2)}</p>
                     </div>
                   </div>
 
@@ -248,7 +274,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                   <button
                     type="button"
                     onClick={() => setSelectedApt(apt)}
-                    className="hidden md:flex w-full mt-2 bg-gray-50 hover:bg-indigo-50 text-indigo-600 py-3 rounded-xl text-sm font-bold transition-all items-center justify-center gap-2"
+                    className="hidden md:flex w-full mt-2 bg-gray-50 hover:bg-indigo-50 text-indigo-600 dark:bg-zinc-800 dark:hover:bg-indigo-500/15 dark:text-indigo-300 py-3 rounded-xl text-sm font-bold transition-all items-center justify-center gap-2"
                   >
                     <i className="fas fa-eye"></i> Detalhes do Agendamento
                   </button>
@@ -293,7 +319,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
       ) : null}
 
       {selectedApt ? (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
+        <div className="fixed inset-0 z-110 hidden md:flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
           <div className="bg-white w-full max-w-md mx-auto my-auto rounded-[2.5rem] shadow-2xl overflow-hidden animate-modal-bounce-in shrink-0">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900">Detalhes do Agendamento</h3>
@@ -323,31 +349,34 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Data</p>
-                  <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
-                    <i className="far fa-calendar-alt"></i> {selectedApt.date}
-                  </p>
+              <div className="pt-6 border-t border-gray-100 space-y-3">
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-gray-500">Data</span>
+                  <span className="font-medium text-gray-900 text-right">{selectedApt.date}</span>
                 </div>
-                <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Horário</p>
-                  <p className="mt-1 flex items-center gap-2 text-sm font-black text-indigo-700">
-                    <i className="far fa-clock"></i> {selectedApt.time}
-                  </p>
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-gray-500">Horário</span>
+                  <span className="font-medium text-gray-900 text-right">{selectedApt.time}</span>
                 </div>
-                <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Serviço</p>
-                  <p className="mt-1 flex items-center gap-2 text-sm font-bold text-indigo-700">
-                    <i className="fas fa-scissors"></i> {selectedAptServiceName}
-                  </p>
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-gray-500">Serviço</span>
+                  <span className="font-medium text-gray-900 text-right">{selectedAptServiceName}</span>
                 </div>
-                <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Valor</p>
-                  <p className="mt-1 flex items-center gap-2 text-sm font-bold text-gray-700">
-                    <i className="fas fa-money-bill-wave"></i> R$ {selectedApt.amount.toFixed(2)}
-                  </p>
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-gray-500">Profissional</span>
+                  <span className="font-medium text-gray-900 text-right">{selectedAptPro?.name ?? '—'}</span>
                 </div>
+                <div className="flex justify-between text-xl pt-4 border-t border-gray-200">
+                  <span className="font-bold text-gray-900">Valor</span>
+                  <span className="font-black text-indigo-600">R$ {selectedApt.amount.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="bg-indigo-50 p-4 rounded-2xl flex items-center gap-3">
+                <i className="fas fa-info-circle text-indigo-600" aria-hidden />
+                <p className="text-[10px] text-indigo-600 font-bold uppercase leading-tight">
+                  Chegue com alguns minutos de antecedência. Em caso de cancelamento, 50% do valor será reembolsado.
+                </p>
               </div>
 
               {selectedApt.status !== 'CANCELLED' && selectedApt.status !== 'COMPLETED' && (

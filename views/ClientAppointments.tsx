@@ -31,7 +31,7 @@ function ShopAppointmentThumb({
   }
 
   return (
-    <div className={`${wrap} flex items-center justify-center text-indigo-600 ${isSmall ? 'text-lg' : 'text-2xl'}`}>
+    <div className={`${wrap} flex items-center justify-center text-indigo-600 dark:text-cyan-400 ${isSmall ? 'text-lg' : 'text-2xl'}`}>
       <i
         className={
           shop?.type === 'BARBER'
@@ -144,6 +144,12 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
   const statusLabel = (status: Appointment['status']) =>
     status === 'PAID' ? 'Pago' : status === 'PENDING' ? 'Aguardando pagamento' : status;
 
+  const detailLabelClass = 'text-xs text-gray-400 dark:text-cyan-400 font-bold uppercase';
+  const detailValueClass = 'text-sm font-medium text-gray-900 dark:text-white';
+  const detailTotalClass = 'text-lg font-black text-indigo-600 dark:text-white';
+  const detailRowLabelClass = 'text-gray-500 dark:text-cyan-400';
+  const detailRowValueClass = 'font-medium text-gray-900 dark:text-white text-right';
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <header>
@@ -185,12 +191,9 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                         {shop?.name}
                       </h3>
                       <p
-                        className={`text-xs transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}
+                        className={`text-xs text-gray-500 dark:text-zinc-400 transition-all ${apt.status === 'CANCELLED' ? 'opacity-50' : ''}`}
                       >
-                        <span className="text-gray-500 dark:text-cyan-400">{apt.time}</span>
-                        <span className="text-gray-400 dark:text-zinc-500"> · </span>
-                        <span className="text-gray-500 dark:text-white">{serviceName}</span>
-                        <span className="text-gray-400 dark:text-zinc-500"> com </span>
+                        {apt.time} · {serviceName} com{' '}
                         <span className="text-gray-900 dark:text-white font-medium">{pro?.name}</span>
                       </p>
                     </div>
@@ -204,12 +207,12 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
 
                 <div className="flex justify-between items-center pt-4 border-t border-gray-50 dark:border-zinc-800">
                   <div className="space-y-1">
-                    <p className="text-xs text-gray-400 dark:text-cyan-400 font-bold uppercase">Data</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{apt.date}</p>
+                    <p className={detailLabelClass}>Data</p>
+                    <p className={detailValueClass}>{apt.date}</p>
                   </div>
                   <div className="text-right space-y-1">
-                    <p className="text-xs text-gray-400 dark:text-cyan-400 font-bold uppercase">Valor</p>
-                    <p className="text-lg font-black text-indigo-600 dark:text-white">R$ {apt.amount.toFixed(2)}</p>
+                    <p className={detailLabelClass}>Valor</p>
+                    <p className={detailTotalClass}>R$ {apt.amount.toFixed(2)}</p>
                   </div>
                 </div>
 
@@ -226,7 +229,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedApt(apt)}
-                  className="hidden md:flex w-full mt-2 bg-gray-50 hover:bg-indigo-50 text-indigo-600 py-3 rounded-xl text-sm font-bold transition-all items-center justify-center gap-2"
+                  className="w-full mt-2 bg-gray-50 hover:bg-indigo-50 text-indigo-600 dark:bg-zinc-800 dark:hover:bg-cyan-500/10 dark:text-cyan-300 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
                 >
                   <i className="fas fa-eye"></i> Detalhes do Agendamento
                 </button>
@@ -265,7 +268,7 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
       ) : null}
 
       {selectedApt ? (
-        <div className="fixed inset-0 z-110 hidden md:flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-fade-in overflow-y-auto overscroll-contain">
           <div className="bg-white w-full max-w-md mx-auto my-auto rounded-[2.5rem] shadow-2xl overflow-hidden animate-modal-bounce-in shrink-0">
             <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">Detalhes do Agendamento</h3>
@@ -297,24 +300,24 @@ const ClientAppointments: React.FC<ClientAppointmentsProps> = ({
 
               <div className="pt-6 border-t border-gray-100 dark:border-zinc-800 space-y-3">
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500 dark:text-cyan-400">Data</span>
-                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedApt.date}</span>
+                  <span className={detailRowLabelClass}>Data</span>
+                  <span className={detailRowValueClass}>{selectedApt.date}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500 dark:text-cyan-400">Horário</span>
-                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedApt.time}</span>
+                  <span className={detailRowLabelClass}>Horário</span>
+                  <span className={detailRowValueClass}>{selectedApt.time}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500 dark:text-cyan-400">Serviço</span>
-                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedAptServiceName}</span>
+                  <span className={detailRowLabelClass}>Serviço</span>
+                  <span className={detailRowValueClass}>{selectedAptServiceName}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-gray-500 dark:text-cyan-400">Profissional</span>
-                  <span className="font-medium text-gray-900 dark:text-white text-right">{selectedAptPro?.name ?? '—'}</span>
+                  <span className={detailRowLabelClass}>Profissional</span>
+                  <span className={detailRowValueClass}>{selectedAptPro?.name ?? '—'}</span>
                 </div>
                 <div className="flex justify-between text-xl pt-4 border-t border-gray-200 dark:border-zinc-700">
-                  <span className="font-bold text-gray-900 dark:text-cyan-400">Valor</span>
-                  <span className="font-black text-indigo-600 dark:text-white">R$ {selectedApt.amount.toFixed(2)}</span>
+                  <span className={`font-bold ${detailRowLabelClass}`}>Valor</span>
+                  <span className={detailTotalClass}>R$ {selectedApt.amount.toFixed(2)}</span>
                 </div>
               </div>
 
